@@ -2,6 +2,7 @@ package com.babyshop.common.exception;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -52,6 +53,16 @@ public class GlobalExceptionHandler {
                 .body(new ErrorResponse(
                         message,
                         HttpStatus.BAD_REQUEST.value(),
+                        OffsetDateTime.now()
+                ));
+    }
+
+    @ExceptionHandler(AuthenticationException.class)
+    public ResponseEntity<ErrorResponse> handleAuthentication(AuthenticationException exception) {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(new ErrorResponse(
+                        exception.getMessage(),
+                        HttpStatus.UNAUTHORIZED.value(),
                         OffsetDateTime.now()
                 ));
     }
