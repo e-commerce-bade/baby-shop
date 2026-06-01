@@ -3,6 +3,7 @@ package com.babyshop.order;
 import com.babyshop.common.exception.GlobalExceptionHandler;
 import com.babyshop.common.exception.InvalidRequestException;
 import com.babyshop.common.exception.ResourceNotFoundException;
+import com.babyshop.order.dto.OrderAddressResponse;
 import com.babyshop.order.dto.OrderItemResponse;
 import com.babyshop.order.dto.OrderResponse;
 import com.babyshop.order.dto.OrderStatusUpdateRequest;
@@ -120,6 +121,14 @@ class OrderAdminControllerTest {
                 BigDecimal.ZERO,
                 new BigDecimal("998.00"),
                 "TRY",
+                new OrderAddressResponse(
+                        "Ataturk Cd. No:10",
+                        "Daire 5",
+                        "Kadikoy",
+                        "Istanbul",
+                        "34710",
+                        "Turkey"
+                ),
                 "Please ring the bell",
                 List.of(new OrderItemResponse(
                         10L,

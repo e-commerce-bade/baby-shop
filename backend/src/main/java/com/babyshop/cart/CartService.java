@@ -1,8 +1,12 @@
 package com.babyshop.cart;
 
+import com.babyshop.auth.UserAccount;
+import com.babyshop.auth.UserAccountRepository;
+import com.babyshop.cart.dto.CartItemResponse;
+import com.babyshop.cart.dto.CartResponse;
+import com.babyshop.cart.dto.CheckoutSummaryResponse;
 import com.babyshop.common.exception.InvalidRequestException;
 import com.babyshop.common.exception.ResourceNotFoundException;
-import com.babyshop.cart.dto.CheckoutSummaryResponse;
 import com.babyshop.product.Product;
 import com.babyshop.product.ProductImage;
 import com.babyshop.product.ProductVariant;
@@ -10,12 +14,11 @@ import com.babyshop.product.ProductVariantRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import com.babyshop.cart.dto.CartItemResponse;
-import com.babyshop.cart.dto.CartResponse;
 
 import java.math.BigDecimal;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -27,14 +30,23 @@ public class CartService {
     private final CartRepository cartRepository;
     private final CartItemRepository cartItemRepository;
     private final ProductVariantRepository productVariantRepository;
+    private final UserAccountRepository userAccountRepository;
 
     public CartResponse getCart(String sessionId) {
-        Cart cart = findOrCreateCart(sessionId);
+        return getCart(sessionId, null);
+    }
+
+    public CartResponse getCart(String sessionId, String authenticatedEmail) {
+        Cart cart = findOrCreateCart(sessionId, authenticatedEmail);
         return toResponse(cart);
     }
 
     public CheckoutSummaryResponse getCheckoutSummary(String sessionId) {
-        Cart cart = findCartBySessionId(sessionId);
+        return getCheckoutSummary(sessionId, null);
+    }
+
+    public CheckoutSummaryResponse getCheckoutSummary(String sessionId, String authenticatedEmail) {
+        Cart cart = findCartBySessionId(sessionId, authenticatedEmail);
         CartResponse cartResponse = toResponse(cart);
 
         if (cartResponse.items().isEmpty()) {
@@ -65,7 +77,12 @@ public class CartService {
 
     @Transactional
     public CartResponse addCartItem(String sessionId, Long productVariantId, int quantity) {
-        Cart cart = findOrCreateCart(sessionId);
+        return addCartItem(sessionId, productVariantId, quantity, null);
+    }
+
+    @Transactional
+    public CartResponse addCartItem(String sessionId, Long productVariantId, int quantity, String authenticatedEmail) {
+        Cart cart = findOrCreateCart(sessionId, authenticatedEmail);
         ProductVariant variant = findVariant(productVariantId);
         validateVariantAvailability(variant, quantity);
 
@@ -83,12 +100,17 @@ public class CartService {
         item.setQuantity(updatedQuantity);
         cartItemRepository.save(item);
 
-        return toResponse(findCartBySessionId(sessionId));
+        return toResponse(findCartBySessionId(sessionId, authenticatedEmail));
     }
 
     @Transactional
     public CartResponse updateCartItemQuantity(String sessionId, Long cartItemId, int quantity) {
-        Cart cart = findCartBySessionId(sessionId);
+        return updateCartItemQuantity(sessionId, cartItemId, quantity, null);
+    }
+
+    @Transactional
+    public CartResponse updateCartItemQuantity(String sessionId, Long cartItemId, int quantity, String authenticatedEmail) {
+        Cart cart = findCartBySessionId(sessionId, authenticatedEmail);
         CartItem item = cartItemRepository.findByCartIdAndId(cart.getId(), cartItemId)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Cart item not found for session id: " + sessionId + " and item id: " + cartItemId
@@ -98,12 +120,17 @@ public class CartService {
         item.setQuantity(quantity);
         cartItemRepository.save(item);
 
-        return toResponse(findCartBySessionId(sessionId));
+        return toResponse(findCartBySessionId(sessionId, authenticatedEmail));
     }
 
     @Transactional
     public CartResponse removeCartItem(String sessionId, Long cartItemId) {
-        Cart cart = findCartBySessionId(sessionId);
+        return removeCartItem(sessionId, cartItemId, null);
+    }
+
+    @Transactional
+    public CartResponse removeCartItem(String sessionId, Long cartItemId, String authenticatedEmail) {
+        Cart cart = findCartBySessionId(sessionId, authenticatedEmail);
         CartItem item = cartItemRepository.findByCartIdAndId(cart.getId(), cartItemId)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Cart item not found for session id: " + sessionId + " and item id: " + cartItemId
@@ -111,27 +138,63 @@ public class CartService {
 
         cart.getItems().remove(item);
         cartItemRepository.delete(item);
-        return toResponse(findCartBySessionId(sessionId));
+        return toResponse(findCartBySessionId(sessionId, authenticatedEmail));
     }
 
     @Transactional
     protected Cart findOrCreateCart(String sessionId) {
-        validateSessionId(sessionId);
+        return findOrCreateCart(sessionId, null);
+    }
 
-        return cartRepository.findBySessionId(sessionId)
-                .orElseGet(() -> {
-                    Cart cart = new Cart();
-                    cart.setSessionId(sessionId.trim());
-                    cart.setStatus(ACTIVE_STATUS);
-                    return cartRepository.save(cart);
-                });
+    @Transactional
+    protected Cart findOrCreateCart(String sessionId, String authenticatedEmail) {
+        String normalizedSessionId = normalizeRequiredSessionId(sessionId);
+
+        if (authenticatedEmail == null || authenticatedEmail.isBlank()) {
+            return cartRepository.findBySessionId(normalizedSessionId)
+                    .orElseGet(() -> createCart(normalizedSessionId, null));
+        }
+
+        UserAccount user = resolveAuthenticatedUser(authenticatedEmail);
+        Optional<Cart> sessionCartOptional = cartRepository.findBySessionId(normalizedSessionId);
+        Optional<Cart> userCartOptional = cartRepository.findByUserEmailIgnoreCaseAndStatus(user.getEmail(), ACTIVE_STATUS);
+
+        if (sessionCartOptional.isPresent()) {
+            Cart sessionCart = sessionCartOptional.get();
+            validateCartOwnership(sessionCart, user.getEmail(), normalizedSessionId);
+
+            if (userCartOptional.isPresent() && !userCartOptional.get().getId().equals(sessionCart.getId())) {
+                return mergeCarts(userCartOptional.get(), sessionCart, normalizedSessionId, user);
+            }
+
+            return assignCartToUserIfNeeded(sessionCart, user);
+        }
+
+        if (userCartOptional.isPresent()) {
+            Cart userCart = userCartOptional.get();
+            if (!normalizedSessionId.equals(userCart.getSessionId())) {
+                userCart.setSessionId(normalizedSessionId);
+                return cartRepository.save(userCart);
+            }
+            return userCart;
+        }
+
+        return createCart(normalizedSessionId, user);
     }
 
     private Cart findCartBySessionId(String sessionId) {
-        validateSessionId(sessionId);
+        return findCartBySessionId(sessionId, null);
+    }
 
-        return cartRepository.findBySessionId(sessionId.trim())
-                .orElseThrow(() -> new ResourceNotFoundException("Cart not found for session id: " + sessionId));
+    private Cart findCartBySessionId(String sessionId, String authenticatedEmail) {
+        String normalizedSessionId = normalizeRequiredSessionId(sessionId);
+
+        if (authenticatedEmail == null || authenticatedEmail.isBlank()) {
+            return cartRepository.findBySessionId(normalizedSessionId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Cart not found for session id: " + sessionId));
+        }
+
+        return findOrCreateCart(normalizedSessionId, authenticatedEmail);
     }
 
     private ProductVariant findVariant(Long productVariantId) {
@@ -157,10 +220,73 @@ public class CartService {
         }
     }
 
-    private void validateSessionId(String sessionId) {
+    private String normalizeRequiredSessionId(String sessionId) {
         if (sessionId == null || sessionId.trim().isEmpty()) {
             throw new InvalidRequestException("Cart session id is required");
         }
+        return sessionId.trim();
+    }
+
+    private UserAccount resolveAuthenticatedUser(String authenticatedEmail) {
+        return userAccountRepository.findByEmailIgnoreCase(authenticatedEmail.trim())
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Authenticated user not found for email: " + authenticatedEmail
+                ));
+    }
+
+    private void validateCartOwnership(Cart cart, String authenticatedEmail, String sessionId) {
+        if (cart.getUser() == null) {
+            return;
+        }
+
+        if (!cart.getUser().getEmail().equalsIgnoreCase(authenticatedEmail)) {
+            throw new InvalidRequestException(
+                    "Cart session id does not belong to authenticated user: " + sessionId
+            );
+        }
+    }
+
+    private Cart assignCartToUserIfNeeded(Cart cart, UserAccount user) {
+        if (cart.getUser() != null) {
+            return cart;
+        }
+
+        cart.setUser(user);
+        return cartRepository.save(cart);
+    }
+
+    private Cart createCart(String sessionId, UserAccount user) {
+        Cart cart = new Cart();
+        cart.setSessionId(sessionId);
+        cart.setStatus(ACTIVE_STATUS);
+        cart.setUser(user);
+        return cartRepository.save(cart);
+    }
+
+    private Cart mergeCarts(Cart targetCart, Cart sourceCart, String sessionId, UserAccount user) {
+        for (CartItem sourceItem : List.copyOf(sourceCart.getItems())) {
+            sourceCart.getItems().remove(sourceItem);
+            CartItem targetItem = targetCart.getItems().stream()
+                    .filter(item -> item.getProductVariant().getId().equals(sourceItem.getProductVariant().getId()))
+                    .findFirst()
+                    .orElse(null);
+
+            if (targetItem == null) {
+                sourceItem.setCart(targetCart);
+                targetCart.getItems().add(sourceItem);
+                continue;
+            }
+
+            int mergedQuantity = targetItem.getQuantity() + sourceItem.getQuantity();
+            validateStockLimit(sourceItem.getProductVariant(), mergedQuantity);
+            targetItem.setQuantity(mergedQuantity);
+        }
+
+        targetCart.setUser(user);
+        cartRepository.delete(sourceCart);
+        cartRepository.flush();
+        targetCart.setSessionId(sessionId);
+        return cartRepository.save(targetCart);
     }
 
     private CartResponse toResponse(Cart cart) {

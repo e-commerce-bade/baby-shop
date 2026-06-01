@@ -1,5 +1,7 @@
 package com.babyshop.cart;
 
+import com.babyshop.auth.UserAccount;
+import com.babyshop.auth.UserAccountRepository;
 import com.babyshop.common.exception.InvalidRequestException;
 import com.babyshop.common.exception.ResourceNotFoundException;
 import com.babyshop.product.Product;
@@ -32,6 +34,9 @@ class CartServiceTest {
 
     @Mock
     private ProductVariantRepository productVariantRepository;
+
+    @Mock
+    private UserAccountRepository userAccountRepository;
 
     @InjectMocks
     private CartService cartService;
@@ -182,6 +187,102 @@ class CartServiceTest {
                 .hasMessage("Cart is empty for session id: session-1");
     }
 
+    @Test
+    void shouldAssignGuestCartToAuthenticatedUser() {
+        Cart cart = buildCart();
+        UserAccount user = buildUser(10L, "customer@babyshop.local");
+        cart.setUser(null);
+
+        given(userAccountRepository.findByEmailIgnoreCase("customer@babyshop.local")).willReturn(Optional.of(user));
+        given(cartRepository.findBySessionId("session-1")).willReturn(Optional.of(cart));
+        given(cartRepository.findByUserEmailIgnoreCaseAndStatus("customer@babyshop.local", "ACTIVE"))
+                .willReturn(Optional.empty());
+        given(cartRepository.save(any(Cart.class))).willAnswer(invocation -> invocation.getArgument(0));
+
+        var response = cartService.getCart("session-1", "customer@babyshop.local");
+
+        assertThat(cart.getUser()).isEqualTo(user);
+        assertThat(response.sessionId()).isEqualTo("session-1");
+    }
+
+    @Test
+    void shouldReuseAuthenticatedUsersCartForNewSession() {
+        Cart userCart = buildCart();
+        userCart.setSessionId("old-session");
+        UserAccount user = buildUser(10L, "customer@babyshop.local");
+        userCart.setUser(user);
+
+        given(userAccountRepository.findByEmailIgnoreCase("customer@babyshop.local")).willReturn(Optional.of(user));
+        given(cartRepository.findBySessionId("session-1")).willReturn(Optional.empty());
+        given(cartRepository.findByUserEmailIgnoreCaseAndStatus("customer@babyshop.local", "ACTIVE"))
+                .willReturn(Optional.of(userCart));
+        given(cartRepository.save(any(Cart.class))).willAnswer(invocation -> invocation.getArgument(0));
+
+        var response = cartService.getCart("session-1", "customer@babyshop.local");
+
+        assertThat(userCart.getSessionId()).isEqualTo("session-1");
+        assertThat(response.sessionId()).isEqualTo("session-1");
+    }
+
+    @Test
+    void shouldMergeGuestCartIntoAuthenticatedUsersCart() {
+        Cart sessionCart = buildCart();
+        sessionCart.setId(2L);
+        sessionCart.setSessionId("session-1");
+
+        Cart userCart = buildCart();
+        userCart.setSessionId("older-session");
+        UserAccount user = buildUser(10L, "customer@babyshop.local");
+        userCart.setUser(user);
+
+        ProductVariant sessionVariant = buildVariant(10L, 12, true, true);
+        ProductVariant userVariant = buildVariant(11L, 12, true, true);
+
+        CartItem sessionItem = new CartItem();
+        sessionItem.setId(20L);
+        sessionItem.setCart(sessionCart);
+        sessionItem.setProductVariant(sessionVariant);
+        sessionItem.setQuantity(2);
+        sessionCart.getItems().add(sessionItem);
+
+        CartItem userItem = new CartItem();
+        userItem.setId(21L);
+        userItem.setCart(userCart);
+        userItem.setProductVariant(userVariant);
+        userItem.setQuantity(1);
+        userCart.getItems().add(userItem);
+
+        given(userAccountRepository.findByEmailIgnoreCase("customer@babyshop.local")).willReturn(Optional.of(user));
+        given(cartRepository.findBySessionId("session-1")).willReturn(Optional.of(sessionCart));
+        given(cartRepository.findByUserEmailIgnoreCaseAndStatus("customer@babyshop.local", "ACTIVE"))
+                .willReturn(Optional.of(userCart));
+        given(cartRepository.save(any(Cart.class))).willAnswer(invocation -> invocation.getArgument(0));
+
+        var response = cartService.getCart("session-1", "customer@babyshop.local");
+
+        verify(cartRepository).delete(sessionCart);
+        verify(cartRepository).flush();
+        assertThat(userCart.getItems()).hasSize(2);
+        assertThat(userCart.getSessionId()).isEqualTo("session-1");
+        assertThat(response.totalQuantity()).isEqualTo(3);
+    }
+
+    @Test
+    void shouldRejectAuthenticatedUserAccessToAnotherUsersCart() {
+        Cart cart = buildCart();
+        cart.setUser(buildUser(99L, "someone-else@babyshop.local"));
+        UserAccount user = buildUser(10L, "customer@babyshop.local");
+
+        given(userAccountRepository.findByEmailIgnoreCase("customer@babyshop.local")).willReturn(Optional.of(user));
+        given(cartRepository.findBySessionId("session-1")).willReturn(Optional.of(cart));
+        given(cartRepository.findByUserEmailIgnoreCaseAndStatus("customer@babyshop.local", "ACTIVE"))
+                .willReturn(Optional.empty());
+
+        assertThatThrownBy(() -> cartService.getCart("session-1", "customer@babyshop.local"))
+                .isInstanceOf(InvalidRequestException.class)
+                .hasMessage("Cart session id does not belong to authenticated user: session-1");
+    }
+
     private Cart buildCart() {
         Cart cart = new Cart();
         cart.setId(1L);
@@ -189,6 +290,15 @@ class CartServiceTest {
         cart.setStatus("ACTIVE");
         cart.setItems(new ArrayList<>());
         return cart;
+    }
+
+    private UserAccount buildUser(Long id, String email) {
+        UserAccount user = new UserAccount();
+        user.setId(id);
+        user.setEmail(email);
+        user.setPasswordHash("hash");
+        user.setActive(true);
+        return user;
     }
 
     private ProductVariant buildVariant(Long id, int stockQuantity, boolean active, boolean productActive) {

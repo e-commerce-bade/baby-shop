@@ -3,6 +3,7 @@ package com.babyshop.order;
 import com.babyshop.common.exception.GlobalExceptionHandler;
 import com.babyshop.common.exception.InvalidRequestException;
 import com.babyshop.order.dto.CreateOrderRequest;
+import com.babyshop.order.dto.OrderAddressRequest;
 import com.babyshop.order.dto.OrderItemResponse;
 import com.babyshop.order.dto.OrderResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -57,10 +58,11 @@ class OrderControllerTest {
                 "Ceren",
                 "Yilmaz",
                 "5551112233",
+                addressRequest(),
                 "Please ring the bell"
         );
 
-        given(orderService.createOrder(any(CreateOrderRequest.class))).willReturn(sampleOrderResponse());
+        given(orderService.createOrder(any(CreateOrderRequest.class), any())).willReturn(sampleOrderResponse());
 
         mockMvc.perform(post("/api/v1/orders")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -72,7 +74,7 @@ class OrderControllerTest {
 
     @Test
     void shouldReturnValidationErrorForInvalidRequest() throws Exception {
-        CreateOrderRequest request = new CreateOrderRequest("", "bad-email", null, null, null, null);
+        CreateOrderRequest request = new CreateOrderRequest("", "bad-email", null, null, null, null, null);
 
         mockMvc.perform(post("/api/v1/orders")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -89,10 +91,11 @@ class OrderControllerTest {
                 "Ceren",
                 "Yilmaz",
                 "5551112233",
+                addressRequest(),
                 null
         );
 
-        given(orderService.createOrder(any(CreateOrderRequest.class)))
+        given(orderService.createOrder(any(CreateOrderRequest.class), any()))
                 .willThrow(new InvalidRequestException("Cart is empty for session id: session-1"));
 
         mockMvc.perform(post("/api/v1/orders")
@@ -126,6 +129,14 @@ class OrderControllerTest {
                 BigDecimal.ZERO,
                 new BigDecimal("998.00"),
                 "TRY",
+                new com.babyshop.order.dto.OrderAddressResponse(
+                        "Ataturk Cd. No:10",
+                        "Daire 5",
+                        "Kadikoy",
+                        "Istanbul",
+                        "34710",
+                        "Turkey"
+                ),
                 "Please ring the bell",
                 List.of(new OrderItemResponse(
                         10L,
@@ -139,6 +150,17 @@ class OrderControllerTest {
                         new BigDecimal("998.00"),
                         "TRY"
                 ))
+        );
+    }
+
+    private OrderAddressRequest addressRequest() {
+        return new OrderAddressRequest(
+                "Ataturk Cd. No:10",
+                "Daire 5",
+                "Kadikoy",
+                "Istanbul",
+                "34710",
+                "Turkey"
         );
     }
 

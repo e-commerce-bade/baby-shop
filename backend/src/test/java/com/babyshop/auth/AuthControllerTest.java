@@ -74,6 +74,38 @@ class AuthControllerTest {
                 .andExpect(jsonPath("$.message").value("Invalid email or password"));
     }
 
+    @Test
+    void shouldRegisterCustomerAndReturnJwtToken() throws Exception {
+        String requestBody = objectMapper.writeValueAsString(
+                new RegisterPayload("customer@babyshop.local", "change-me-123", "Ceren", "Unlu", "5551112233")
+        );
+        given(authService.register(new com.babyshop.auth.dto.AuthRegisterRequest(
+                "customer@babyshop.local",
+                "change-me-123",
+                "Ceren",
+                "Unlu",
+                "5551112233"
+        ))).willReturn(new com.babyshop.auth.dto.AuthTokenResponse(
+                "jwt-token",
+                "Bearer",
+                7200,
+                Instant.parse("2026-06-01T12:00:00Z"),
+                "customer@babyshop.local",
+                "CUSTOMER"
+        ));
+
+        mockMvc.perform(post("/api/v1/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.accessToken").value("jwt-token"))
+                .andExpect(jsonPath("$.email").value("customer@babyshop.local"))
+                .andExpect(jsonPath("$.role").value("CUSTOMER"));
+    }
+
     private record LoginPayload(String email, String password) {
+    }
+
+    private record RegisterPayload(String email, String password, String firstName, String lastName, String phoneNumber) {
     }
 }

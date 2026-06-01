@@ -16,6 +16,7 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
@@ -24,6 +25,7 @@ import java.util.List;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.BDDMockito.given;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -47,7 +49,7 @@ class CartControllerTest {
 
     @Test
     void shouldReturnCart() throws Exception {
-        given(cartService.getCart("session-1")).willReturn(sampleCartResponse(2, new BigDecimal("998.00")));
+        given(cartService.getCart("session-1", null)).willReturn(sampleCartResponse(2, new BigDecimal("998.00")));
 
         mockMvc.perform(get("/api/v1/carts/session-1"))
                 .andExpect(status().isOk())
@@ -57,7 +59,7 @@ class CartControllerTest {
 
     @Test
     void shouldReturnCheckoutSummary() throws Exception {
-        given(cartService.getCheckoutSummary("session-1")).willReturn(sampleCheckoutSummaryResponse(2, new BigDecimal("998.00")));
+        given(cartService.getCheckoutSummary("session-1", null)).willReturn(sampleCheckoutSummaryResponse(2, new BigDecimal("998.00")));
 
         mockMvc.perform(get("/api/v1/carts/session-1/checkout"))
                 .andExpect(status().isOk())
@@ -68,7 +70,7 @@ class CartControllerTest {
     @Test
     void shouldAddCartItem() throws Exception {
         CartItemRequest request = new CartItemRequest(10L, 2);
-        given(cartService.addCartItem("session-1", 10L, 2)).willReturn(sampleCartResponse(2, new BigDecimal("998.00")));
+        given(cartService.addCartItem("session-1", 10L, 2, null)).willReturn(sampleCartResponse(2, new BigDecimal("998.00")));
 
         mockMvc.perform(post("/api/v1/carts/session-1/items")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -80,7 +82,7 @@ class CartControllerTest {
     @Test
     void shouldUpdateCartItemQuantity() throws Exception {
         CartItemQuantityUpdateRequest request = new CartItemQuantityUpdateRequest(1);
-        given(cartService.updateCartItemQuantity("session-1", 5L, 1)).willReturn(sampleCartResponse(1, new BigDecimal("499.00")));
+        given(cartService.updateCartItemQuantity("session-1", 5L, 1, null)).willReturn(sampleCartResponse(1, new BigDecimal("499.00")));
 
         mockMvc.perform(patch("/api/v1/carts/session-1/items/5")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -91,11 +93,22 @@ class CartControllerTest {
 
     @Test
     void shouldRemoveCartItem() throws Exception {
-        given(cartService.removeCartItem("session-1", 5L)).willReturn(new CartResponse(1L, "session-1", "ACTIVE", List.of(), 0, BigDecimal.ZERO, "TRY"));
+        given(cartService.removeCartItem("session-1", 5L, null)).willReturn(new CartResponse(1L, "session-1", "ACTIVE", List.of(), 0, BigDecimal.ZERO, "TRY"));
 
         mockMvc.perform(delete("/api/v1/carts/session-1/items/5"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalQuantity").value(0));
+    }
+
+    @Test
+    void shouldForwardAuthenticatedUserToCartService() throws Exception {
+        given(cartService.getCart("session-1", "customer@babyshop.local"))
+                .willReturn(sampleCartResponse(2, new BigDecimal("998.00")));
+
+        mockMvc.perform(get("/api/v1/carts/session-1")
+                        .principal(new TestingAuthenticationToken("customer@babyshop.local", null)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.sessionId").value("session-1"));
     }
 
     @Test
@@ -111,7 +124,7 @@ class CartControllerTest {
 
     @Test
     void shouldReturnBadRequestWhenStockExceeded() throws Exception {
-        given(cartService.addCartItem(anyString(), anyLong(), anyInt()))
+        given(cartService.addCartItem(anyString(), anyLong(), anyInt(), isNull()))
                 .willThrow(new InvalidRequestException("Requested quantity exceeds available stock for variant id: 10"));
 
         CartItemRequest request = new CartItemRequest(10L, 999);
@@ -125,7 +138,7 @@ class CartControllerTest {
 
     @Test
     void shouldReturnBadRequestForEmptyCheckoutSummary() throws Exception {
-        given(cartService.getCheckoutSummary("session-1"))
+        given(cartService.getCheckoutSummary("session-1", null))
                 .willThrow(new InvalidRequestException("Cart is empty for session id: session-1"));
 
         mockMvc.perform(get("/api/v1/carts/session-1/checkout"))

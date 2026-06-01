@@ -2,10 +2,13 @@ package com.babyshop.order;
 
 import com.babyshop.cart.Cart;
 import com.babyshop.cart.CartItem;
+import com.babyshop.auth.UserAccount;
+import com.babyshop.auth.UserAccountRepository;
 import com.babyshop.cart.CartRepository;
 import com.babyshop.common.exception.InvalidRequestException;
 import com.babyshop.common.exception.ResourceNotFoundException;
 import com.babyshop.order.dto.CreateOrderRequest;
+import com.babyshop.order.dto.OrderAddressRequest;
 import com.babyshop.order.dto.OrderStatusUpdateRequest;
 import com.babyshop.product.Product;
 import com.babyshop.product.ProductVariant;
@@ -39,6 +42,9 @@ class OrderServiceTest {
 
     @Mock
     private ProductVariantRepository productVariantRepository;
+
+    @Mock
+    private UserAccountRepository userAccountRepository;
 
     @InjectMocks
     private OrderService orderService;
@@ -81,6 +87,7 @@ class OrderServiceTest {
                 "Ceren",
                 "Yilmaz",
                 "5551112233",
+                addressRequest(),
                 "Leave at the door"
         );
 
@@ -96,7 +103,7 @@ class OrderServiceTest {
             return order;
         });
 
-        var response = orderService.createOrder(request);
+        var response = orderService.createOrder(request, null);
 
         assertThat(response.status()).isEqualTo("PENDING_PAYMENT");
         assertThat(response.totalAmount()).isEqualByComparingTo("998.00");
@@ -108,10 +115,10 @@ class OrderServiceTest {
     @Test
     void shouldRejectEmptyCart() {
         Cart cart = buildCart("ACTIVE");
-        CreateOrderRequest request = new CreateOrderRequest("session-1", "customer@example.com", null, null, null, null);
+        CreateOrderRequest request = new CreateOrderRequest("session-1", "customer@example.com", null, null, null, addressRequest(), null);
         given(cartRepository.findBySessionId("session-1")).willReturn(Optional.of(cart));
 
-        assertThatThrownBy(() -> orderService.createOrder(request))
+        assertThatThrownBy(() -> orderService.createOrder(request, null))
                 .isInstanceOf(InvalidRequestException.class)
                 .hasMessage("Cart is empty for session id: session-1");
     }
@@ -122,10 +129,10 @@ class OrderServiceTest {
         ProductVariant variant = buildVariant(10L, 5, true, true, "TRY");
         cart.getItems().add(buildCartItem(cart, variant, 1));
 
-        CreateOrderRequest request = new CreateOrderRequest("session-1", "customer@example.com", null, null, null, null);
+        CreateOrderRequest request = new CreateOrderRequest("session-1", "customer@example.com", null, null, null, addressRequest(), null);
         given(cartRepository.findBySessionId("session-1")).willReturn(Optional.of(cart));
 
-        assertThatThrownBy(() -> orderService.createOrder(request))
+        assertThatThrownBy(() -> orderService.createOrder(request, null))
                 .isInstanceOf(InvalidRequestException.class)
                 .hasMessage("Cart is not active for checkout. Current status: CHECKED_OUT");
     }
@@ -136,12 +143,46 @@ class OrderServiceTest {
         cart.getItems().add(buildCartItem(cart, buildVariant(10L, 5, true, true, "TRY"), 1));
         cart.getItems().add(buildCartItem(cart, buildVariant(11L, 5, true, true, "USD"), 1));
 
-        CreateOrderRequest request = new CreateOrderRequest("session-1", "customer@example.com", null, null, null, null);
+        CreateOrderRequest request = new CreateOrderRequest("session-1", "customer@example.com", null, null, null, addressRequest(), null);
         given(cartRepository.findBySessionId("session-1")).willReturn(Optional.of(cart));
 
-        assertThatThrownBy(() -> orderService.createOrder(request))
+        assertThatThrownBy(() -> orderService.createOrder(request, null))
                 .isInstanceOf(InvalidRequestException.class)
                 .hasMessage("Cart contains items with different currencies");
+    }
+
+    @Test
+    void shouldAttachAuthenticatedUserToOrder() {
+        Cart cart = buildCart("ACTIVE");
+        ProductVariant variant = buildVariant(10L, 5, true, true, "TRY");
+        CartItem item = buildCartItem(cart, variant, 1);
+        cart.getItems().add(item);
+        UserAccount user = new UserAccount();
+        user.setId(5L);
+        user.setEmail("customer@babyshop.local");
+
+        CreateOrderRequest request = new CreateOrderRequest(
+                "session-1",
+                "customer@example.com",
+                "Ceren",
+                "Yilmaz",
+                "5551112233",
+                addressRequest(),
+                null
+        );
+
+        given(cartRepository.findBySessionId("session-1")).willReturn(Optional.of(cart));
+        given(userAccountRepository.findByEmailIgnoreCase("customer@babyshop.local")).willReturn(Optional.of(user));
+        given(productVariantRepository.saveAll(anyList())).willAnswer(invocation -> invocation.getArgument(0));
+        given(orderRepository.save(any(Order.class))).willAnswer(invocation -> {
+            Order order = invocation.getArgument(0);
+            order.setId(1L);
+            return order;
+        });
+
+        orderService.createOrder(request, "customer@babyshop.local");
+
+        verify(orderRepository).save(any(Order.class));
     }
 
     @Test
@@ -231,9 +272,26 @@ class OrderServiceTest {
         order.setDiscountAmount(BigDecimal.ZERO);
         order.setTotalAmount(new BigDecimal("998.00"));
         order.setCurrency("TRY");
+        order.setShippingAddressLine1("Ataturk Cd. No:10");
+        order.setShippingAddressLine2("Daire 5");
+        order.setShippingDistrict("Kadikoy");
+        order.setShippingCity("Istanbul");
+        order.setShippingPostalCode("34710");
+        order.setShippingCountry("Turkey");
         order.setNotes("Leave at the door");
         order.setItems(new ArrayList<>());
         return order;
+    }
+
+    private OrderAddressRequest addressRequest() {
+        return new OrderAddressRequest(
+                "Ataturk Cd. No:10",
+                "Daire 5",
+                "Kadikoy",
+                "Istanbul",
+                "34710",
+                "Turkey"
+        );
     }
 
     private OrderItem buildOrderItem(Order order, Long id, int quantity) {

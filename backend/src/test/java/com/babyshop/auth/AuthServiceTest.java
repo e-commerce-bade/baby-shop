@@ -1,6 +1,8 @@
 package com.babyshop.auth;
 
 import com.babyshop.auth.dto.AuthLoginRequest;
+import com.babyshop.auth.dto.AuthRegisterRequest;
+import com.babyshop.common.exception.DuplicateResourceException;
 import com.babyshop.common.exception.InvalidRequestException;
 import com.babyshop.common.security.SecurityProperties;
 import org.junit.jupiter.api.Test;
@@ -34,6 +36,9 @@ class AuthServiceTest {
     private PasswordEncoder passwordEncoder;
 
     @Mock
+    private RoleRepository roleRepository;
+
+    @Mock
     private JwtEncoder jwtEncoder;
 
     @InjectMocks
@@ -43,7 +48,7 @@ class AuthServiceTest {
     void shouldLoginWithDatabaseUser() {
         UserAccount user = buildUser(true, "{bcrypt}hash", Set.of(buildRole("ADMIN")));
         SecurityProperties properties = securityProperties();
-        authService = new AuthService(userAccountRepository, passwordEncoder, jwtEncoder, properties);
+        authService = new AuthService(userAccountRepository, roleRepository, passwordEncoder, jwtEncoder, properties);
 
         Jwt jwt = Jwt.withTokenValue("token")
                 .header("alg", "HS256")
@@ -66,7 +71,7 @@ class AuthServiceTest {
     @Test
     void shouldRejectInactiveUser() {
         UserAccount user = buildUser(false, "{bcrypt}hash", Set.of(buildRole("ADMIN")));
-        authService = new AuthService(userAccountRepository, passwordEncoder, jwtEncoder, securityProperties());
+        authService = new AuthService(userAccountRepository, roleRepository, passwordEncoder, jwtEncoder, securityProperties());
 
         given(userAccountRepository.findByEmailIgnoreCase("admin@babyshop.local")).willReturn(Optional.of(user));
 
@@ -78,7 +83,7 @@ class AuthServiceTest {
     @Test
     void shouldRejectUserWithoutRoles() {
         UserAccount user = buildUser(true, "{bcrypt}hash", new HashSet<>());
-        authService = new AuthService(userAccountRepository, passwordEncoder, jwtEncoder, securityProperties());
+        authService = new AuthService(userAccountRepository, roleRepository, passwordEncoder, jwtEncoder, securityProperties());
 
         given(userAccountRepository.findByEmailIgnoreCase("admin@babyshop.local")).willReturn(Optional.of(user));
         given(passwordEncoder.matches("change-me", "{bcrypt}hash")).willReturn(true);
@@ -90,12 +95,62 @@ class AuthServiceTest {
 
     @Test
     void shouldRejectMissingUser() {
-        authService = new AuthService(userAccountRepository, passwordEncoder, jwtEncoder, securityProperties());
+        authService = new AuthService(userAccountRepository, roleRepository, passwordEncoder, jwtEncoder, securityProperties());
         given(userAccountRepository.findByEmailIgnoreCase("admin@babyshop.local")).willReturn(Optional.empty());
 
         assertThatThrownBy(() -> authService.login(new AuthLoginRequest("admin@babyshop.local", "change-me")))
                 .isInstanceOf(BadCredentialsException.class)
                 .hasMessage("Invalid email or password");
+    }
+
+    @Test
+    void shouldRegisterCustomerAndReturnToken() {
+        SecurityProperties properties = securityProperties();
+        authService = new AuthService(userAccountRepository, roleRepository, passwordEncoder, jwtEncoder, properties);
+
+        Role customerRole = buildRole("CUSTOMER");
+        Jwt jwt = Jwt.withTokenValue("registered-token")
+                .header("alg", "HS256")
+                .claim("sub", "customer@babyshop.local")
+                .issuedAt(Instant.now())
+                .expiresAt(Instant.now().plusSeconds(3600))
+                .build();
+
+        given(userAccountRepository.findByEmailIgnoreCase("customer@babyshop.local")).willReturn(Optional.empty());
+        given(roleRepository.findByName("CUSTOMER")).willReturn(Optional.of(customerRole));
+        given(passwordEncoder.encode("change-me-123")).willReturn("{bcrypt}encoded");
+        given(userAccountRepository.save(any(UserAccount.class))).willAnswer(invocation -> invocation.getArgument(0));
+        given(jwtEncoder.encode(any(JwtEncoderParameters.class))).willReturn(jwt);
+
+        var response = authService.register(new AuthRegisterRequest(
+                "customer@babyshop.local",
+                "change-me-123",
+                "Ceren",
+                "Unlu",
+                "5551112233"
+        ));
+
+        assertThat(response.accessToken()).isEqualTo("registered-token");
+        assertThat(response.email()).isEqualTo("customer@babyshop.local");
+        assertThat(response.role()).isEqualTo("CUSTOMER");
+    }
+
+    @Test
+    void shouldRejectDuplicateRegistrationEmail() {
+        UserAccount existingUser = buildUser(true, "{bcrypt}hash", Set.of(buildRole("CUSTOMER")));
+        authService = new AuthService(userAccountRepository, roleRepository, passwordEncoder, jwtEncoder, securityProperties());
+
+        given(userAccountRepository.findByEmailIgnoreCase("customer@babyshop.local")).willReturn(Optional.of(existingUser));
+
+        assertThatThrownBy(() -> authService.register(new AuthRegisterRequest(
+                "customer@babyshop.local",
+                "change-me-123",
+                "Ceren",
+                "Unlu",
+                "5551112233"
+        )))
+                .isInstanceOf(DuplicateResourceException.class)
+                .hasMessage("User email already exists: customer@babyshop.local");
     }
 
     private UserAccount buildUser(boolean active, String passwordHash, Set<Role> roles) {

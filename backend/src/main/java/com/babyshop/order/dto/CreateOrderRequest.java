@@ -1,7 +1,9 @@
 package com.babyshop.order.dto;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 public record CreateOrderRequest(
@@ -18,6 +20,9 @@ public record CreateOrderRequest(
         String customerLastName,
         @Size(max = 30, message = "Customer phone must be at most 30 characters")
         String customerPhone,
+        @NotNull(message = "Shipping address is required")
+        @Valid
+        OrderAddressRequest shippingAddress,
         @Size(max = 2000, message = "Order notes must be at most 2000 characters")
         String notes
 ) {

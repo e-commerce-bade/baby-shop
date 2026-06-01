@@ -4,6 +4,7 @@ import com.babyshop.order.dto.CreateOrderRequest;
 import com.babyshop.order.dto.OrderResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.Authentication;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -26,8 +27,11 @@ public class OrderController {
     }
 
     @PostMapping
-    public ResponseEntity<OrderResponse> createOrder(@Valid @RequestBody CreateOrderRequest request) {
+    public ResponseEntity<OrderResponse> createOrder(
+            @Valid @RequestBody CreateOrderRequest request,
+            Authentication authentication
+    ) {
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(orderService.createOrder(request));
+                .body(orderService.createOrder(request, authentication != null ? authentication.getName() : null));
     }
 }

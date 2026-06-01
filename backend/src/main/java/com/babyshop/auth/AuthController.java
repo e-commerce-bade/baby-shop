@@ -1,6 +1,7 @@
 package com.babyshop.auth;
 
 import com.babyshop.auth.dto.AuthLoginRequest;
+import com.babyshop.auth.dto.AuthRegisterRequest;
 import com.babyshop.auth.dto.AuthTokenResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -20,5 +21,10 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<AuthTokenResponse> login(@Valid @RequestBody AuthLoginRequest request) {
         return ResponseEntity.ok(authService.login(request));
+    }
+
+    @PostMapping("/register")
+    public ResponseEntity<AuthTokenResponse> register(@Valid @RequestBody AuthRegisterRequest request) {
+        return ResponseEntity.ok(authService.register(request));
     }
 }

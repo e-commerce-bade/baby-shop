@@ -1,11 +1,15 @@
 package com.babyshop.order;
 
+import com.babyshop.auth.UserAccount;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import lombok.Getter;
@@ -27,6 +31,10 @@ public class Order {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id")
+    private UserAccount user;
 
     @Column(name = "order_number", nullable = false, unique = true, length = 50)
     private String orderNumber;
@@ -60,6 +68,24 @@ public class Order {
 
     @Column(nullable = false, length = 3)
     private String currency;
+
+    @Column(name = "shipping_address_line1", length = 255)
+    private String shippingAddressLine1;
+
+    @Column(name = "shipping_address_line2", length = 255)
+    private String shippingAddressLine2;
+
+    @Column(name = "shipping_district", length = 120)
+    private String shippingDistrict;
+
+    @Column(name = "shipping_city", length = 120)
+    private String shippingCity;
+
+    @Column(name = "shipping_postal_code", length = 20)
+    private String shippingPostalCode;
+
+    @Column(name = "shipping_country", length = 100)
+    private String shippingCountry;
 
     @Column(columnDefinition = "TEXT")
     private String notes;

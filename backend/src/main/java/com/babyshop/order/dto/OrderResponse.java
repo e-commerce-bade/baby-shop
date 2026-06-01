@@ -16,6 +16,7 @@ public record OrderResponse(
         BigDecimal discountAmount,
         BigDecimal totalAmount,
         String currency,
+        OrderAddressResponse shippingAddress,
         String notes,
         List<OrderItemResponse> items
 ) {

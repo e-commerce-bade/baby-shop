@@ -1,11 +1,14 @@
 package com.babyshop.order;
 
+import com.babyshop.auth.UserAccount;
+import com.babyshop.auth.UserAccountRepository;
 import com.babyshop.cart.Cart;
 import com.babyshop.cart.CartItem;
 import com.babyshop.cart.CartRepository;
 import com.babyshop.common.exception.InvalidRequestException;
 import com.babyshop.common.exception.ResourceNotFoundException;
 import com.babyshop.order.dto.CreateOrderRequest;
+import com.babyshop.order.dto.OrderAddressResponse;
 import com.babyshop.order.dto.OrderItemResponse;
 import com.babyshop.order.dto.OrderResponse;
 import com.babyshop.order.dto.OrderStatusUpdateRequest;
@@ -44,6 +47,7 @@ public class OrderService {
     private final CartRepository cartRepository;
     private final OrderRepository orderRepository;
     private final ProductVariantRepository productVariantRepository;
+    private final UserAccountRepository userAccountRepository;
 
     public List<OrderResponse> getAllOrders() {
         return orderRepository.findAllByOrderByCreatedAtDesc().stream()
@@ -60,6 +64,14 @@ public class OrderService {
                 .orElseThrow(() -> new ResourceNotFoundException("Order not found for order number: " + orderNumber));
 
         return toResponse(order);
+    }
+
+    public List<OrderResponse> getOrdersByUserEmail(String email) {
+        String normalizedEmail = normalizeRequiredEmail(email);
+
+        return orderRepository.findAllByUserEmailIgnoreCaseOrderByCreatedAtDesc(normalizedEmail).stream()
+                .map(this::toResponse)
+                .toList();
     }
 
     @Transactional
@@ -79,7 +91,7 @@ public class OrderService {
     }
 
     @Transactional
-    public OrderResponse createOrder(CreateOrderRequest request) {
+    public OrderResponse createOrder(CreateOrderRequest request, String authenticatedEmail) {
         Cart cart = cartRepository.findBySessionId(request.sessionId().trim())
                 .orElseThrow(() -> new ResourceNotFoundException("Cart not found for session id: " + request.sessionId()));
 
@@ -92,12 +104,19 @@ public class OrderService {
         BigDecimal subtotalAmount = BigDecimal.ZERO;
 
         Order order = new Order();
+        resolveAuthenticatedUser(authenticatedEmail).ifPresent(order::setUser);
         order.setOrderNumber(generateOrderNumber());
         order.setStatus(ORDER_STATUS_PENDING_PAYMENT);
         order.setCustomerEmail(request.customerEmail().trim().toLowerCase(Locale.ROOT));
         order.setCustomerFirstName(normalize(request.customerFirstName()));
         order.setCustomerLastName(normalize(request.customerLastName()));
         order.setCustomerPhone(normalize(request.customerPhone()));
+        order.setShippingAddressLine1(normalize(request.shippingAddress().line1()));
+        order.setShippingAddressLine2(normalize(request.shippingAddress().line2()));
+        order.setShippingDistrict(normalize(request.shippingAddress().district()));
+        order.setShippingCity(normalize(request.shippingAddress().city()));
+        order.setShippingPostalCode(normalize(request.shippingAddress().postalCode()));
+        order.setShippingCountry(normalize(request.shippingAddress().country()));
         order.setNotes(normalize(request.notes()));
         order.setCurrency(currency);
         order.setShippingAmount(shippingAmount);
@@ -135,6 +154,14 @@ public class OrderService {
         cart.setStatus(CART_STATUS_CHECKED_OUT);
 
         return toResponse(orderRepository.save(order));
+    }
+
+    private java.util.Optional<UserAccount> resolveAuthenticatedUser(String authenticatedEmail) {
+        if (authenticatedEmail == null || authenticatedEmail.trim().isEmpty()) {
+            return java.util.Optional.empty();
+        }
+
+        return userAccountRepository.findByEmailIgnoreCase(authenticatedEmail.trim());
     }
 
     private void validateCartForCheckout(Cart cart) {
@@ -199,6 +226,14 @@ public class OrderService {
         return status.trim().toUpperCase(Locale.ROOT);
     }
 
+    private String normalizeRequiredEmail(String email) {
+        if (email == null || email.trim().isEmpty()) {
+            throw new InvalidRequestException("Authenticated user email is required");
+        }
+
+        return email.trim().toLowerCase(Locale.ROOT);
+    }
+
     private String normalize(String value) {
         if (value == null || value.trim().isEmpty()) {
             return null;
@@ -221,6 +256,14 @@ public class OrderService {
                 order.getDiscountAmount(),
                 order.getTotalAmount(),
                 order.getCurrency(),
+                new OrderAddressResponse(
+                        order.getShippingAddressLine1(),
+                        order.getShippingAddressLine2(),
+                        order.getShippingDistrict(),
+                        order.getShippingCity(),
+                        order.getShippingPostalCode(),
+                        order.getShippingCountry()
+                ),
                 order.getNotes(),
                 order.getItems().stream()
                         .map(this::toItemResponse)
