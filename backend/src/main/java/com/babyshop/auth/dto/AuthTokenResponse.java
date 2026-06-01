@@ -7,7 +7,7 @@ public record AuthTokenResponse(
         String tokenType,
         long expiresIn,
         Instant expiresAt,
-        String username,
+        String email,
         String role
 ) {
 }

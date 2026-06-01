@@ -8,9 +8,10 @@ public record SecurityProperties(
         Jwt jwt
 ) {
     public record Admin(
-            String username,
+            String email,
             String password,
-            String role
+            String role,
+            boolean bootstrapEnabled
     ) {
     }
 

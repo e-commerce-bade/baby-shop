@@ -30,9 +30,10 @@ server:
 app:
   security:
     admin:
-      username: ${ADMIN_USERNAME:admin}
+      email: ${ADMIN_EMAIL:admin@babyshop.local}
       password: ${ADMIN_PASSWORD:change-me}
       role: ${ADMIN_ROLE:ADMIN}
+      bootstrap-enabled: ${ADMIN_BOOTSTRAP_ENABLED:true}
     jwt:
       secret: ${JWT_SECRET:change-this-jwt-secret-for-local-dev-12345}
       access-token-ttl-minutes: ${JWT_ACCESS_TOKEN_TTL_MINUTES:120}

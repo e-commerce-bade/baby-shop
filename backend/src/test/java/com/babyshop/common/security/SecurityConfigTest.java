@@ -27,9 +27,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 })
 @TestPropertySource(properties = {
         "spring.autoconfigure.exclude=",
-        "app.security.admin.username=admin",
-        "app.security.admin.password=change-me",
-        "app.security.admin.role=ADMIN",
         "app.security.jwt.secret=test-jwt-secret-key-with-32-bytes!!",
         "app.security.jwt.access-token-ttl-minutes=120",
         "app.security.jwt.issuer=test-suite"
