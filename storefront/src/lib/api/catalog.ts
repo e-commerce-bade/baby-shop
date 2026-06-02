@@ -76,7 +76,7 @@ const categoryDecorators: Record<
     emoji: '🎀',
     ageRange: '3 ay - 4 yaş',
     backgroundColor: '#F6E0DD',
-    imageUrl: null,
+    imageUrl: '/images/category_girl.png',
   },
   'baby-boy': {
     emoji: '🧸',
@@ -107,7 +107,7 @@ const categoryDecorators: Record<
     emoji: '👗',
     ageRange: '0-7 Yaş',
     backgroundColor: '#F4DEDB',
-    imageUrl: null,
+    imageUrl: '/images/category_girl.png',
   },
   'erkek-cocuk': {
     emoji: '🧸',
@@ -235,6 +235,12 @@ export async function fetchCategories(): Promise<Category[]> {
 
 export async function fetchCategoryStripItems(): Promise<CategoryDisplayItem[]> {
   const categories = await fetchCategories()
+
+  // Backend erişilemezse mock'a düş
+  if (categories.length === 0) {
+    const { mockCategoryStrip } = await import('@/lib/mock/categories')
+    return mockCategoryStrip
+  }
 
   return categories.slice(0, 3).map((category, index) => {
     const decorator =
