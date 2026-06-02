@@ -1,0 +1,13 @@
+/target/
+/backend/target/
+/.env
+
+# frontend (Vite prototype — reference only)
+/frontend/node_modules/
+/frontend/dist/
+
+# storefront (Next.js — active app)
+/storefront/node_modules/
+/storefront/.next/
+/storefront/out/
+/storefront/*.tsbuildinfo
