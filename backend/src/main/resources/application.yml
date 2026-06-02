@@ -25,7 +25,7 @@ spring:
     validate-on-migrate: true
 
 server:
-  port: ${SERVER_PORT:5050}
+  port: ${PORT:${SERVER_PORT:5050}}
 
 app:
   payment:
