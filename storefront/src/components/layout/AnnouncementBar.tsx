@@ -2,7 +2,7 @@ export default function AnnouncementBar() {
   return (
     <div
       className="relative flex items-center justify-center gap-[18px] py-2.5 text-[13px] font-semibold tracking-[0.2px]"
-      style={{ background: 'linear-gradient(90deg,#E7B7B2,#E2AAA4)', color: '#774e49' }}
+      style={{ background: 'linear-gradient(90deg,#F5EDB8,#EFE49C)', color: '#7A6A1A' }}
     >
       <button
         className="absolute left-3.5 grid h-[26px] w-[26px] place-items-center rounded-full transition-colors duration-200 hover:bg-white/60"
