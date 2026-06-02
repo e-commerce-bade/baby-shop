@@ -17,6 +17,7 @@ export const mockCategoryStrip: CategoryDisplayItem[] = [
     emoji: '👗',
     ageRange: '0–7 Yaş',
     backgroundColor: '#F4DEDB',
+    imageUrl: '/images/category_girl.png',
   },
   {
     id: 3,
