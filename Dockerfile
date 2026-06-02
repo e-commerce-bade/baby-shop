@@ -17,4 +17,6 @@ WORKDIR /app
 
 COPY --from=build /app/backend/target/backend-0.0.1-SNAPSHOT.jar app.jar
 
+EXPOSE 5050
+
 CMD ["java", "-jar", "app.jar"]
