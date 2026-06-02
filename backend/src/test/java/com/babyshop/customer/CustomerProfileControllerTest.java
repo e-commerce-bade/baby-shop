@@ -54,7 +54,7 @@ class CustomerProfileControllerTest {
 
     @Test
     void shouldReturnAuthenticatedCustomerOrders() throws Exception {
-        given(customerProfileService.getOrders("customer@babyshop.local", 0, 10, null, null, null))
+        given(customerProfileService.getOrders("customer@babyshop.local", 0, 10, null, null, null, null))
                 .willReturn(new PageResponse<>(
                         List.of(new OrderResponse(
                                 1L, "ORD-ABC123DEF456", "PAID", "customer@babyshop.local", "Ceren", "Unlu", "5551112233",
@@ -80,6 +80,18 @@ class CustomerProfileControllerTest {
                 .andExpect(jsonPath("$.content[0].createdAt").value("2026-06-01T12:00:00+03:00"))
                 .andExpect(jsonPath("$.page").value(0))
                 .andExpect(jsonPath("$.totalElements").value(1));
+    }
+
+    @Test
+    void shouldForwardOrderNumberFilterForAuthenticatedCustomerOrders() throws Exception {
+        given(customerProfileService.getOrders("customer@babyshop.local", 0, 10, "ABC123", null, null, null))
+                .willReturn(new PageResponse<>(List.of(), 0, 10, 0, 0, false, false));
+
+        mockMvc.perform(get("/api/v1/me/orders?orderNumber=ABC123")
+                        .principal(new TestingAuthenticationToken("customer@babyshop.local", null)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content").isArray())
+                .andExpect(jsonPath("$.totalElements").value(0));
     }
 
     @Test

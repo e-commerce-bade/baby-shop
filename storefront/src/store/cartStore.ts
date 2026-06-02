@@ -2,12 +2,23 @@
 
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
-import type { CartLineItem, CartState } from '@/types/cart'
+import type { CartLineItem, CartState, CheckoutSummary } from '@/types/cart'
+
+let latestCartRequestToken = 0
 
 function newSessionId() {
   return typeof crypto !== 'undefined'
     ? crypto.randomUUID()
     : Math.random().toString(36).slice(2)
+}
+
+function beginCartRequest() {
+  latestCartRequestToken += 1
+  return latestCartRequestToken
+}
+
+function isLatestCartRequest(token: number) {
+  return token === latestCartRequestToken
 }
 
 interface BackendCartItem {
@@ -50,23 +61,34 @@ function mapCartItem(item: BackendCartItem): CartLineItem {
   }
 }
 
-async function requestCart(
-  path: string,
-  init?: RequestInit,
-): Promise<BackendCartResponse> {
-  const response = await fetch(path, {
+async function requestCart(path: string, init?: RequestInit): Promise<BackendCartResponse> {
+  const res = await fetch(path, {
     ...init,
-    headers: {
-      Accept: 'application/json',
-      ...(init?.headers ?? {}),
-    },
+    headers: { Accept: 'application/json', ...(init?.headers ?? {}) },
   })
 
-  if (!response.ok) {
-    throw new Error(`Cart request failed: ${response.status}`)
+  if (!res.ok) {
+    throw new Error(`Cart request failed: ${res.status}`)
   }
 
-  return response.json() as Promise<BackendCartResponse>
+  return res.json() as Promise<BackendCartResponse>
+}
+
+async function fetchCheckoutSummary(sessionId: string): Promise<CheckoutSummary | null> {
+  try {
+    const res = await fetch(`/api/cart/${sessionId}/checkout`, {
+      cache: 'no-store',
+      headers: { Accept: 'application/json' },
+    })
+
+    if (!res.ok) {
+      return null
+    }
+
+    return res.json() as Promise<CheckoutSummary>
+  } catch {
+    return null
+  }
 }
 
 export const useCartStore = create<CartState>()(
@@ -76,108 +98,163 @@ export const useCartStore = create<CartState>()(
       items: [],
       isOpen: false,
       isSyncing: false,
+      hasHydrated: false,
+      checkoutSummary: null,
+
+      refreshCheckoutSummary: async () => {
+        const requestToken = beginCartRequest()
+        const summary = await fetchCheckoutSummary(get().sessionId)
+        if (!isLatestCartRequest(requestToken)) return
+        set({ checkoutSummary: summary })
+      },
 
       hydrateCart: async () => {
-        const { sessionId, isSyncing } = get()
-        if (isSyncing) {
-          return
-        }
+        if (get().isSyncing) return
 
+        const requestToken = beginCartRequest()
         set({ isSyncing: true })
 
         try {
-          const cart = await requestCart(`/api/cart/${sessionId}`, {
-            cache: 'no-store',
-          })
+          const cart = await requestCart(`/api/cart/${get().sessionId}`, { cache: 'no-store' })
+          if (!isLatestCartRequest(requestToken)) return
 
           set({
             items: cart.items.map(mapCartItem),
+            isOpen: false,
           })
-        } catch (error) {
-          console.error('Failed to hydrate cart', error)
+
+          const summary = await fetchCheckoutSummary(get().sessionId)
+          if (!isLatestCartRequest(requestToken)) return
+
+          set({ checkoutSummary: summary })
+        } catch (err) {
+          console.error('Failed to hydrate cart', err)
         } finally {
+          if (!isLatestCartRequest(requestToken)) return
           set({ isSyncing: false })
         }
       },
 
       addItem: async ({ quantity = 1, ...incoming }) => {
+        const requestToken = beginCartRequest()
         set({ isSyncing: true })
 
         try {
           const cart = await requestCart(`/api/cart/${get().sessionId}/items`, {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              productVariantId: incoming.variantId,
-              quantity,
-            }),
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ productVariantId: incoming.variantId, quantity }),
           })
+          if (!isLatestCartRequest(requestToken)) return
 
           set({
             items: cart.items.map(mapCartItem),
             isOpen: true,
           })
-        } catch (error) {
-          console.error('Failed to add item to cart', error)
+
+          const summary = await fetchCheckoutSummary(get().sessionId)
+          if (!isLatestCartRequest(requestToken)) return
+
+          set({ checkoutSummary: summary })
+        } catch (err) {
+          console.error('Failed to add item to cart', err)
         } finally {
+          if (!isLatestCartRequest(requestToken)) return
           set({ isSyncing: false })
         }
       },
 
       removeItem: async (id) => {
+        const requestToken = beginCartRequest()
         set({ isSyncing: true })
 
         try {
           const cart = await requestCart(`/api/cart/${get().sessionId}/items/${id}`, {
             method: 'DELETE',
           })
+          if (!isLatestCartRequest(requestToken)) return
 
-          set({
-            items: cart.items.map(mapCartItem),
-          })
-        } catch (error) {
-          console.error('Failed to remove item from cart', error)
+          set({ items: cart.items.map(mapCartItem) })
+
+          const summary = await fetchCheckoutSummary(get().sessionId)
+          if (!isLatestCartRequest(requestToken)) return
+
+          set({ checkoutSummary: summary })
+        } catch (err) {
+          console.error('Failed to remove item from cart', err)
         } finally {
+          if (!isLatestCartRequest(requestToken)) return
           set({ isSyncing: false })
         }
       },
 
       updateQuantity: async (id, quantity) => {
+        const requestToken = beginCartRequest()
         set({ isSyncing: true })
 
         try {
           const cart = await requestCart(`/api/cart/${get().sessionId}/items/${id}`, {
             method: 'PATCH',
-            headers: {
-              'Content-Type': 'application/json',
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ quantity }),
           })
+          if (!isLatestCartRequest(requestToken)) return
 
-          set({
-            items: cart.items.map(mapCartItem),
-          })
-        } catch (error) {
-          console.error('Failed to update cart quantity', error)
+          set({ items: cart.items.map(mapCartItem) })
+
+          const summary = await fetchCheckoutSummary(get().sessionId)
+          if (!isLatestCartRequest(requestToken)) return
+
+          set({ checkoutSummary: summary })
+        } catch (err) {
+          console.error('Failed to update cart quantity', err)
         } finally {
+          if (!isLatestCartRequest(requestToken)) return
           set({ isSyncing: false })
         }
       },
 
-      clearCart: () => set({ items: [] }),
+      clearCart: () => set({ items: [], checkoutSummary: null }),
+      startNewCart: () =>
+        set({
+          sessionId: newSessionId(),
+          items: [],
+          checkoutSummary: null,
+          isOpen: false,
+          isSyncing: false,
+        }),
       openDrawer: () => set({ isOpen: true }),
       closeDrawer: () => set({ isOpen: false }),
     }),
     {
       name: 'minimori-cart',
+      version: 2,
       storage: createJSONStorage(() =>
         typeof window !== 'undefined' ? localStorage : (null as unknown as Storage),
       ),
+      merge: (persistedState, currentState) => {
+        const persisted = (persistedState ?? {}) as Partial<CartState>
+
+        return {
+          ...currentState,
+          sessionId: persisted.sessionId || currentState.sessionId,
+          items: [],
+          checkoutSummary: null,
+          isOpen: false,
+          isSyncing: false,
+          hasHydrated: false,
+        }
+      },
+      onRehydrateStorage: () => () => {
+        useCartStore.setState({
+          items: [],
+          checkoutSummary: null,
+          isOpen: false,
+          hasHydrated: true,
+        })
+      },
       partialize: (state) => ({
         sessionId: state.sessionId,
-        items: state.items,
       }),
     },
   ),
@@ -187,7 +264,4 @@ export const cartItemCount = (state: CartState) =>
   state.items.reduce((sum, item) => sum + item.quantity, 0)
 
 export const cartSubtotal = (state: CartState) =>
-  state.items.reduce(
-    (sum, item) => sum + parseFloat(item.price) * item.quantity,
-    0,
-  )
+  state.items.reduce((sum, item) => sum + parseFloat(item.price) * item.quantity, 0)

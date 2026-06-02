@@ -85,6 +85,7 @@ class CustomerProfileServiceTest {
                 "customer@babyshop.local",
                 0,
                 10,
+                "ORD-ABC",
                 "PAID",
                 LocalDate.parse("2026-06-01"),
                 LocalDate.parse("2026-06-30")
@@ -110,6 +111,7 @@ class CustomerProfileServiceTest {
                 "customer@babyshop.local",
                 0,
                 10,
+                "ORD-ABC",
                 "PAID",
                 LocalDate.parse("2026-06-01"),
                 LocalDate.parse("2026-06-30")

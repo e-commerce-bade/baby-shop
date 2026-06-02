@@ -94,7 +94,7 @@ export default async function ProductDetailPage({
         <span className="text-brown">{product.name}</span>
       </nav>
 
-      <div className="grid grid-cols-2 gap-14 max-[980px]:grid-cols-1 max-[980px]:gap-8">
+      <div className="grid grid-cols-[minmax(0,560px)_minmax(360px,1fr)] gap-10 max-[980px]:grid-cols-1 max-[980px]:gap-8">
         <ProductGallery
           images={product.images}
           productName={product.name}

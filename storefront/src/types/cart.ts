@@ -12,16 +12,41 @@ export interface CartLineItem {
   quantity: number
 }
 
+export interface CustomerAddress {
+  id: number
+  label: string | null
+  recipientFirstName: string
+  recipientLastName: string
+  phoneNumber: string | null
+  line1: string
+  line2: string | null
+  district: string | null
+  city: string
+  postalCode: string | null
+  country: string
+  isDefault: boolean
+}
+
 export interface CheckoutSummary {
   cartId: number
   sessionId: string
+  items: CartLineItem[]
+  itemCount: number
   totalQuantity: number
-  subtotal: string
-  shippingAmount: string
-  discountAmount: string
-  totalAmount: string
+  subtotal: number | string
+  shippingAmount: number | string
+  discountAmount: number | string
+  totalAmount: number | string
   currency: string
+  // Ücretsiz kargo: backend hesaplar, frontend yeniden türetmez
+  freeShippingThreshold: number | string | null
+  remainingAmountForFreeShipping: number | string | null
+  eligibleForFreeShipping: boolean
+  // Checkout durumu
   readyForCheckout: boolean
+  checkoutBlockedReason: string | null
+  // Kayıtlı kullanıcı varsayılan adres (opsiyonel gösterim)
+  defaultShippingAddress: CustomerAddress | null
 }
 
 export interface CartState {
@@ -29,11 +54,15 @@ export interface CartState {
   items: CartLineItem[]
   isOpen: boolean
   isSyncing: boolean
+  hasHydrated: boolean
+  checkoutSummary: CheckoutSummary | null
   hydrateCart: () => Promise<void>
+  refreshCheckoutSummary: () => Promise<void>
   addItem: (item: Omit<CartLineItem, 'id' | 'cartItemId'> & { quantity?: number }) => Promise<void>
   removeItem: (id: string) => Promise<void>
   updateQuantity: (id: string, quantity: number) => Promise<void>
   clearCart: () => void
+  startNewCart: () => void
   openDrawer: () => void
   closeDrawer: () => void
 }

@@ -8,6 +8,7 @@ export const mockCategoryStrip: CategoryDisplayItem[] = [
     emoji: '🧥',
     ageRange: '0–24 Ay',
     backgroundColor: '#EFE6D9',
+    imageUrl: '/images/category_newborn.png',
   },
   {
     id: 2,

@@ -11,7 +11,7 @@ interface Props {
 
 export default function ProductGrid({ products, badge }: Props) {
   return (
-    <div className="grid grid-cols-4 gap-3.5 max-[980px]:grid-cols-3 max-[680px]:grid-cols-2">
+    <div className="grid grid-cols-5 gap-3 max-[1100px]:grid-cols-4 max-[980px]:grid-cols-3 max-[680px]:grid-cols-2">
       {products.map((product) => (
         <ProductCard key={product.id} product={product} badge={badge} />
       ))}

@@ -1,5 +1,6 @@
 /target/
 /backend/target/
+/.run-logs/
 /.env
 
 # frontend (Vite prototype — reference only)
