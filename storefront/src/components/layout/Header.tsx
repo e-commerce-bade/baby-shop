@@ -50,7 +50,7 @@ export default function Header() {
 
         <div className="ml-auto flex items-center gap-[26px] max-[680px]:gap-4">
           <Link
-            href="#"
+            href="/account"
             className="flex items-center gap-2 text-sm font-semibold text-brown-2 transition-colors hover:text-rose-dk"
           >
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
@@ -60,7 +60,7 @@ export default function Header() {
           </Link>
 
           <Link
-            href="#"
+            href="/account"
             className="flex items-center gap-2 text-sm font-semibold text-brown-2 transition-colors hover:text-rose-dk"
           >
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">

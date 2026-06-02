@@ -63,32 +63,57 @@ interface BackendProductSummaryResponse {
 
 const categoryDecorators: Record<
   string,
-  Pick<CategoryDisplayItem, 'emoji' | 'ageRange' | 'backgroundColor'>
+  Pick<CategoryDisplayItem, 'emoji' | 'ageRange' | 'backgroundColor' | 'imageUrl'>
 > = {
+  // İngilizce slug'lar
   newborn: {
     emoji: '🍼',
     ageRange: '0-12 ay',
     backgroundColor: '#F2E6D6',
+    imageUrl: '/images/category_newborn.png',
   },
   'baby-girl': {
     emoji: '🎀',
     ageRange: '3 ay - 4 yaş',
     backgroundColor: '#F6E0DD',
+    imageUrl: null,
   },
   'baby-boy': {
     emoji: '🧸',
     ageRange: '3 ay - 4 yaş',
     backgroundColor: '#DFE8EF',
+    imageUrl: null,
   },
   'kids-girl': {
     emoji: '🌸',
     ageRange: '4-8 yaş',
     backgroundColor: '#F0E1DD',
+    imageUrl: null,
   },
   'kids-boy': {
     emoji: '🌿',
     ageRange: '4-8 yaş',
     backgroundColor: '#E4EBD9',
+    imageUrl: null,
+  },
+  // Türkçe slug'lar (backend Türkçe dönebilir)
+  'yeni-dogan': {
+    emoji: '🍼',
+    ageRange: '0-24 Ay',
+    backgroundColor: '#EFE6D9',
+    imageUrl: '/images/category_newborn.png',
+  },
+  'kiz-cocuk': {
+    emoji: '👗',
+    ageRange: '0-7 Yaş',
+    backgroundColor: '#F4DEDB',
+    imageUrl: null,
+  },
+  'erkek-cocuk': {
+    emoji: '🧸',
+    ageRange: '0-7 Yaş',
+    backgroundColor: '#D9E4EC',
+    imageUrl: null,
   },
 }
 

@@ -9,13 +9,18 @@ public record CheckoutSummaryResponse(
         Long cartId,
         String sessionId,
         List<CartItemResponse> items,
+        int itemCount,
         int totalQuantity,
         BigDecimal subtotal,
         BigDecimal shippingAmount,
         BigDecimal discountAmount,
         BigDecimal totalAmount,
         String currency,
+        BigDecimal freeShippingThreshold,
+        BigDecimal remainingAmountForFreeShipping,
+        boolean eligibleForFreeShipping,
         boolean readyForCheckout,
+        String checkoutBlockedReason,
         CustomerAddressResponse defaultShippingAddress
 ) {
 }

@@ -57,7 +57,7 @@ export default function ProductCard({ product, badge }: Props) {
         {badge && (
           <span
             className={cn(
-              'absolute left-2 top-2 z-10 rounded-[20px] px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[0.4px]',
+              'absolute left-1.5 top-1.5 z-10 rounded-[20px] px-2 py-0.5 text-[9.5px] font-extrabold uppercase tracking-[0.3px]',
               badgeStyles[badge],
             )}
           >
@@ -71,7 +71,7 @@ export default function ProductCard({ product, badge }: Props) {
             event.preventDefault()
           }}
           aria-label="Favorilere ekle"
-          className="absolute right-2 top-2 z-10 grid h-7 w-7 place-items-center rounded-full bg-white/85 text-muted transition-colors hover:bg-white hover:text-rose"
+          className="absolute right-1.5 top-1.5 z-10 grid h-6 w-6 place-items-center rounded-full bg-white/85 text-muted transition-colors hover:bg-white hover:text-rose"
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
             <path d="M12 21s-7-4.5-7-10a4 4 0 017-2.5A4 4 0 0119 11c0 5.5-7 10-7 10z" />
@@ -79,15 +79,15 @@ export default function ProductCard({ product, badge }: Props) {
         </button>
       </div>
 
-      <div className="mt-[9px] font-serif text-[13.5px] font-semibold leading-[1.25] text-brown">
+      <div className="mt-2 font-serif text-[12.5px] font-semibold leading-[1.25] text-brown">
         {product.name}
       </div>
       {product.colorLabel && (
-        <div className="text-[11.5px] font-semibold text-muted">
+        <div className="text-[11px] font-semibold text-muted">
           {product.colorLabel}
         </div>
       )}
-      <div className="mt-0.5 text-sm font-extrabold text-brown">
+      <div className="mt-0.5 text-[12px] font-extrabold text-brown">
         {formatPrice(product.lowestPrice, product.currency)}
       </div>
     </Link>

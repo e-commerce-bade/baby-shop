@@ -112,6 +112,7 @@ public class OrderService {
             String email,
             int page,
             int size,
+            String orderNumber,
             String status,
             LocalDate from,
             LocalDate to
@@ -121,6 +122,7 @@ public class OrderService {
 
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
         Specification<Order> specification = Specification.where(hasUserEmail(normalizedEmail))
+                .and(hasOrderNumber(orderNumber))
                 .and(hasStatus(status))
                 .and(createdAtOnOrAfter(from))
                 .and(createdAtBeforeOrOn(to));
