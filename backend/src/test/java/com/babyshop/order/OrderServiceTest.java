@@ -7,9 +7,13 @@ import com.babyshop.auth.UserAccountRepository;
 import com.babyshop.cart.CartRepository;
 import com.babyshop.common.exception.InvalidRequestException;
 import com.babyshop.common.exception.ResourceNotFoundException;
+import com.babyshop.customer.CustomerAddress;
+import com.babyshop.customer.CustomerAddressRepository;
 import com.babyshop.order.dto.CreateOrderRequest;
 import com.babyshop.order.dto.OrderAddressRequest;
 import com.babyshop.order.dto.OrderStatusUpdateRequest;
+import com.babyshop.payment.Payment;
+import com.babyshop.payment.PaymentRepository;
 import com.babyshop.product.Product;
 import com.babyshop.product.ProductVariant;
 import com.babyshop.product.ProductVariantRepository;
@@ -18,8 +22,12 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -46,6 +54,12 @@ class OrderServiceTest {
     @Mock
     private UserAccountRepository userAccountRepository;
 
+    @Mock
+    private CustomerAddressRepository customerAddressRepository;
+
+    @Mock
+    private PaymentRepository paymentRepository;
+
     @InjectMocks
     private OrderService orderService;
 
@@ -54,6 +68,8 @@ class OrderServiceTest {
         Order firstOrder = buildOrder("ORD-NEW");
         Order secondOrder = buildOrder("ORD-OLD");
         given(orderRepository.findAllByOrderByCreatedAtDesc()).willReturn(List.of(firstOrder, secondOrder));
+        given(paymentRepository.findAllByOrderOrderNumberOrderByCreatedAtDesc("ORD-NEW")).willReturn(List.of());
+        given(paymentRepository.findAllByOrderOrderNumberOrderByCreatedAtDesc("ORD-OLD")).willReturn(List.of());
 
         var response = orderService.getAllOrders();
 
@@ -62,16 +78,104 @@ class OrderServiceTest {
     }
 
     @Test
+    void shouldReturnPagedAdminOrders() {
+        Order order = buildOrder("ORD-ABC123DEF456");
+        given(orderRepository.findAll(
+                any(org.springframework.data.jpa.domain.Specification.class),
+                any(org.springframework.data.domain.Pageable.class)
+        )).willReturn(new PageImpl<>(List.of(order), PageRequest.of(0, 10), 1));
+        given(paymentRepository.findAllByOrderOrderNumberOrderByCreatedAtDesc("ORD-ABC123DEF456")).willReturn(List.of());
+
+        var response = orderService.getAllOrders(
+                0,
+                10,
+                null,
+                "PAID",
+                LocalDate.parse("2026-06-01"),
+                LocalDate.parse("2026-06-30")
+        );
+
+        assertThat(response.content()).hasSize(1);
+        assertThat(response.page()).isEqualTo(0);
+        assertThat(response.totalElements()).isEqualTo(1);
+    }
+
+    @Test
+    void shouldReturnPagedAdminOrdersFilteredByOrderNumber() {
+        Order order = buildOrder("ORD-ABC123DEF456");
+        given(orderRepository.findAll(
+                any(org.springframework.data.jpa.domain.Specification.class),
+                any(org.springframework.data.domain.Pageable.class)
+        )).willReturn(new PageImpl<>(List.of(order), PageRequest.of(0, 10), 1));
+        given(paymentRepository.findAllByOrderOrderNumberOrderByCreatedAtDesc("ORD-ABC123DEF456")).willReturn(List.of());
+
+        var response = orderService.getAllOrders(
+                0,
+                10,
+                "ABC123",
+                null,
+                null,
+                null
+        );
+
+        assertThat(response.content()).hasSize(1);
+        assertThat(response.content().getFirst().orderNumber()).contains("ABC123");
+    }
+
+    @Test
     void shouldReturnOrderByOrderNumber() {
         Order order = buildOrder("ORD-ABC123DEF456");
         order.getItems().add(buildOrderItem(order, 1L, 2));
+        Payment payment = buildPayment(order);
 
         given(orderRepository.findByOrderNumber("ORD-ABC123DEF456")).willReturn(Optional.of(order));
+        given(paymentRepository.findAllByOrderOrderNumberOrderByCreatedAtDesc("ORD-ABC123DEF456"))
+                .willReturn(List.of(payment));
 
         var response = orderService.getOrderByOrderNumber("ORD-ABC123DEF456");
 
         assertThat(response.orderNumber()).isEqualTo("ORD-ABC123DEF456");
         assertThat(response.items()).hasSize(1);
+        assertThat(response.payment()).isNotNull();
+        assertThat(response.payment().status()).isEqualTo("SUCCEEDED");
+    }
+
+    @Test
+    void shouldReturnPagedOrdersByUserEmail() {
+        Order order = buildOrder("ORD-ABC123DEF456");
+        given(orderRepository.findAll(
+                any(org.springframework.data.jpa.domain.Specification.class),
+                any(org.springframework.data.domain.Pageable.class)
+        ))
+                .willReturn(new PageImpl<>(List.of(order), PageRequest.of(0, 10), 1));
+        given(paymentRepository.findAllByOrderOrderNumberOrderByCreatedAtDesc("ORD-ABC123DEF456")).willReturn(List.of());
+
+        var response = orderService.getOrdersByUserEmail(
+                "customer@babyshop.local",
+                0,
+                10,
+                "PAID",
+                LocalDate.parse("2026-06-01"),
+                LocalDate.parse("2026-06-30")
+        );
+
+        assertThat(response.content()).hasSize(1);
+        assertThat(response.page()).isEqualTo(0);
+        assertThat(response.totalElements()).isEqualTo(1);
+    }
+
+    @Test
+    void shouldRejectInvalidPagedOrderDateRange() {
+        assertThatThrownBy(() -> orderService.getOrdersByUserEmail(
+                "customer@babyshop.local",
+                0,
+                10,
+                null,
+                LocalDate.parse("2026-06-30"),
+                LocalDate.parse("2026-06-01")
+        ))
+                .isInstanceOf(InvalidRequestException.class)
+                .hasMessage("Order date range is invalid: from must be on or before to");
     }
 
     @Test
@@ -87,6 +191,7 @@ class OrderServiceTest {
                 "Ceren",
                 "Yilmaz",
                 "5551112233",
+                null,
                 addressRequest(),
                 "Leave at the door"
         );
@@ -107,6 +212,8 @@ class OrderServiceTest {
 
         assertThat(response.status()).isEqualTo("PENDING_PAYMENT");
         assertThat(response.totalAmount()).isEqualByComparingTo("998.00");
+        assertThat(response.createdAt()).isNull();
+        assertThat(response.payment()).isNull();
         assertThat(cart.getStatus()).isEqualTo("CHECKED_OUT");
         assertThat(variant.getStockQuantity()).isEqualTo(3);
         verify(productVariantRepository).saveAll(anyList());
@@ -115,7 +222,7 @@ class OrderServiceTest {
     @Test
     void shouldRejectEmptyCart() {
         Cart cart = buildCart("ACTIVE");
-        CreateOrderRequest request = new CreateOrderRequest("session-1", "customer@example.com", null, null, null, addressRequest(), null);
+        CreateOrderRequest request = new CreateOrderRequest("session-1", "customer@example.com", null, null, null, null, addressRequest(), null);
         given(cartRepository.findBySessionId("session-1")).willReturn(Optional.of(cart));
 
         assertThatThrownBy(() -> orderService.createOrder(request, null))
@@ -129,7 +236,7 @@ class OrderServiceTest {
         ProductVariant variant = buildVariant(10L, 5, true, true, "TRY");
         cart.getItems().add(buildCartItem(cart, variant, 1));
 
-        CreateOrderRequest request = new CreateOrderRequest("session-1", "customer@example.com", null, null, null, addressRequest(), null);
+        CreateOrderRequest request = new CreateOrderRequest("session-1", "customer@example.com", null, null, null, null, addressRequest(), null);
         given(cartRepository.findBySessionId("session-1")).willReturn(Optional.of(cart));
 
         assertThatThrownBy(() -> orderService.createOrder(request, null))
@@ -143,7 +250,7 @@ class OrderServiceTest {
         cart.getItems().add(buildCartItem(cart, buildVariant(10L, 5, true, true, "TRY"), 1));
         cart.getItems().add(buildCartItem(cart, buildVariant(11L, 5, true, true, "USD"), 1));
 
-        CreateOrderRequest request = new CreateOrderRequest("session-1", "customer@example.com", null, null, null, addressRequest(), null);
+        CreateOrderRequest request = new CreateOrderRequest("session-1", "customer@example.com", null, null, null, null, addressRequest(), null);
         given(cartRepository.findBySessionId("session-1")).willReturn(Optional.of(cart));
 
         assertThatThrownBy(() -> orderService.createOrder(request, null))
@@ -167,6 +274,7 @@ class OrderServiceTest {
                 "Ceren",
                 "Yilmaz",
                 "5551112233",
+                null,
                 addressRequest(),
                 null
         );
@@ -186,6 +294,81 @@ class OrderServiceTest {
     }
 
     @Test
+    void shouldCreateOrderUsingSavedCustomerAddress() {
+        Cart cart = buildCart("ACTIVE");
+        ProductVariant variant = buildVariant(10L, 5, true, true, "TRY");
+        cart.getItems().add(buildCartItem(cart, variant, 1));
+
+        UserAccount user = new UserAccount();
+        user.setId(5L);
+        user.setEmail("customer@babyshop.local");
+
+        CustomerAddress address = new CustomerAddress();
+        address.setId(20L);
+        address.setRecipientFirstName("Ayse");
+        address.setRecipientLastName("Demir");
+        address.setPhoneNumber("5552223344");
+        address.setLine1("Bagdat Cd. No:20");
+        address.setLine2("Daire 8");
+        address.setDistrict("Kadikoy");
+        address.setCity("Istanbul");
+        address.setPostalCode("34710");
+        address.setCountry("Turkey");
+
+        CreateOrderRequest request = new CreateOrderRequest(
+                "session-1",
+                "customer@example.com",
+                null,
+                null,
+                null,
+                20L,
+                null,
+                null
+        );
+
+        given(cartRepository.findBySessionId("session-1")).willReturn(Optional.of(cart));
+        given(userAccountRepository.findByEmailIgnoreCase("customer@babyshop.local")).willReturn(Optional.of(user));
+        given(customerAddressRepository.findByIdAndUserEmailIgnoreCase(20L, "customer@babyshop.local"))
+                .willReturn(Optional.of(address));
+        given(productVariantRepository.saveAll(anyList())).willAnswer(invocation -> invocation.getArgument(0));
+        given(orderRepository.save(any(Order.class))).willAnswer(invocation -> {
+            Order order = invocation.getArgument(0);
+            order.setId(1L);
+            return order;
+        });
+
+        var response = orderService.createOrder(request, "customer@babyshop.local");
+
+        assertThat(response.customerFirstName()).isEqualTo("Ayse");
+        assertThat(response.customerPhone()).isEqualTo("5552223344");
+        assertThat(response.shippingAddress().line1()).isEqualTo("Bagdat Cd. No:20");
+    }
+
+    @Test
+    void shouldRejectSavedAddressForGuestCheckout() {
+        Cart cart = buildCart("ACTIVE");
+        ProductVariant variant = buildVariant(10L, 5, true, true, "TRY");
+        cart.getItems().add(buildCartItem(cart, variant, 1));
+
+        CreateOrderRequest request = new CreateOrderRequest(
+                "session-1",
+                "customer@example.com",
+                null,
+                null,
+                null,
+                20L,
+                null,
+                null
+        );
+
+        given(cartRepository.findBySessionId("session-1")).willReturn(Optional.of(cart));
+
+        assertThatThrownBy(() -> orderService.createOrder(request, null))
+                .isInstanceOf(InvalidRequestException.class)
+                .hasMessage("Authenticated user is required when shippingAddressId is used");
+    }
+
+    @Test
     void shouldThrowWhenOrderMissing() {
         given(orderRepository.findByOrderNumber("ORD-MISSING")).willReturn(Optional.empty());
 
@@ -197,6 +380,7 @@ class OrderServiceTest {
     @Test
     void shouldUpdateOrderStatus() {
         Order order = buildOrder("ORD-ABC123DEF456");
+        order.setStatus("PREPARING");
         given(orderRepository.findByOrderNumber("ORD-ABC123DEF456")).willReturn(Optional.of(order));
         given(orderRepository.save(any(Order.class))).willAnswer(invocation -> invocation.getArgument(0));
 
@@ -217,6 +401,20 @@ class OrderServiceTest {
         ))
                 .isInstanceOf(InvalidRequestException.class)
                 .hasMessage("Unsupported order status: UNKNOWN");
+    }
+
+    @Test
+    void shouldRejectInvalidOrderStatusTransition() {
+        Order order = buildOrder("ORD-ABC123DEF456");
+        order.setStatus("PAID");
+        given(orderRepository.findByOrderNumber("ORD-ABC123DEF456")).willReturn(Optional.of(order));
+
+        assertThatThrownBy(() -> orderService.updateOrderStatus(
+                "ORD-ABC123DEF456",
+                new OrderStatusUpdateRequest("DELIVERED")
+        ))
+                .isInstanceOf(InvalidRequestException.class)
+                .hasMessage("Invalid order status transition: PAID -> DELIVERED");
     }
 
     private Cart buildCart(String status) {
@@ -279,8 +477,23 @@ class OrderServiceTest {
         order.setShippingPostalCode("34710");
         order.setShippingCountry("Turkey");
         order.setNotes("Leave at the door");
+        order.setCreatedAt(OffsetDateTime.parse("2026-06-01T12:00:00+03:00"));
         order.setItems(new ArrayList<>());
         return order;
+    }
+
+    private Payment buildPayment(Order order) {
+        Payment payment = new Payment();
+        payment.setId(3L);
+        payment.setOrder(order);
+        payment.setProvider("MOCK");
+        payment.setStatus("SUCCEEDED");
+        payment.setAmount(new BigDecimal("998.00"));
+        payment.setCurrency("TRY");
+        payment.setTransactionId("txn-123");
+        payment.setProviderReference("mock-ref-123");
+        payment.setPaidAt(OffsetDateTime.parse("2026-06-01T12:05:00+03:00"));
+        return payment;
     }
 
     private OrderAddressRequest addressRequest() {

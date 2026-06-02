@@ -64,7 +64,20 @@ class CartControllerTest {
         mockMvc.perform(get("/api/v1/carts/session-1/checkout"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.readyForCheckout").value(true))
-                .andExpect(jsonPath("$.totalAmount").value(998.00));
+                .andExpect(jsonPath("$.totalAmount").value(998.00))
+                .andExpect(jsonPath("$.defaultShippingAddress").doesNotExist());
+    }
+
+    @Test
+    void shouldReturnCheckoutSummaryWithDefaultAddressForAuthenticatedUser() throws Exception {
+        given(cartService.getCheckoutSummary("session-1", "customer@babyshop.local"))
+                .willReturn(sampleCheckoutSummaryResponseWithDefaultAddress(2, new BigDecimal("998.00")));
+
+        mockMvc.perform(get("/api/v1/carts/session-1/checkout")
+                        .principal(new TestingAuthenticationToken("customer@babyshop.local", null)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.defaultShippingAddress.id").value(20))
+                .andExpect(jsonPath("$.defaultShippingAddress.label").value("Home"));
     }
 
     @Test
@@ -197,7 +210,53 @@ class CartControllerTest {
                 BigDecimal.ZERO,
                 subtotal,
                 "TRY",
-                true
+                true,
+                null
+        );
+    }
+
+    private CheckoutSummaryResponse sampleCheckoutSummaryResponseWithDefaultAddress(int quantity, BigDecimal subtotal) {
+        return new CheckoutSummaryResponse(
+                1L,
+                "session-1",
+                List.of(new CartItemResponse(
+                        5L,
+                        1L,
+                        "Baby Dress",
+                        "baby-dress",
+                        "https://example.com/image-1.jpg",
+                        10L,
+                        "SKU-1",
+                        "6-9 months",
+                        "Pink",
+                        quantity,
+                        new BigDecimal("499.00"),
+                        subtotal,
+                        "TRY"
+                )),
+                quantity,
+                subtotal,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                subtotal,
+                "TRY",
+                true,
+                new com.babyshop.customer.dto.CustomerAddressResponse(
+                        20L,
+                        "Home",
+                        "Ceren",
+                        "Yilmaz",
+                        "5551112233",
+                        "Ataturk Cd. No:10",
+                        "Daire 5",
+                        "Kadikoy",
+                        "Istanbul",
+                        "34710",
+                        "Turkey",
+                        true,
+                        null,
+                        null
+                )
         );
     }
 

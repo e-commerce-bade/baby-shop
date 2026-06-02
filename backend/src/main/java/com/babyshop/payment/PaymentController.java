@@ -1,5 +1,7 @@
 package com.babyshop.payment;
 
+import com.babyshop.payment.dto.PaymentCallbackRequest;
+import com.babyshop.payment.dto.PaymentCallbackResponse;
 import com.babyshop.payment.dto.PaymentInitiationRequest;
 import com.babyshop.payment.dto.PaymentResponse;
 import jakarta.validation.Valid;
@@ -40,5 +42,13 @@ public class PaymentController {
     @PatchMapping("/{transactionId}/fail")
     public ResponseEntity<PaymentResponse> failPayment(@PathVariable String transactionId) {
         return ResponseEntity.ok(paymentService.failPayment(transactionId));
+    }
+
+    @PostMapping("/callbacks/{provider}")
+    public ResponseEntity<PaymentCallbackResponse> processCallback(
+            @PathVariable String provider,
+            @Valid @RequestBody PaymentCallbackRequest request
+    ) {
+        return ResponseEntity.ok(paymentService.processCallback(provider, request));
     }
 }

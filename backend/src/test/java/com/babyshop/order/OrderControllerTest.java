@@ -18,6 +18,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
+import java.time.OffsetDateTime;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -58,6 +59,7 @@ class OrderControllerTest {
                 "Ceren",
                 "Yilmaz",
                 "5551112233",
+                null,
                 addressRequest(),
                 "Please ring the bell"
         );
@@ -74,7 +76,7 @@ class OrderControllerTest {
 
     @Test
     void shouldReturnValidationErrorForInvalidRequest() throws Exception {
-        CreateOrderRequest request = new CreateOrderRequest("", "bad-email", null, null, null, null, null);
+        CreateOrderRequest request = new CreateOrderRequest("", "bad-email", null, null, null, null, null, null);
 
         mockMvc.perform(post("/api/v1/orders")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -91,6 +93,7 @@ class OrderControllerTest {
                 "Ceren",
                 "Yilmaz",
                 "5551112233",
+                null,
                 addressRequest(),
                 null
         );
@@ -129,6 +132,7 @@ class OrderControllerTest {
                 BigDecimal.ZERO,
                 new BigDecimal("998.00"),
                 "TRY",
+                OffsetDateTime.parse("2026-06-01T12:00:00+03:00"),
                 new com.babyshop.order.dto.OrderAddressResponse(
                         "Ataturk Cd. No:10",
                         "Daire 5",
@@ -136,6 +140,13 @@ class OrderControllerTest {
                         "Istanbul",
                         "34710",
                         "Turkey"
+                ),
+                new com.babyshop.order.dto.OrderPaymentSummaryResponse(
+                        "MOCK",
+                        "SUCCEEDED",
+                        "txn-123",
+                        "mock-ref-123",
+                        OffsetDateTime.parse("2026-06-01T12:05:00+03:00")
                 ),
                 "Please ring the bell",
                 List.of(new OrderItemResponse(

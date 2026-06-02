@@ -4,13 +4,13 @@ import com.babyshop.common.exception.InvalidRequestException;
 import com.babyshop.common.exception.ResourceNotFoundException;
 import com.babyshop.order.Order;
 import com.babyshop.order.OrderRepository;
+import com.babyshop.payment.dto.PaymentCallbackRequest;
 import com.babyshop.payment.dto.PaymentInitiationRequest;
 import com.babyshop.payment.gateway.MockPaymentGateway;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
-import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
@@ -31,14 +31,13 @@ class PaymentServiceTest {
     @Mock
     private PaymentRepository paymentRepository;
 
-    @Spy
-    private MockPaymentGateway mockPaymentGateway;
-
     @InjectMocks
     private PaymentService paymentService;
 
-    PaymentServiceTest() {
-    }
+    private final MockPaymentGateway mockPaymentGateway =
+            new MockPaymentGateway(new PaymentProperties(
+                    new PaymentProperties.Mock("mock-callback-secret-for-tests")
+            ));
 
     @Test
     void shouldInitiateMockPayment() {
@@ -139,6 +138,20 @@ class PaymentServiceTest {
     }
 
     @Test
+    void shouldTreatDuplicateConfirmAsIdempotent() {
+        Order order = buildOrder("ORD-ABC123DEF456", "PAID");
+        Payment payment = buildPayment(order);
+        payment.setStatus("SUCCEEDED");
+        given(paymentRepository.findByTransactionId("TXN-123")).willReturn(Optional.of(payment));
+
+        paymentService = new PaymentService(orderRepository, paymentRepository, List.of(mockPaymentGateway));
+        var response = paymentService.confirmPayment("TXN-123");
+
+        assertThat(response.status()).isEqualTo("SUCCEEDED");
+        assertThat(order.getStatus()).isEqualTo("PAID");
+    }
+
+    @Test
     void shouldFailPaymentAndCancelOrder() {
         Order order = buildOrder("ORD-ABC123DEF456", "PENDING_PAYMENT");
         Payment payment = buildPayment(order);
@@ -163,6 +176,103 @@ class PaymentServiceTest {
         assertThatThrownBy(() -> paymentService.confirmPayment("TXN-123"))
                 .isInstanceOf(InvalidRequestException.class)
                 .hasMessage("Failed payment cannot be confirmed for transaction id: TXN-123");
+    }
+
+    @Test
+    void shouldProcessSuccessfulCallback() {
+        Order order = buildOrder("ORD-ABC123DEF456", "PENDING_PAYMENT");
+        Payment payment = buildPayment(order);
+        given(paymentRepository.findByTransactionId("TXN-123")).willReturn(Optional.of(payment));
+        given(paymentRepository.save(any(Payment.class))).willAnswer(invocation -> invocation.getArgument(0));
+
+        paymentService = new PaymentService(orderRepository, paymentRepository, List.of(mockPaymentGateway));
+        var response = paymentService.processCallback("MOCK", new PaymentCallbackRequest(
+                "TXN-123",
+                null,
+                "SUCCEEDED",
+                mockPaymentGateway.generateSignature("TXN-123", "MOCK-TXN-123", "SUCCEEDED"),
+                "{\"status\":\"SUCCEEDED\"}"
+        ));
+
+        assertThat(response.paymentStatus()).isEqualTo("SUCCEEDED");
+        assertThat(response.orderStatus()).isEqualTo("PAID");
+        assertThat(response.duplicate()).isFalse();
+    }
+
+    @Test
+    void shouldTreatDuplicateSuccessfulCallbackAsIdempotent() {
+        Order order = buildOrder("ORD-ABC123DEF456", "PAID");
+        Payment payment = buildPayment(order);
+        payment.setStatus("SUCCEEDED");
+        given(paymentRepository.findByTransactionId("TXN-123")).willReturn(Optional.of(payment));
+
+        paymentService = new PaymentService(orderRepository, paymentRepository, List.of(mockPaymentGateway));
+        var response = paymentService.processCallback("MOCK", new PaymentCallbackRequest(
+                "TXN-123",
+                null,
+                "SUCCEEDED",
+                mockPaymentGateway.generateSignature("TXN-123", "MOCK-TXN-123", "SUCCEEDED"),
+                null
+        ));
+
+        assertThat(response.duplicate()).isTrue();
+        assertThat(response.paymentStatus()).isEqualTo("SUCCEEDED");
+    }
+
+    @Test
+    void shouldResolveCallbackByProviderReference() {
+        Order order = buildOrder("ORD-ABC123DEF456", "PENDING_PAYMENT");
+        Payment payment = buildPayment(order);
+        given(paymentRepository.findByProviderReference("MOCK-TXN-123")).willReturn(Optional.of(payment));
+        given(paymentRepository.save(any(Payment.class))).willAnswer(invocation -> invocation.getArgument(0));
+
+        paymentService = new PaymentService(orderRepository, paymentRepository, List.of(mockPaymentGateway));
+        var response = paymentService.processCallback("MOCK", new PaymentCallbackRequest(
+                null,
+                "MOCK-TXN-123",
+                "FAILED",
+                mockPaymentGateway.generateSignature("TXN-123", "MOCK-TXN-123", "FAILED"),
+                null
+        ));
+
+        assertThat(response.paymentStatus()).isEqualTo("FAILED");
+        assertThat(response.orderStatus()).isEqualTo("CANCELLED");
+    }
+
+    @Test
+    void shouldRejectCallbackWithProviderMismatch() {
+        Order order = buildOrder("ORD-ABC123DEF456", "PENDING_PAYMENT");
+        Payment payment = buildPayment(order);
+        given(paymentRepository.findByTransactionId("TXN-123")).willReturn(Optional.of(payment));
+
+        paymentService = new PaymentService(orderRepository, paymentRepository, List.of(mockPaymentGateway));
+        assertThatThrownBy(() -> paymentService.processCallback("PAYTR", new PaymentCallbackRequest(
+                "TXN-123",
+                null,
+                "SUCCEEDED",
+                mockPaymentGateway.generateSignature("TXN-123", "MOCK-TXN-123", "SUCCEEDED"),
+                null
+        )))
+                .isInstanceOf(InvalidRequestException.class)
+                .hasMessage("Payment provider mismatch for transaction id: TXN-123");
+    }
+
+    @Test
+    void shouldRejectCallbackWithInvalidSignature() {
+        Order order = buildOrder("ORD-ABC123DEF456", "PENDING_PAYMENT");
+        Payment payment = buildPayment(order);
+        given(paymentRepository.findByTransactionId("TXN-123")).willReturn(Optional.of(payment));
+
+        paymentService = new PaymentService(orderRepository, paymentRepository, List.of(mockPaymentGateway));
+        assertThatThrownBy(() -> paymentService.processCallback("MOCK", new PaymentCallbackRequest(
+                "TXN-123",
+                null,
+                "SUCCEEDED",
+                "bad-signature",
+                null
+        )))
+                .isInstanceOf(InvalidRequestException.class)
+                .hasMessage("Invalid payment callback signature for provider MOCK");
     }
 
     private Order buildOrder(String orderNumber, String status) {

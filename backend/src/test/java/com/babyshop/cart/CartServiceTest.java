@@ -4,6 +4,8 @@ import com.babyshop.auth.UserAccount;
 import com.babyshop.auth.UserAccountRepository;
 import com.babyshop.common.exception.InvalidRequestException;
 import com.babyshop.common.exception.ResourceNotFoundException;
+import com.babyshop.customer.CustomerAddress;
+import com.babyshop.customer.CustomerAddressRepository;
 import com.babyshop.product.Product;
 import com.babyshop.product.ProductVariant;
 import com.babyshop.product.ProductVariantRepository;
@@ -37,6 +39,9 @@ class CartServiceTest {
 
     @Mock
     private UserAccountRepository userAccountRepository;
+
+    @Mock
+    private CustomerAddressRepository customerAddressRepository;
 
     @InjectMocks
     private CartService cartService;
@@ -75,6 +80,47 @@ class CartServiceTest {
 
         assertThat(response.readyForCheckout()).isTrue();
         assertThat(response.totalAmount()).isEqualByComparingTo("998.00");
+        assertThat(response.defaultShippingAddress()).isNull();
+    }
+
+    @Test
+    void shouldIncludeDefaultAddressInAuthenticatedCheckoutSummary() {
+        Cart cart = buildCart();
+        ProductVariant variant = buildVariant(10L, 12, true, true);
+        CartItem item = new CartItem();
+        item.setId(5L);
+        item.setCart(cart);
+        item.setProductVariant(variant);
+        item.setQuantity(2);
+        cart.getItems().add(item);
+
+        CustomerAddress address = new CustomerAddress();
+        address.setId(20L);
+        address.setLabel("Home");
+        address.setRecipientFirstName("Ceren");
+        address.setRecipientLastName("Yilmaz");
+        address.setPhoneNumber("5551112233");
+        address.setLine1("Ataturk Cd. No:10");
+        address.setDistrict("Kadikoy");
+        address.setCity("Istanbul");
+        address.setPostalCode("34710");
+        address.setCountry("Turkey");
+        address.setDefault(true);
+
+        given(userAccountRepository.findByEmailIgnoreCase("customer@babyshop.local"))
+                .willReturn(Optional.of(buildUser(10L, "customer@babyshop.local")));
+        given(cartRepository.findBySessionId("session-1")).willReturn(Optional.of(cart));
+        given(cartRepository.findByUserEmailIgnoreCaseAndStatus("customer@babyshop.local", "ACTIVE"))
+                .willReturn(Optional.empty());
+        given(cartRepository.save(any(Cart.class))).willAnswer(invocation -> invocation.getArgument(0));
+        given(customerAddressRepository.findFirstByUserEmailIgnoreCaseAndIsDefaultTrue("customer@babyshop.local"))
+                .willReturn(Optional.of(address));
+
+        var response = cartService.getCheckoutSummary("session-1", "customer@babyshop.local");
+
+        assertThat(response.defaultShippingAddress()).isNotNull();
+        assertThat(response.defaultShippingAddress().id()).isEqualTo(20L);
+        assertThat(response.defaultShippingAddress().label()).isEqualTo("Home");
     }
 
     @Test

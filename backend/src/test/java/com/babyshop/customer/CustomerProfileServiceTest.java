@@ -4,6 +4,7 @@ import com.babyshop.auth.Role;
 import com.babyshop.auth.UserAccount;
 import com.babyshop.auth.UserAccountRepository;
 import com.babyshop.common.exception.ResourceNotFoundException;
+import com.babyshop.common.response.PageResponse;
 import com.babyshop.customer.dto.CustomerProfileUpdateRequest;
 import com.babyshop.order.OrderService;
 import com.babyshop.order.dto.OrderAddressResponse;
@@ -15,6 +16,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
+import java.time.OffsetDateTime;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -62,8 +65,11 @@ class CustomerProfileServiceTest {
                 new OrderResponse(
                         1L, "ORD-ABC123DEF456", "PAID", "customer@babyshop.local", "Ceren", "Unlu", "5551112233",
                         new BigDecimal("499.00"), BigDecimal.ZERO, BigDecimal.ZERO, new BigDecimal("499.00"), "TRY",
+                        OffsetDateTime.parse("2026-06-01T12:00:00+03:00"),
                         new OrderAddressResponse("Ataturk Cd. No:10", null, "Kadikoy", "Istanbul", "34710", "Turkey"),
-                        null, List.of()
+                        null,
+                        null,
+                        List.of()
                 )
         ));
 
@@ -71,6 +77,46 @@ class CustomerProfileServiceTest {
 
         assertThat(response).hasSize(1);
         assertThat(response.getFirst().orderNumber()).isEqualTo("ORD-ABC123DEF456");
+    }
+
+    @Test
+    void shouldReturnPagedOrdersForAuthenticatedUser() {
+        given(orderService.getOrdersByUserEmail(
+                "customer@babyshop.local",
+                0,
+                10,
+                "PAID",
+                LocalDate.parse("2026-06-01"),
+                LocalDate.parse("2026-06-30")
+        )).willReturn(new PageResponse<>(
+                List.of(new OrderResponse(
+                        1L, "ORD-ABC123DEF456", "PAID", "customer@babyshop.local", "Ceren", "Unlu", "5551112233",
+                        new BigDecimal("499.00"), BigDecimal.ZERO, BigDecimal.ZERO, new BigDecimal("499.00"), "TRY",
+                        OffsetDateTime.parse("2026-06-01T12:00:00+03:00"),
+                        new OrderAddressResponse("Ataturk Cd. No:10", null, "Kadikoy", "Istanbul", "34710", "Turkey"),
+                        null,
+                        null,
+                        List.of()
+                )),
+                0,
+                10,
+                1,
+                1,
+                false,
+                false
+        ));
+
+        var response = customerProfileService.getOrders(
+                "customer@babyshop.local",
+                0,
+                10,
+                "PAID",
+                LocalDate.parse("2026-06-01"),
+                LocalDate.parse("2026-06-30")
+        );
+
+        assertThat(response.content()).hasSize(1);
+        assertThat(response.totalElements()).isEqualTo(1);
     }
 
     @Test

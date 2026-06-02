@@ -3,6 +3,8 @@ package com.babyshop.payment;
 import com.babyshop.common.exception.GlobalExceptionHandler;
 import com.babyshop.common.exception.InvalidRequestException;
 import com.babyshop.common.exception.ResourceNotFoundException;
+import com.babyshop.payment.dto.PaymentCallbackRequest;
+import com.babyshop.payment.dto.PaymentCallbackResponse;
 import com.babyshop.payment.dto.PaymentInitiationRequest;
 import com.babyshop.payment.dto.PaymentResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -89,6 +91,27 @@ class PaymentControllerTest {
     }
 
     @Test
+    void shouldProcessPaymentCallback() throws Exception {
+        PaymentCallbackRequest request = new PaymentCallbackRequest(
+                "TXN-123",
+                null,
+                "SUCCEEDED",
+                "signed-callback",
+                "{\"status\":\"SUCCEEDED\"}"
+        );
+        given(paymentService.processCallback(any(), any(PaymentCallbackRequest.class)))
+                .willReturn(new PaymentCallbackResponse("MOCK", "TXN-123", "SUCCEEDED", "ORD-ABC123DEF456", "PAID", false));
+
+        mockMvc.perform(post("/api/v1/payments/callbacks/MOCK")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paymentStatus").value("SUCCEEDED"))
+                .andExpect(jsonPath("$.orderStatus").value("PAID"))
+                .andExpect(jsonPath("$.duplicate").value(false));
+    }
+
+    @Test
     void shouldReturnValidationErrorForInvalidInitiationRequest() throws Exception {
         PaymentInitiationRequest request = new PaymentInitiationRequest("", "", "", "");
 
@@ -136,6 +159,17 @@ class PaymentControllerTest {
         mockMvc.perform(patch("/api/v1/payments/TXN-FAILED/confirm"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value("Failed payment cannot be confirmed for transaction id: TXN-FAILED"));
+    }
+
+    @Test
+    void shouldReturnValidationErrorForInvalidCallbackRequest() throws Exception {
+        PaymentCallbackRequest request = new PaymentCallbackRequest(null, null, "", null, null);
+
+        mockMvc.perform(post("/api/v1/payments/callbacks/MOCK")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400));
     }
 
     private PaymentResponse samplePaymentResponse() {

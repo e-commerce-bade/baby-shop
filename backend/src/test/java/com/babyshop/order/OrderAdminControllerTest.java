@@ -3,6 +3,7 @@ package com.babyshop.order;
 import com.babyshop.common.exception.GlobalExceptionHandler;
 import com.babyshop.common.exception.InvalidRequestException;
 import com.babyshop.common.exception.ResourceNotFoundException;
+import com.babyshop.common.response.PageResponse;
 import com.babyshop.order.dto.OrderAddressResponse;
 import com.babyshop.order.dto.OrderItemResponse;
 import com.babyshop.order.dto.OrderResponse;
@@ -19,6 +20,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
+import java.time.OffsetDateTime;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -43,11 +45,37 @@ class OrderAdminControllerTest {
 
     @Test
     void shouldReturnAllOrders() throws Exception {
-        given(orderService.getAllOrders()).willReturn(List.of(sampleOrderResponse("ORD-ABC123DEF456", "PENDING_PAYMENT")));
+        given(orderService.getAllOrders(0, 10, null, null, null, null)).willReturn(new PageResponse<>(
+                List.of(sampleOrderResponse("ORD-ABC123DEF456", "PENDING_PAYMENT")),
+                0,
+                10,
+                1,
+                1,
+                false,
+                false
+        ));
 
         mockMvc.perform(get("/api/v1/admin/orders"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].orderNumber").value("ORD-ABC123DEF456"));
+                .andExpect(jsonPath("$.content[0].orderNumber").value("ORD-ABC123DEF456"))
+                .andExpect(jsonPath("$.totalElements").value(1));
+    }
+
+    @Test
+    void shouldReturnFilteredOrdersByOrderNumber() throws Exception {
+        given(orderService.getAllOrders(0, 10, "ABC123", null, null, null)).willReturn(new PageResponse<>(
+                List.of(sampleOrderResponse("ORD-ABC123DEF456", "PENDING_PAYMENT")),
+                0,
+                10,
+                1,
+                1,
+                false,
+                false
+        ));
+
+        mockMvc.perform(get("/api/v1/admin/orders?orderNumber=ABC123"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].orderNumber").value("ORD-ABC123DEF456"));
     }
 
     @Test
@@ -80,6 +108,13 @@ class OrderAdminControllerTest {
         mockMvc.perform(patch("/api/v1/admin/orders/ORD-ABC123DEF456/status")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400));
+    }
+
+    @Test
+    void shouldReturnValidationErrorForInvalidOrderPageSize() throws Exception {
+        mockMvc.perform(get("/api/v1/admin/orders?size=0"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status").value(400));
     }
@@ -121,6 +156,7 @@ class OrderAdminControllerTest {
                 BigDecimal.ZERO,
                 new BigDecimal("998.00"),
                 "TRY",
+                OffsetDateTime.parse("2026-06-01T12:00:00+03:00"),
                 new OrderAddressResponse(
                         "Ataturk Cd. No:10",
                         "Daire 5",
@@ -128,6 +164,13 @@ class OrderAdminControllerTest {
                         "Istanbul",
                         "34710",
                         "Turkey"
+                ),
+                new com.babyshop.order.dto.OrderPaymentSummaryResponse(
+                        "MOCK",
+                        "SUCCEEDED",
+                        "txn-123",
+                        "mock-ref-123",
+                        OffsetDateTime.parse("2026-06-01T12:05:00+03:00")
                 ),
                 "Please ring the bell",
                 List.of(new OrderItemResponse(

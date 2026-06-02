@@ -7,6 +7,9 @@ import com.babyshop.cart.dto.CartResponse;
 import com.babyshop.cart.dto.CheckoutSummaryResponse;
 import com.babyshop.common.exception.InvalidRequestException;
 import com.babyshop.common.exception.ResourceNotFoundException;
+import com.babyshop.customer.CustomerAddress;
+import com.babyshop.customer.CustomerAddressRepository;
+import com.babyshop.customer.dto.CustomerAddressResponse;
 import com.babyshop.product.Product;
 import com.babyshop.product.ProductImage;
 import com.babyshop.product.ProductVariant;
@@ -31,11 +34,13 @@ public class CartService {
     private final CartItemRepository cartItemRepository;
     private final ProductVariantRepository productVariantRepository;
     private final UserAccountRepository userAccountRepository;
+    private final CustomerAddressRepository customerAddressRepository;
 
     public CartResponse getCart(String sessionId) {
         return getCart(sessionId, null);
     }
 
+    @Transactional
     public CartResponse getCart(String sessionId, String authenticatedEmail) {
         Cart cart = findOrCreateCart(sessionId, authenticatedEmail);
         return toResponse(cart);
@@ -60,6 +65,7 @@ public class CartService {
         BigDecimal totalAmount = cartResponse.subtotal()
                 .add(shippingAmount)
                 .subtract(discountAmount);
+        CustomerAddressResponse defaultShippingAddress = resolveDefaultShippingAddress(authenticatedEmail);
 
         return new CheckoutSummaryResponse(
                 cartResponse.id(),
@@ -71,7 +77,8 @@ public class CartService {
                 discountAmount,
                 totalAmount,
                 cartResponse.currency(),
-                true
+                true,
+                defaultShippingAddress
         );
     }
 
@@ -349,5 +356,34 @@ public class CartService {
                                 .thenComparing(ProductImage::getId, Comparator.nullsLast(Comparator.naturalOrder())))
                         .map(ProductImage::getImageUrl))
                 .orElse(null);
+    }
+
+    private CustomerAddressResponse resolveDefaultShippingAddress(String authenticatedEmail) {
+        if (authenticatedEmail == null || authenticatedEmail.isBlank()) {
+            return null;
+        }
+
+        return customerAddressRepository.findFirstByUserEmailIgnoreCaseAndIsDefaultTrue(authenticatedEmail.trim())
+                .map(this::toAddressResponse)
+                .orElse(null);
+    }
+
+    private CustomerAddressResponse toAddressResponse(CustomerAddress address) {
+        return new CustomerAddressResponse(
+                address.getId(),
+                address.getLabel(),
+                address.getRecipientFirstName(),
+                address.getRecipientLastName(),
+                address.getPhoneNumber(),
+                address.getLine1(),
+                address.getLine2(),
+                address.getDistrict(),
+                address.getCity(),
+                address.getPostalCode(),
+                address.getCountry(),
+                address.isDefault(),
+                address.getCreatedAt(),
+                address.getUpdatedAt()
+        );
     }
 }

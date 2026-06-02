@@ -3,6 +3,7 @@ package com.babyshop.customer;
 import com.babyshop.auth.UserAccount;
 import com.babyshop.auth.UserAccountRepository;
 import com.babyshop.common.exception.ResourceNotFoundException;
+import com.babyshop.common.response.PageResponse;
 import com.babyshop.customer.dto.CustomerProfileResponse;
 import com.babyshop.customer.dto.CustomerProfileUpdateRequest;
 import com.babyshop.order.OrderService;
@@ -11,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -32,6 +34,17 @@ public class CustomerProfileService {
 
     public List<OrderResponse> getOrders(String email) {
         return orderService.getOrdersByUserEmail(normalizeEmail(email));
+    }
+
+    public PageResponse<OrderResponse> getOrders(
+            String email,
+            int page,
+            int size,
+            String status,
+            LocalDate from,
+            LocalDate to
+    ) {
+        return orderService.getOrdersByUserEmail(normalizeEmail(email), page, size, status, from, to);
     }
 
     @Transactional

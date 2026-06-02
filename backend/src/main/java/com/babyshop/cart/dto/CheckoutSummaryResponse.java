@@ -1,5 +1,7 @@
 package com.babyshop.cart.dto;
 
+import com.babyshop.customer.dto.CustomerAddressResponse;
+
 import java.math.BigDecimal;
 import java.util.List;
 
@@ -13,6 +15,7 @@ public record CheckoutSummaryResponse(
         BigDecimal discountAmount,
         BigDecimal totalAmount,
         String currency,
-        boolean readyForCheckout
+        boolean readyForCheckout,
+        CustomerAddressResponse defaultShippingAddress
 ) {
 }

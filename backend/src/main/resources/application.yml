@@ -28,6 +28,9 @@ server:
   port: ${SERVER_PORT:5050}
 
 app:
+  payment:
+    mock:
+      callback-secret: ${MOCK_PAYMENT_CALLBACK_SECRET:mock-callback-secret-change-me}
   security:
     admin:
       email: ${ADMIN_EMAIL:admin@babyshop.local}

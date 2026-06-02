@@ -4,27 +4,38 @@ import com.babyshop.auth.UserAccount;
 import com.babyshop.auth.UserAccountRepository;
 import com.babyshop.cart.Cart;
 import com.babyshop.cart.CartItem;
+import com.babyshop.common.response.PageResponse;
 import com.babyshop.cart.CartRepository;
 import com.babyshop.common.exception.InvalidRequestException;
 import com.babyshop.common.exception.ResourceNotFoundException;
+import com.babyshop.customer.CustomerAddress;
+import com.babyshop.customer.CustomerAddressRepository;
 import com.babyshop.order.dto.CreateOrderRequest;
+import com.babyshop.order.dto.OrderAddressRequest;
 import com.babyshop.order.dto.OrderAddressResponse;
 import com.babyshop.order.dto.OrderItemResponse;
+import com.babyshop.order.dto.OrderPaymentSummaryResponse;
 import com.babyshop.order.dto.OrderResponse;
 import com.babyshop.order.dto.OrderStatusUpdateRequest;
+import com.babyshop.payment.Payment;
+import com.babyshop.payment.PaymentRepository;
 import com.babyshop.product.ProductVariant;
 import com.babyshop.product.ProductVariantRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Set;
 import java.util.UUID;
 
 @Service
@@ -34,25 +45,48 @@ public class OrderService {
 
     private static final String CART_STATUS_ACTIVE = "ACTIVE";
     private static final String CART_STATUS_CHECKED_OUT = "CHECKED_OUT";
-    private static final String ORDER_STATUS_PENDING_PAYMENT = "PENDING_PAYMENT";
-    private static final Set<String> ALLOWED_ORDER_STATUSES = new LinkedHashSet<>(Arrays.asList(
-            "PENDING_PAYMENT",
-            "PAID",
-            "PREPARING",
-            "SHIPPED",
-            "DELIVERED",
-            "CANCELLED"
-    ));
 
     private final CartRepository cartRepository;
     private final OrderRepository orderRepository;
     private final ProductVariantRepository productVariantRepository;
     private final UserAccountRepository userAccountRepository;
+    private final CustomerAddressRepository customerAddressRepository;
+    private final PaymentRepository paymentRepository;
 
     public List<OrderResponse> getAllOrders() {
         return orderRepository.findAllByOrderByCreatedAtDesc().stream()
                 .map(this::toResponse)
                 .toList();
+    }
+
+    public PageResponse<OrderResponse> getAllOrders(
+            int page,
+            int size,
+            String orderNumber,
+            String status,
+            LocalDate from,
+            LocalDate to
+    ) {
+        validateDateRange(from, to);
+
+        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+        Specification<Order> specification = Specification.where(hasOrderNumber(orderNumber))
+                .and(hasStatus(status))
+                .and(createdAtOnOrAfter(from))
+                .and(createdAtBeforeOrOn(to));
+
+        Page<OrderResponse> result = orderRepository.findAll(specification, pageable)
+                .map(this::toResponse);
+
+        return new PageResponse<>(
+                result.getContent(),
+                result.getNumber(),
+                result.getSize(),
+                result.getTotalElements(),
+                result.getTotalPages(),
+                result.hasNext(),
+                result.hasPrevious()
+        );
     }
 
     public OrderResponse getOrderByOrderNumber(String orderNumber) {
@@ -74,18 +108,46 @@ public class OrderService {
                 .toList();
     }
 
+    public PageResponse<OrderResponse> getOrdersByUserEmail(
+            String email,
+            int page,
+            int size,
+            String status,
+            LocalDate from,
+            LocalDate to
+    ) {
+        String normalizedEmail = normalizeRequiredEmail(email);
+        validateDateRange(from, to);
+
+        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+        Specification<Order> specification = Specification.where(hasUserEmail(normalizedEmail))
+                .and(hasStatus(status))
+                .and(createdAtOnOrAfter(from))
+                .and(createdAtBeforeOrOn(to));
+
+        Page<OrderResponse> result = orderRepository.findAll(specification, pageable)
+                .map(this::toResponse);
+
+        return new PageResponse<>(
+                result.getContent(),
+                result.getNumber(),
+                result.getSize(),
+                result.getTotalElements(),
+                result.getTotalPages(),
+                result.hasNext(),
+                result.hasPrevious()
+        );
+    }
+
     @Transactional
     public OrderResponse updateOrderStatus(String orderNumber, OrderStatusUpdateRequest request) {
         String normalizedOrderNumber = normalizeRequiredOrderNumber(orderNumber);
-        String normalizedStatus = normalizeRequiredStatus(request.status());
-
-        if (!ALLOWED_ORDER_STATUSES.contains(normalizedStatus)) {
-            throw new InvalidRequestException("Unsupported order status: " + normalizedStatus);
-        }
+        String normalizedStatus = OrderStatusPolicy.normalizeRequiredStatus(request.status());
 
         Order order = orderRepository.findByOrderNumber(normalizedOrderNumber)
                 .orElseThrow(() -> new ResourceNotFoundException("Order not found for order number: " + orderNumber));
 
+        OrderStatusPolicy.validateTransition(order.getStatus(), normalizedStatus);
         order.setStatus(normalizedStatus);
         return toResponse(orderRepository.save(order));
     }
@@ -96,6 +158,8 @@ public class OrderService {
                 .orElseThrow(() -> new ResourceNotFoundException("Cart not found for session id: " + request.sessionId()));
 
         validateCartForCheckout(cart);
+        String normalizedAuthenticatedEmail = normalizeOptionalEmail(authenticatedEmail);
+        ShippingDetails shippingDetails = resolveShippingDetails(request, normalizedAuthenticatedEmail);
 
         List<CartItem> cartItems = cart.getItems();
         String currency = validateCartCurrencies(cartItems);
@@ -104,19 +168,19 @@ public class OrderService {
         BigDecimal subtotalAmount = BigDecimal.ZERO;
 
         Order order = new Order();
-        resolveAuthenticatedUser(authenticatedEmail).ifPresent(order::setUser);
+        resolveAuthenticatedUser(normalizedAuthenticatedEmail).ifPresent(order::setUser);
         order.setOrderNumber(generateOrderNumber());
-        order.setStatus(ORDER_STATUS_PENDING_PAYMENT);
+        order.setStatus(OrderStatusPolicy.PENDING_PAYMENT);
         order.setCustomerEmail(request.customerEmail().trim().toLowerCase(Locale.ROOT));
-        order.setCustomerFirstName(normalize(request.customerFirstName()));
-        order.setCustomerLastName(normalize(request.customerLastName()));
-        order.setCustomerPhone(normalize(request.customerPhone()));
-        order.setShippingAddressLine1(normalize(request.shippingAddress().line1()));
-        order.setShippingAddressLine2(normalize(request.shippingAddress().line2()));
-        order.setShippingDistrict(normalize(request.shippingAddress().district()));
-        order.setShippingCity(normalize(request.shippingAddress().city()));
-        order.setShippingPostalCode(normalize(request.shippingAddress().postalCode()));
-        order.setShippingCountry(normalize(request.shippingAddress().country()));
+        order.setCustomerFirstName(shippingDetails.customerFirstName());
+        order.setCustomerLastName(shippingDetails.customerLastName());
+        order.setCustomerPhone(shippingDetails.customerPhone());
+        order.setShippingAddressLine1(shippingDetails.address().line1());
+        order.setShippingAddressLine2(shippingDetails.address().line2());
+        order.setShippingDistrict(shippingDetails.address().district());
+        order.setShippingCity(shippingDetails.address().city());
+        order.setShippingPostalCode(shippingDetails.address().postalCode());
+        order.setShippingCountry(shippingDetails.address().country());
         order.setNotes(normalize(request.notes()));
         order.setCurrency(currency);
         order.setShippingAmount(shippingAmount);
@@ -157,11 +221,59 @@ public class OrderService {
     }
 
     private java.util.Optional<UserAccount> resolveAuthenticatedUser(String authenticatedEmail) {
-        if (authenticatedEmail == null || authenticatedEmail.trim().isEmpty()) {
+        if (authenticatedEmail == null || authenticatedEmail.isEmpty()) {
             return java.util.Optional.empty();
         }
 
-        return userAccountRepository.findByEmailIgnoreCase(authenticatedEmail.trim());
+        return userAccountRepository.findByEmailIgnoreCase(authenticatedEmail);
+    }
+
+    private ShippingDetails resolveShippingDetails(CreateOrderRequest request, String authenticatedEmail) {
+        boolean hasAddressId = request.shippingAddressId() != null;
+        boolean hasShippingAddress = request.shippingAddress() != null;
+
+        if (hasAddressId && hasShippingAddress) {
+            throw new InvalidRequestException("Provide either shippingAddressId or shippingAddress, not both");
+        }
+
+        if (hasAddressId) {
+            if (authenticatedEmail == null) {
+                throw new InvalidRequestException("Authenticated user is required when shippingAddressId is used");
+            }
+
+            CustomerAddress address = customerAddressRepository.findByIdAndUserEmailIgnoreCase(
+                            request.shippingAddressId(),
+                            authenticatedEmail
+                    )
+                    .orElseThrow(() -> new ResourceNotFoundException(
+                            "Customer address not found for id: " + request.shippingAddressId()
+                    ));
+
+            return new ShippingDetails(
+                    firstNonNull(normalize(request.customerFirstName()), normalize(address.getRecipientFirstName())),
+                    firstNonNull(normalize(request.customerLastName()), normalize(address.getRecipientLastName())),
+                    firstNonNull(normalize(request.customerPhone()), normalize(address.getPhoneNumber())),
+                    new OrderAddressRequest(
+                            address.getLine1(),
+                            address.getLine2(),
+                            address.getDistrict(),
+                            address.getCity(),
+                            address.getPostalCode(),
+                            address.getCountry()
+                    )
+            );
+        }
+
+        if (!hasShippingAddress) {
+            throw new InvalidRequestException("Shipping address is required");
+        }
+
+        return new ShippingDetails(
+                normalize(request.customerFirstName()),
+                normalize(request.customerLastName()),
+                normalize(request.customerPhone()),
+                request.shippingAddress()
+        );
     }
 
     private void validateCartForCheckout(Cart cart) {
@@ -218,20 +330,37 @@ public class OrderService {
         return orderNumber.trim();
     }
 
-    private String normalizeRequiredStatus(String status) {
-        if (status == null || status.trim().isEmpty()) {
-            throw new InvalidRequestException("Order status is required");
-        }
-
-        return status.trim().toUpperCase(Locale.ROOT);
-    }
-
     private String normalizeRequiredEmail(String email) {
-        if (email == null || email.trim().isEmpty()) {
+        String normalizedEmail = normalizeOptionalEmail(email);
+        if (normalizedEmail == null) {
             throw new InvalidRequestException("Authenticated user email is required");
         }
 
+        return normalizedEmail;
+    }
+
+    private String normalizeOptionalEmail(String email) {
+        if (email == null || email.trim().isEmpty()) {
+            return null;
+        }
+
         return email.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private String normalizeOptionalStatus(String status) {
+        if (status == null || status.trim().isEmpty()) {
+            return null;
+        }
+
+        return OrderStatusPolicy.normalizeRequiredStatus(status);
+    }
+
+    private String normalizeOptionalOrderNumber(String orderNumber) {
+        if (orderNumber == null || orderNumber.trim().isEmpty()) {
+            return null;
+        }
+
+        return orderNumber.trim().toUpperCase(Locale.ROOT);
     }
 
     private String normalize(String value) {
@@ -240,6 +369,61 @@ public class OrderService {
         }
 
         return value.trim();
+    }
+
+    private String firstNonNull(String primary, String fallback) {
+        return primary != null ? primary : fallback;
+    }
+
+    private void validateDateRange(LocalDate from, LocalDate to) {
+        if (from != null && to != null && from.isAfter(to)) {
+            throw new InvalidRequestException("Order date range is invalid: from must be on or before to");
+        }
+    }
+
+    private Specification<Order> hasUserEmail(String email) {
+        return (root, query, criteriaBuilder) ->
+                criteriaBuilder.equal(criteriaBuilder.lower(root.get("user").get("email")), email.toLowerCase(Locale.ROOT));
+    }
+
+    private Specification<Order> hasStatus(String status) {
+        String normalizedStatus = normalizeOptionalStatus(status);
+        if (normalizedStatus == null) {
+            return null;
+        }
+
+        return (root, query, criteriaBuilder) ->
+                criteriaBuilder.equal(root.get("status"), normalizedStatus);
+    }
+
+    private Specification<Order> hasOrderNumber(String orderNumber) {
+        String normalizedOrderNumber = normalizeOptionalOrderNumber(orderNumber);
+        if (normalizedOrderNumber == null) {
+            return null;
+        }
+
+        return (root, query, criteriaBuilder) ->
+                criteriaBuilder.like(criteriaBuilder.upper(root.get("orderNumber")), "%" + normalizedOrderNumber + "%");
+    }
+
+    private Specification<Order> createdAtOnOrAfter(LocalDate from) {
+        if (from == null) {
+            return null;
+        }
+
+        OffsetDateTime startOfDay = from.atStartOfDay().atOffset(OffsetDateTime.now().getOffset());
+        return (root, query, criteriaBuilder) ->
+                criteriaBuilder.greaterThanOrEqualTo(root.get("createdAt"), startOfDay);
+    }
+
+    private Specification<Order> createdAtBeforeOrOn(LocalDate to) {
+        if (to == null) {
+            return null;
+        }
+
+        OffsetDateTime endExclusive = to.plusDays(1).atStartOfDay().atOffset(OffsetDateTime.now().getOffset());
+        return (root, query, criteriaBuilder) ->
+                criteriaBuilder.lessThan(root.get("createdAt"), endExclusive);
     }
 
     private OrderResponse toResponse(Order order) {
@@ -256,6 +440,7 @@ public class OrderService {
                 order.getDiscountAmount(),
                 order.getTotalAmount(),
                 order.getCurrency(),
+                order.getCreatedAt(),
                 new OrderAddressResponse(
                         order.getShippingAddressLine1(),
                         order.getShippingAddressLine2(),
@@ -264,6 +449,7 @@ public class OrderService {
                         order.getShippingPostalCode(),
                         order.getShippingCountry()
                 ),
+                resolvePaymentSummary(order),
                 order.getNotes(),
                 order.getItems().stream()
                         .map(this::toItemResponse)
@@ -284,5 +470,35 @@ public class OrderService {
                 item.getLineTotal(),
                 item.getCurrency()
         );
+    }
+
+    private OrderPaymentSummaryResponse resolvePaymentSummary(Order order) {
+        List<Payment> payments = paymentRepository.findAllByOrderOrderNumberOrderByCreatedAtDesc(order.getOrderNumber());
+        if (payments == null) {
+            return null;
+        }
+
+        return payments.stream()
+                .findFirst()
+                .map(this::toPaymentSummaryResponse)
+                .orElse(null);
+    }
+
+    private OrderPaymentSummaryResponse toPaymentSummaryResponse(Payment payment) {
+        return new OrderPaymentSummaryResponse(
+                payment.getProvider(),
+                payment.getStatus(),
+                payment.getTransactionId(),
+                payment.getProviderReference(),
+                payment.getPaidAt()
+        );
+    }
+
+    private record ShippingDetails(
+            String customerFirstName,
+            String customerLastName,
+            String customerPhone,
+            OrderAddressRequest address
+    ) {
     }
 }
