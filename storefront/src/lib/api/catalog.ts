@@ -82,7 +82,7 @@ const categoryDecorators: Record<
     emoji: '🧸',
     ageRange: '3 ay - 4 yaş',
     backgroundColor: '#DFE8EF',
-    imageUrl: null,
+    imageUrl: '/images/category_boy.png',
   },
   'kids-girl': {
     emoji: '🌸',
@@ -113,7 +113,7 @@ const categoryDecorators: Record<
     emoji: '🧸',
     ageRange: '0-7 Yaş',
     backgroundColor: '#D9E4EC',
-    imageUrl: null,
+    imageUrl: '/images/category_boy.png',
   },
 }
 
