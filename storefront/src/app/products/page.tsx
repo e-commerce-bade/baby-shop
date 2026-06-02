@@ -9,6 +9,7 @@ import type { ProductSummary } from '@/types/product'
 export const metadata: Metadata = { title: 'Ürünler' }
 
 interface SearchParams {
+  q?: string
   category?: string
   categorySlug?: string
   colors?: string
@@ -22,6 +23,16 @@ function applyFilters(
   params: SearchParams,
 ): ProductSummary[] {
   let result = [...products]
+
+  if (params.q) {
+    const q = params.q.toLowerCase()
+    result = result.filter(
+      (p) =>
+        p.name.toLowerCase().includes(q) ||
+        (p.brand?.toLowerCase().includes(q) ?? false) ||
+        (p.categoryName?.toLowerCase().includes(q) ?? false),
+    )
+  }
 
   if (params.colors) {
     const selected = params.colors.split(',').filter(Boolean)
@@ -85,7 +96,7 @@ export default async function ProductsPage({
       <div className="mb-5 flex items-end justify-between">
         <div>
           <h1 className="font-serif text-[28px] font-semibold text-brown">
-            Tüm Ürünler
+            {params.q ? `"${params.q}" için sonuçlar` : 'Tüm Ürünler'}
           </h1>
           <p className="mt-1 text-sm text-muted">
             {products.length} ürün
