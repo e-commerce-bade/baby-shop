@@ -10,3 +10,4 @@
 /storefront/node_modules/
 /storefront/.next/
 /storefront/out/
+/storefront/*.tsbuildinfo
