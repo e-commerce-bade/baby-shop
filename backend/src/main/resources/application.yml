@@ -2,9 +2,9 @@ spring:
   application:
     name: baby-shop-backend
   datasource:
-    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:babyshop}
-    username: ${DB_USERNAME:babyshop_user}
-    password: ${DB_PASSWORD:babyshop_password}
+    url: ${JDBC_DATABASE_URL:jdbc:postgresql://${PGHOST:${DB_HOST:localhost}}:${PGPORT:${DB_PORT:5432}}/${PGDATABASE:${DB_NAME:babyshop}}}
+    username: ${PGUSER:${DB_USERNAME:babyshop_user}}
+    password: ${PGPASSWORD:${DB_PASSWORD:babyshop_password}}
     driver-class-name: org.postgresql.Driver
     hikari:
       pool-name: BabyShopHikariPool
