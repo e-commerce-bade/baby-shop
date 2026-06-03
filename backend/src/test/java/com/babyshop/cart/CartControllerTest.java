@@ -65,6 +65,10 @@ class CartControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.readyForCheckout").value(true))
                 .andExpect(jsonPath("$.totalAmount").value(998.00))
+                .andExpect(jsonPath("$.itemCount").value(1))
+                .andExpect(jsonPath("$.freeShippingThreshold").value(1500.00))
+                .andExpect(jsonPath("$.remainingAmountForFreeShipping").value(502.00))
+                .andExpect(jsonPath("$.eligibleForFreeShipping").value(false))
                 .andExpect(jsonPath("$.defaultShippingAddress").doesNotExist());
     }
 
@@ -150,13 +154,16 @@ class CartControllerTest {
     }
 
     @Test
-    void shouldReturnBadRequestForEmptyCheckoutSummary() throws Exception {
+    void shouldReturnNonReadySummaryForEmptyCheckoutSummary() throws Exception {
         given(cartService.getCheckoutSummary("session-1", null))
-                .willThrow(new InvalidRequestException("Cart is empty for session id: session-1"));
+                .willReturn(emptyCheckoutSummaryResponse());
 
         mockMvc.perform(get("/api/v1/carts/session-1/checkout"))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message").value("Cart is empty for session id: session-1"));
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.readyForCheckout").value(false))
+                .andExpect(jsonPath("$.checkoutBlockedReason").value("CART_EMPTY"))
+                .andExpect(jsonPath("$.itemCount").value(0))
+                .andExpect(jsonPath("$.totalQuantity").value(0));
     }
 
     private CartResponse sampleCartResponse(int quantity, BigDecimal subtotal) {
@@ -204,13 +211,18 @@ class CartControllerTest {
                         subtotal,
                         "TRY"
                 )),
+                1,
                 quantity,
                 subtotal,
                 BigDecimal.ZERO,
                 BigDecimal.ZERO,
                 subtotal,
                 "TRY",
+                new BigDecimal("1500.00"),
+                new BigDecimal("502.00"),
+                false,
                 true,
+                null,
                 null
         );
     }
@@ -234,13 +246,18 @@ class CartControllerTest {
                         subtotal,
                         "TRY"
                 )),
+                1,
                 quantity,
                 subtotal,
                 BigDecimal.ZERO,
                 BigDecimal.ZERO,
                 subtotal,
                 "TRY",
+                new BigDecimal("1500.00"),
+                new BigDecimal("502.00"),
+                false,
                 true,
+                null,
                 new com.babyshop.customer.dto.CustomerAddressResponse(
                         20L,
                         "Home",
@@ -257,6 +274,27 @@ class CartControllerTest {
                         null,
                         null
                 )
+        );
+    }
+
+    private CheckoutSummaryResponse emptyCheckoutSummaryResponse() {
+        return new CheckoutSummaryResponse(
+                1L,
+                "session-1",
+                List.of(),
+                0,
+                0,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                "TRY",
+                new BigDecimal("1500.00"),
+                new BigDecimal("1500.00"),
+                false,
+                false,
+                "CART_EMPTY",
+                null
         );
     }
 

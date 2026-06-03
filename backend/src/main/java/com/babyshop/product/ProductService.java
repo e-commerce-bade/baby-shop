@@ -163,6 +163,7 @@ public class ProductService {
                 image.getId(),
                 image.getImageUrl(),
                 image.getAltText(),
+                image.getColorName(),
                 image.getSortOrder(),
                 image.isPrimary()
         );

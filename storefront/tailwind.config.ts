@@ -17,10 +17,10 @@ const config: Config = {
           '3': '#FBF6EF',
         },
         rose: {
-          DEFAULT: '#D2918D',
-          dk: '#C57F7B',
-          soft: '#EBCFC9',
-          tint: '#F6E6E2',
+          DEFAULT: '#A89070',
+          dk: '#8A7258',
+          soft: '#E0D5C8',
+          tint: '#F4EEE6',
         },
         brown: {
           DEFAULT: '#5B4839',

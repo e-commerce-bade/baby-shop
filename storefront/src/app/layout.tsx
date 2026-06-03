@@ -2,10 +2,8 @@ import type { Metadata } from 'next'
 import { Fraunces, Mulish } from 'next/font/google'
 import './globals.css'
 import CartSyncProvider from '@/components/cart/CartSyncProvider'
-import AnnouncementBar from '@/components/layout/AnnouncementBar'
-import Header from '@/components/layout/Header'
-import Nav from '@/components/layout/Nav'
-import Footer from '@/components/layout/Footer'
+import SiteChrome from '@/components/layout/SiteChrome'
+import NavigationProgress from '@/components/layout/NavigationProgress'
 
 const fraunces = Fraunces({
   subsets: ['latin'],
@@ -25,8 +23,8 @@ const mulish = Mulish({
 
 export const metadata: Metadata = {
   title: {
-    default: 'MiniMori - Tiny outfits, big memories',
-    template: '%s - MiniMori',
+    default: 'Bade Bebe — Küçükler için büyük sevgi',
+    template: '%s — Bade Bebe',
   },
   description: 'Küçükler için zamansız parçalar, sevgi ve özenle hazırlandı.',
 }
@@ -39,12 +37,9 @@ export default function RootLayout({
   return (
     <html lang="tr" className={`${fraunces.variable} ${mulish.variable}`}>
       <body>
+        <NavigationProgress />
         <CartSyncProvider />
-        <AnnouncementBar />
-        <Header />
-        <Nav />
-        <main>{children}</main>
-        <Footer />
+        <SiteChrome>{children}</SiteChrome>
       </body>
     </html>
   )

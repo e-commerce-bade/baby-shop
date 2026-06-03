@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { cn } from '@/lib/utils'
 import type { ProductImage } from '@/types/product'
 
@@ -24,8 +24,12 @@ export default function ProductGallery({
   const [active, setActive] = useState(0)
   const count = Math.max(images.length, 5)
 
+  useEffect(() => {
+    setActive(0)
+  }, [images])
+
   return (
-    <div className="flex gap-3.5 max-[680px]:flex-col-reverse">
+    <div className="flex w-full max-w-[560px] gap-3 max-[980px]:mx-auto max-[680px]:flex-col-reverse">
       <div className="flex flex-col gap-2 max-[680px]:flex-row max-[680px]:overflow-x-auto">
         {Array.from({ length: count }).map((_, index) => {
           const image = images[index]
@@ -36,11 +40,11 @@ export default function ProductGallery({
               onClick={() => setActive(index)}
               aria-label={`Görsel ${index + 1}`}
               className={cn(
-                'h-[96px] w-[82px] shrink-0 overflow-hidden rounded-thumb border-[1.5px] transition-colors duration-[180ms]',
+                'h-[82px] w-[70px] shrink-0 overflow-hidden rounded-thumb border-[1.5px] bg-cream-2 transition-colors duration-[180ms]',
                 active === index
                   ? 'border-rose'
                   : 'border-line-2 hover:border-rose-soft',
-                'max-[680px]:h-[76px] max-[680px]:w-16',
+                'max-[680px]:h-[68px] max-[680px]:w-[58px]',
               )}
               style={{
                 background: image
@@ -52,7 +56,7 @@ export default function ProductGallery({
                 <img
                   src={image.imageUrl}
                   alt={image.altText ?? productName}
-                  className="h-full w-full object-cover"
+                  className="h-full w-full object-contain p-1"
                 />
               ) : null}
               {!image && index === count - 1 ? (
@@ -68,12 +72,12 @@ export default function ProductGallery({
       </div>
 
       <div
-        className="relative flex flex-1 items-center justify-center overflow-hidden rounded-panel border border-line-2"
+        className="relative flex min-h-[430px] flex-1 items-center justify-center overflow-hidden rounded-panel border border-line-2 max-[680px]:min-h-[360px]"
         style={{
-          aspectRatio: '3/4',
+          aspectRatio: '4/5',
           background:
             images[active]
-              ? undefined
+              ? `linear-gradient(160deg, ${gradientFrom}55, ${gradientTo})`
               : `linear-gradient(160deg, ${gradientFrom}, ${gradientTo})`,
         }}
       >
@@ -81,7 +85,7 @@ export default function ProductGallery({
           <img
             src={images[active].imageUrl}
             alt={images[active].altText ?? productName}
-            className="absolute inset-0 h-full w-full object-cover"
+            className="absolute inset-0 h-full w-full object-contain p-7 max-[680px]:p-5"
           />
         ) : null}
 

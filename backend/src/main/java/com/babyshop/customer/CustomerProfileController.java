@@ -40,11 +40,20 @@ public class CustomerProfileController {
             @RequestParam(defaultValue = "0") @Min(value = 0, message = "Order page must be zero or greater") int page,
             @RequestParam(defaultValue = "10") @Min(value = 1, message = "Order page size must be at least 1")
             @Max(value = 100, message = "Order page size must be at most 100") int size,
+            @RequestParam(required = false) String orderNumber,
             @RequestParam(required = false) String status,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to
     ) {
-        return ResponseEntity.ok(customerProfileService.getOrders(authentication.getName(), page, size, status, from, to));
+        return ResponseEntity.ok(customerProfileService.getOrders(
+                authentication.getName(),
+                page,
+                size,
+                orderNumber,
+                status,
+                from,
+                to
+        ));
     }
 
     @PatchMapping

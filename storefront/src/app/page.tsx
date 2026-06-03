@@ -63,6 +63,7 @@ export default async function HomePage({
 
   return (
     <div className="px-[38px] py-5 max-[980px]:px-6 max-[680px]:px-5">
+      <NewsletterBand />
       <HeroSection />
 
       <div className="mt-5">
@@ -93,7 +94,6 @@ export default async function HomePage({
       </div>
 
       <TrustBand />
-      <NewsletterBand />
     </div>
   )
 }

@@ -2,6 +2,7 @@ export interface ProductImage {
   id: number
   imageUrl: string
   altText: string | null
+  colorName: string | null
   sortOrder: number
   isPrimary: boolean
 }

@@ -1,7 +1,9 @@
 'use client'
 
 import Link from 'next/link'
+import { usePathname, useRouter } from 'next/navigation'
 import { cn, formatPrice } from '@/lib/utils'
+import { useFavoriteStore } from '@/store/favoriteStore'
 import type { ProductSummary } from '@/types/product'
 
 const PALETTES = [
@@ -31,7 +33,30 @@ const badgeLabels: Record<Badge, string> = {
 }
 
 export default function ProductCard({ product, badge }: Props) {
+  const router = useRouter()
+  const pathname = usePathname()
   const [gradFrom, gradTo] = PALETTES[product.id % PALETTES.length]
+  const isFavorite = useFavoriteStore((state) => state.isFavorite(product.id))
+  const toggleFavorite = useFavoriteStore((state) => state.toggleFavorite)
+  const clearFavorites = useFavoriteStore((state) => state.clearFavorites)
+
+  async function handleFavoriteToggle() {
+    const response = await fetch('/api/account/me', {
+      cache: 'no-store',
+      credentials: 'same-origin',
+      headers: { Accept: 'application/json' },
+    })
+
+    if (response.status === 401) {
+      clearFavorites()
+      router.push(`/account/login?next=${encodeURIComponent(pathname)}`)
+      return
+    }
+
+    if (!response.ok) return
+
+    toggleFavorite(product)
+  }
 
   return (
     <Link
@@ -57,7 +82,7 @@ export default function ProductCard({ product, badge }: Props) {
         {badge && (
           <span
             className={cn(
-              'absolute left-2 top-2 z-10 rounded-[20px] px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[0.4px]',
+              'absolute left-1.5 top-1.5 z-10 rounded-[20px] px-2 py-0.5 text-[9.5px] font-extrabold uppercase tracking-[0.3px]',
               badgeStyles[badge],
             )}
           >
@@ -69,25 +94,38 @@ export default function ProductCard({ product, badge }: Props) {
           type="button"
           onClick={(event) => {
             event.preventDefault()
+            event.stopPropagation()
+            void handleFavoriteToggle()
           }}
-          aria-label="Favorilere ekle"
-          className="absolute right-2 top-2 z-10 grid h-7 w-7 place-items-center rounded-full bg-white/85 text-muted transition-colors hover:bg-white hover:text-rose"
+          aria-pressed={isFavorite}
+          aria-label={isFavorite ? 'Favorilerden çıkar' : 'Favorilere ekle'}
+          className={cn(
+            'absolute right-1.5 top-1.5 z-10 grid h-6 w-6 place-items-center rounded-full bg-white/85 transition-colors hover:bg-white hover:text-rose',
+            isFavorite ? 'text-rose' : 'text-muted',
+          )}
         >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill={isFavorite ? 'currentColor' : 'none'}
+            stroke="currentColor"
+            strokeWidth="1.8"
+          >
             <path d="M12 21s-7-4.5-7-10a4 4 0 017-2.5A4 4 0 0119 11c0 5.5-7 10-7 10z" />
           </svg>
         </button>
       </div>
 
-      <div className="mt-[9px] font-serif text-[13.5px] font-semibold leading-[1.25] text-brown">
+      <div className="mt-2 font-serif text-[12.5px] font-semibold leading-[1.25] text-brown">
         {product.name}
       </div>
       {product.colorLabel && (
-        <div className="text-[11.5px] font-semibold text-muted">
+        <div className="text-[11px] font-semibold text-muted">
           {product.colorLabel}
         </div>
       )}
-      <div className="mt-0.5 text-sm font-extrabold text-brown">
+      <div className="mt-0.5 text-[12px] font-extrabold text-brown">
         {formatPrice(product.lowestPrice, product.currency)}
       </div>
     </Link>

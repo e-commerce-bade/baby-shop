@@ -70,6 +70,7 @@ public class ProductImageService {
     private void applyRequest(ProductImage image, ProductImageAdminRequest request) {
         image.setImageUrl(request.imageUrl().trim());
         image.setAltText(request.altText());
+        image.setColorName(request.colorName() == null || request.colorName().trim().isEmpty() ? null : request.colorName().trim());
         image.setSortOrder(request.sortOrder());
         image.setPrimary(request.primary());
     }
@@ -97,6 +98,7 @@ public class ProductImageService {
                 image.getId(),
                 image.getImageUrl(),
                 image.getAltText(),
+                image.getColorName(),
                 image.getSortOrder(),
                 image.isPrimary()
         );

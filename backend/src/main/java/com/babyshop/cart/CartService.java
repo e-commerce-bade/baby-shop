@@ -29,6 +29,8 @@ import java.util.Optional;
 public class CartService {
 
     private static final String ACTIVE_STATUS = "ACTIVE";
+    private static final BigDecimal FREE_SHIPPING_THRESHOLD = new BigDecimal("1500.00");
+    private static final String CART_EMPTY_REASON = "CART_EMPTY";
 
     private final CartRepository cartRepository;
     private final CartItemRepository cartItemRepository;
@@ -51,35 +53,21 @@ public class CartService {
     }
 
     public CheckoutSummaryResponse getCheckoutSummary(String sessionId, String authenticatedEmail) {
-        Cart cart = findCartBySessionId(sessionId, authenticatedEmail);
+        Cart cart = findOrCreateCart(sessionId, authenticatedEmail);
         CartResponse cartResponse = toResponse(cart);
+        CustomerAddressResponse defaultShippingAddress = resolveDefaultShippingAddress(authenticatedEmail);
 
         if (cartResponse.items().isEmpty()) {
-            throw new InvalidRequestException("Cart is empty for session id: " + sessionId);
+            return buildCheckoutSummary(
+                    cartResponse,
+                    defaultShippingAddress,
+                    false,
+                    CART_EMPTY_REASON
+            );
         }
 
         cart.getItems().forEach(item -> validateVariantAvailability(item.getProductVariant(), item.getQuantity()));
-
-        BigDecimal shippingAmount = BigDecimal.ZERO;
-        BigDecimal discountAmount = BigDecimal.ZERO;
-        BigDecimal totalAmount = cartResponse.subtotal()
-                .add(shippingAmount)
-                .subtract(discountAmount);
-        CustomerAddressResponse defaultShippingAddress = resolveDefaultShippingAddress(authenticatedEmail);
-
-        return new CheckoutSummaryResponse(
-                cartResponse.id(),
-                cartResponse.sessionId(),
-                cartResponse.items(),
-                cartResponse.totalQuantity(),
-                cartResponse.subtotal(),
-                shippingAmount,
-                discountAmount,
-                totalAmount,
-                cartResponse.currency(),
-                true,
-                defaultShippingAddress
-        );
+        return buildCheckoutSummary(cartResponse, defaultShippingAddress, true, null);
     }
 
     @Transactional
@@ -94,13 +82,7 @@ public class CartService {
         validateVariantAvailability(variant, quantity);
 
         CartItem item = cartItemRepository.findByCartIdAndProductVariantId(cart.getId(), productVariantId)
-                .orElseGet(() -> {
-                    CartItem newItem = new CartItem();
-                    newItem.setCart(cart);
-                    newItem.setProductVariant(variant);
-                    newItem.setQuantity(0);
-                    return newItem;
-                });
+                .orElseGet(() -> createCartItem(cart, variant));
 
         int updatedQuantity = item.getQuantity() + quantity;
         validateStockLimit(variant, updatedQuantity);
@@ -108,6 +90,15 @@ public class CartService {
         cartItemRepository.save(item);
 
         return toResponse(findCartBySessionId(sessionId, authenticatedEmail));
+    }
+
+    private CartItem createCartItem(Cart cart, ProductVariant variant) {
+        CartItem newItem = new CartItem();
+        newItem.setCart(cart);
+        newItem.setProductVariant(variant);
+        newItem.setQuantity(0);
+        cart.getItems().add(newItem);
+        return newItem;
     }
 
     @Transactional
@@ -366,6 +357,42 @@ public class CartService {
         return customerAddressRepository.findFirstByUserEmailIgnoreCaseAndIsDefaultTrue(authenticatedEmail.trim())
                 .map(this::toAddressResponse)
                 .orElse(null);
+    }
+
+    private CheckoutSummaryResponse buildCheckoutSummary(
+            CartResponse cartResponse,
+            CustomerAddressResponse defaultShippingAddress,
+            boolean readyForCheckout,
+            String checkoutBlockedReason
+    ) {
+        BigDecimal shippingAmount = BigDecimal.ZERO;
+        BigDecimal discountAmount = BigDecimal.ZERO;
+        BigDecimal totalAmount = cartResponse.subtotal()
+                .add(shippingAmount)
+                .subtract(discountAmount);
+        BigDecimal remainingAmountForFreeShipping = FREE_SHIPPING_THRESHOLD
+                .subtract(cartResponse.subtotal())
+                .max(BigDecimal.ZERO);
+        boolean eligibleForFreeShipping = remainingAmountForFreeShipping.compareTo(BigDecimal.ZERO) == 0;
+
+        return new CheckoutSummaryResponse(
+                cartResponse.id(),
+                cartResponse.sessionId(),
+                cartResponse.items(),
+                cartResponse.items().size(),
+                cartResponse.totalQuantity(),
+                cartResponse.subtotal(),
+                shippingAmount,
+                discountAmount,
+                totalAmount,
+                cartResponse.currency(),
+                FREE_SHIPPING_THRESHOLD,
+                remainingAmountForFreeShipping,
+                eligibleForFreeShipping,
+                readyForCheckout,
+                checkoutBlockedReason,
+                defaultShippingAddress
+        );
     }
 
     private CustomerAddressResponse toAddressResponse(CustomerAddress address) {

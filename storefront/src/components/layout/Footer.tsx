@@ -38,7 +38,7 @@ export default function Footer() {
       <div className="grid grid-cols-[1.5fr_1fr_1fr_1fr_1.2fr] gap-[30px] max-[980px]:grid-cols-2 max-[680px]:grid-cols-1">
         <div>
           <div className="flex items-center gap-1.5 font-serif text-2xl font-semibold text-brown">
-            MiniMori
+            Bade Bebe
             <svg className="text-sage" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
               <path d="M12 21V9" />
               <path d="M12 13c-3 0-5-2-5-5 3 0 5 2 5 5z" />
@@ -97,7 +97,7 @@ export default function Footer() {
       </div>
 
       <div className="mt-[34px] flex items-center justify-between border-t border-line pt-[18px] text-xs text-muted max-[680px]:flex-col max-[680px]:gap-3">
-        <span>© 2026 MiniMori. Tüm hakları saklıdır.</span>
+        <span>© 2026 Bade Bebe. Tüm hakları saklıdır.</span>
         <div className="flex gap-[22px]">
           <Link href="#" className="transition-colors hover:text-rose-dk">
             Gizlilik Politikası

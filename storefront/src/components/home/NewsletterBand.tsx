@@ -1,19 +1,28 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 
 const schema = z.object({
-  email: z
-    .string()
-    .min(1, 'E-posta adresi gerekli')
-    .email('Geçerli bir e-posta adresi gir'),
+  email: z.string().min(1, 'E-posta adresi gerekli').email('Geçerli bir e-posta adresi gir'),
 })
-
 type FormData = z.infer<typeof schema>
 
 export default function NewsletterBand() {
+  const [loggedIn, setLoggedIn] = useState<boolean | null>(null)
+
+  useEffect(() => {
+    fetch('/api/account/me', {
+      cache: 'no-store',
+      credentials: 'same-origin',
+      headers: { Accept: 'application/json' },
+    })
+      .then((r) => setLoggedIn(r.ok))
+      .catch(() => setLoggedIn(false))
+  }, [])
+
   const {
     register,
     handleSubmit,
@@ -22,68 +31,79 @@ export default function NewsletterBand() {
   } = useForm<FormData>({ resolver: zodResolver(schema) })
 
   const onSubmit = async (_data: FormData) => {
-    // API entegrasyonu Faz 6'da: POST /api/v1/newsletter veya benzer endpoint
     await new Promise((r) => setTimeout(r, 600))
     reset()
   }
 
+  if (loggedIn !== false) return null
+
   return (
-    <div className="mx-auto mt-[18px] max-w-[640px] rounded-panel border border-line bg-cream-2 px-[34px] py-[34px] text-center max-[680px]:px-[22px] max-[680px]:py-[26px]">
-      {/* Bear icon */}
-      <div className="mx-auto mb-3 grid h-16 w-16 place-items-center rounded-full bg-rose-tint text-rose-dk">
-        <svg width="32" height="32" viewBox="0 0 40 40" fill="currentColor">
-          <circle cx="12" cy="11" r="5" />
-          <circle cx="28" cy="11" r="5" />
-          <circle cx="20" cy="22" r="13" />
-          <circle cx="15" cy="19" r="1.8" fill="white" />
-          <circle cx="25" cy="19" r="1.8" fill="white" />
-          <circle cx="20" cy="24" r="2.4" fill="white" />
-        </svg>
+    <div
+      className="mb-4 flex flex-wrap items-center justify-between gap-x-5 gap-y-3 rounded-[14px] px-5 py-3 max-[680px]:px-4"
+      style={{ background: 'linear-gradient(90deg,#EDE6DC,#E5DDD0)' }}
+    >
+      {/* Sol: ikon + metin */}
+      <div className="flex items-center gap-3">
+        <span
+          className="grid h-7 w-7 shrink-0 place-items-center rounded-full text-rose-dk"
+          style={{ background: 'rgba(255,255,255,0.55)' }}
+        >
+          <svg width="14" height="14" viewBox="0 0 40 40" fill="currentColor">
+            <circle cx="12" cy="11" r="5" />
+            <circle cx="28" cy="11" r="5" />
+            <circle cx="20" cy="22" r="13" />
+            <circle cx="15" cy="19" r="1.8" fill="white" />
+            <circle cx="25" cy="19" r="1.8" fill="white" />
+            <circle cx="20" cy="24" r="2.4" fill="white" />
+          </svg>
+        </span>
+        <p className="text-[13px] font-semibold" style={{ color: '#6B5A48' }}>
+          Bade Bebe ailesine katıl
+          <span className="ml-1 font-normal" style={{ color: '#9A8878' }}>
+            · İlk siparişinde %10 indirim kazan
+          </span>
+        </p>
       </div>
 
-      <h3 className="font-serif text-[23px] font-semibold text-brown">
-        MiniMori Ailesine Katıl
-      </h3>
-      <p className="mx-auto mt-2 max-w-[340px] text-[13px] leading-[1.5] text-brown-2">
-        İlk siparişinde %10 indirim kazan, yeni ürünler ve özel fırsatlardan
-        ilk sen haberdar ol.
-      </p>
-
+      {/* Sağ: form veya başarı */}
       {isSubmitSuccessful ? (
-        <p className="mt-4 text-sm font-semibold text-sage">
-          ✓ Harika! Seni listeye ekledik.
+        <p className="flex items-center gap-1.5 text-[13px] font-semibold text-sage">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M3 8l3.5 3.5L13 5" />
+          </svg>
+          Harika! Seni listeye ekledik.
         </p>
       ) : (
         <form
           onSubmit={handleSubmit(onSubmit)}
           noValidate
-          className="mt-4"
+          className="flex items-center gap-2"
         >
-          <div className="mx-auto flex max-w-[420px] gap-2 rounded-pill border border-line bg-white py-1.5 pl-4 pr-1.5">
+          <div
+            className="flex items-center gap-1.5 rounded-pill border px-3 py-1.5"
+            style={{ background: 'rgba(255,255,255,0.75)', borderColor: 'rgba(180,160,140,0.35)' }}
+          >
             <input
               {...register('email')}
               type="email"
-              placeholder="E-posta adresini gir"
-              className="flex-1 bg-transparent text-[13px] text-brown-text outline-none placeholder:text-muted"
+              placeholder="E-posta adresin"
+              className="w-[190px] bg-transparent text-[12.5px] outline-none placeholder:text-muted max-[480px]:w-[140px]"
+              style={{ color: '#6B5A48' }}
             />
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="rounded-[24px] bg-rose px-[18px] py-2.5 text-[13px] font-bold text-white transition-colors hover:bg-rose-dk disabled:opacity-60"
-            >
-              {isSubmitting ? '...' : 'Katıl'}
-            </button>
           </div>
-          {errors.email && (
-            <p className="mt-1.5 text-[12px] text-rose-dk">{errors.email.message}</p>
-          )}
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className="rounded-pill bg-rose px-4 py-1.5 text-[12.5px] font-bold text-white transition-colors hover:bg-rose-dk disabled:opacity-60"
+          >
+            {isSubmitting ? '...' : 'Katıl'}
+          </button>
         </form>
       )}
 
-      <p className="mt-[11px] flex items-center justify-center gap-1 text-[11px] text-muted">
-        <span className="text-rose-soft">♥</span>
-        Spam yok, sadece güzel şeyler.
-      </p>
+      {errors.email && (
+        <p className="w-full text-[11.5px] text-rose-dk">{errors.email.message}</p>
+      )}
     </div>
   )
 }

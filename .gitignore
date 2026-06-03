@@ -1,5 +1,6 @@
 /target/
 /backend/target/
+/.run-logs/
 /.env
 
 # frontend (Vite prototype — reference only)
@@ -9,5 +10,10 @@
 # storefront (Next.js — active app)
 /storefront/node_modules/
 /storefront/.next/
+/storefront/.next-build/
 /storefront/out/
 /storefront/*.tsbuildinfo
+/storefront/public/uploads/
+
+# generated reports
+/docs/

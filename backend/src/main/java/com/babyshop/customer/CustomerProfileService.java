@@ -40,11 +40,12 @@ public class CustomerProfileService {
             String email,
             int page,
             int size,
+            String orderNumber,
             String status,
             LocalDate from,
             LocalDate to
     ) {
-        return orderService.getOrdersByUserEmail(normalizeEmail(email), page, size, status, from, to);
+        return orderService.getOrdersByUserEmail(normalizeEmail(email), page, size, orderNumber, status, from, to);
     }
 
     @Transactional

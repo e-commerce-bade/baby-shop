@@ -7,24 +7,39 @@ interface Props {
 
 export default function CategoryStrip({ categories }: Props) {
   return (
-    <div className="grid grid-cols-3 gap-4 max-[680px]:gap-2.5">
+    <div className="grid grid-cols-5 gap-3 max-[980px]:grid-cols-3 max-[680px]:grid-cols-2 max-[680px]:gap-2">
       {categories.map((category) => (
         <Link
           key={category.id}
           href={`/products?categorySlug=${category.slug}`}
-          className="group cursor-pointer rounded-category border border-line bg-cream-3 px-3 pb-[18px] pt-4 text-center transition-[transform,box-shadow,background-color] duration-[220ms] hover:-translate-y-1 hover:bg-white hover:shadow-card"
+          className="group cursor-pointer overflow-hidden rounded-category border border-line bg-cream-3 pb-3 pt-0 text-center transition-[transform,box-shadow] duration-[220ms] hover:-translate-y-1 hover:shadow-card"
         >
+          {/* Görsel alanı */}
           <div
-            className="mb-2.5 flex h-[72px] items-center justify-center rounded-thumb text-[34px] max-[680px]:h-[54px] max-[680px]:text-[26px]"
+            className="relative flex h-[80px] w-full items-center justify-center overflow-hidden max-[680px]:h-[60px]"
             style={{ backgroundColor: category.backgroundColor }}
           >
-            {category.emoji}
+            {category.imageUrl ? (
+              <img
+                src={category.imageUrl}
+                alt={category.name}
+                className="h-full w-full object-cover object-center transition-transform duration-300 group-hover:scale-105"
+              />
+            ) : (
+              <span className="text-[32px] max-[680px]:text-[24px]">
+                {category.emoji}
+              </span>
+            )}
           </div>
-          <div className="font-serif text-base font-semibold text-brown max-[680px]:text-[13px]">
-            {category.name}
-          </div>
-          <div className="mt-0.5 text-[11px] font-semibold text-muted">
-            {category.ageRange}
+
+          {/* Başlık + yaş */}
+          <div className="px-2 pt-2.5">
+            <p className="font-serif text-[13.5px] font-semibold text-brown max-[680px]:text-[12px]">
+              {category.name}
+            </p>
+            <p className="mt-0.5 text-[11px] font-semibold text-muted">
+              {category.ageRange}
+            </p>
           </div>
         </Link>
       ))}

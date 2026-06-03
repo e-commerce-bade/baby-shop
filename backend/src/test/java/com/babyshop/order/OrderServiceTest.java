@@ -154,6 +154,7 @@ class OrderServiceTest {
                 "customer@babyshop.local",
                 0,
                 10,
+                null,
                 "PAID",
                 LocalDate.parse("2026-06-01"),
                 LocalDate.parse("2026-06-30")
@@ -171,11 +172,35 @@ class OrderServiceTest {
                 0,
                 10,
                 null,
+                null,
                 LocalDate.parse("2026-06-30"),
                 LocalDate.parse("2026-06-01")
         ))
                 .isInstanceOf(InvalidRequestException.class)
                 .hasMessage("Order date range is invalid: from must be on or before to");
+    }
+
+    @Test
+    void shouldReturnPagedOrdersByUserEmailFilteredByOrderNumber() {
+        Order order = buildOrder("ORD-ABC123DEF456");
+        given(orderRepository.findAll(
+                any(org.springframework.data.jpa.domain.Specification.class),
+                any(org.springframework.data.domain.Pageable.class)
+        )).willReturn(new PageImpl<>(List.of(order), PageRequest.of(0, 10), 1));
+        given(paymentRepository.findAllByOrderOrderNumberOrderByCreatedAtDesc("ORD-ABC123DEF456")).willReturn(List.of());
+
+        var response = orderService.getOrdersByUserEmail(
+                "customer@babyshop.local",
+                0,
+                10,
+                "ABC123",
+                null,
+                null,
+                null
+        );
+
+        assertThat(response.content()).hasSize(1);
+        assertThat(response.content().getFirst().orderNumber()).contains("ABC123");
     }
 
     @Test
@@ -256,6 +281,135 @@ class OrderServiceTest {
         assertThatThrownBy(() -> orderService.createOrder(request, null))
                 .isInstanceOf(InvalidRequestException.class)
                 .hasMessage("Cart contains items with different currencies");
+    }
+
+    @Test
+    void shouldRejectMissingCartForCheckout() {
+        CreateOrderRequest request = new CreateOrderRequest(
+                "missing-session",
+                "customer@example.com",
+                null,
+                null,
+                null,
+                null,
+                addressRequest(),
+                null
+        );
+        given(cartRepository.findBySessionId("missing-session")).willReturn(Optional.empty());
+
+        assertThatThrownBy(() -> orderService.createOrder(request, null))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessage("Cart not found for session id: missing-session");
+    }
+
+    @Test
+    void shouldRejectInactiveVariantForCheckout() {
+        Cart cart = buildCart("ACTIVE");
+        cart.getItems().add(buildCartItem(cart, buildVariant(10L, 5, false, true, "TRY"), 1));
+
+        CreateOrderRequest request = new CreateOrderRequest(
+                "session-1",
+                "customer@example.com",
+                null,
+                null,
+                null,
+                null,
+                addressRequest(),
+                null
+        );
+        given(cartRepository.findBySessionId("session-1")).willReturn(Optional.of(cart));
+
+        assertThatThrownBy(() -> orderService.createOrder(request, null))
+                .isInstanceOf(InvalidRequestException.class)
+                .hasMessage("Product variant is not active for id: 10");
+    }
+
+    @Test
+    void shouldRejectInactiveProductForCheckout() {
+        Cart cart = buildCart("ACTIVE");
+        cart.getItems().add(buildCartItem(cart, buildVariant(10L, 5, true, false, "TRY"), 1));
+
+        CreateOrderRequest request = new CreateOrderRequest(
+                "session-1",
+                "customer@example.com",
+                null,
+                null,
+                null,
+                null,
+                addressRequest(),
+                null
+        );
+        given(cartRepository.findBySessionId("session-1")).willReturn(Optional.of(cart));
+
+        assertThatThrownBy(() -> orderService.createOrder(request, null))
+                .isInstanceOf(InvalidRequestException.class)
+                .hasMessage("Product is not active for variant id: 10");
+    }
+
+    @Test
+    void shouldRejectInsufficientStockForCheckout() {
+        Cart cart = buildCart("ACTIVE");
+        cart.getItems().add(buildCartItem(cart, buildVariant(10L, 1, true, true, "TRY"), 2));
+
+        CreateOrderRequest request = new CreateOrderRequest(
+                "session-1",
+                "customer@example.com",
+                null,
+                null,
+                null,
+                null,
+                addressRequest(),
+                null
+        );
+        given(cartRepository.findBySessionId("session-1")).willReturn(Optional.of(cart));
+
+        assertThatThrownBy(() -> orderService.createOrder(request, null))
+                .isInstanceOf(InvalidRequestException.class)
+                .hasMessage("Requested quantity exceeds available stock for variant id: 10");
+    }
+
+    @Test
+    void shouldRejectWhenBothSavedAddressAndManualAddressAreProvided() {
+        Cart cart = buildCart("ACTIVE");
+        cart.getItems().add(buildCartItem(cart, buildVariant(10L, 5, true, true, "TRY"), 1));
+
+        CreateOrderRequest request = new CreateOrderRequest(
+                "session-1",
+                "customer@example.com",
+                null,
+                null,
+                null,
+                20L,
+                addressRequest(),
+                null
+        );
+        given(cartRepository.findBySessionId("session-1")).willReturn(Optional.of(cart));
+
+        assertThatThrownBy(() -> orderService.createOrder(request, "customer@babyshop.local"))
+                .isInstanceOf(InvalidRequestException.class)
+                .hasMessage("Provide either shippingAddressId or shippingAddress, not both");
+    }
+
+    @Test
+    void shouldRejectMissingShippingAddress() {
+        Cart cart = buildCart("ACTIVE");
+        cart.getItems().add(buildCartItem(cart, buildVariant(10L, 5, true, true, "TRY"), 1));
+
+        CreateOrderRequest request = new CreateOrderRequest(
+                "session-1",
+                "customer@example.com",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+        );
+        given(cartRepository.findBySessionId("session-1")).willReturn(Optional.of(cart));
+
+        assertThatThrownBy(() -> orderService.createOrder(request, null))
+                .isInstanceOf(InvalidRequestException.class)
+                .hasMessage("Shipping address is required");
     }
 
     @Test

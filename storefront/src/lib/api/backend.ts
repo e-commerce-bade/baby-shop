@@ -18,8 +18,8 @@ export async function backendFetch<T>(
   init?: RequestInit,
 ): Promise<T> {
   const response = await fetch(buildBackendUrl(path), {
+    next: { revalidate: 60 },
     ...init,
-    cache: 'no-store',
     headers: {
       Accept: 'application/json',
       ...(init?.headers ?? {}),

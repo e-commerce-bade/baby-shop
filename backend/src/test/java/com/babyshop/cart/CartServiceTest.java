@@ -80,6 +80,11 @@ class CartServiceTest {
 
         assertThat(response.readyForCheckout()).isTrue();
         assertThat(response.totalAmount()).isEqualByComparingTo("998.00");
+        assertThat(response.itemCount()).isEqualTo(1);
+        assertThat(response.freeShippingThreshold()).isEqualByComparingTo("1500.00");
+        assertThat(response.remainingAmountForFreeShipping()).isEqualByComparingTo("502.00");
+        assertThat(response.eligibleForFreeShipping()).isFalse();
+        assertThat(response.checkoutBlockedReason()).isNull();
         assertThat(response.defaultShippingAddress()).isNull();
     }
 
@@ -134,7 +139,6 @@ class CartServiceTest {
         given(cartItemRepository.save(any(CartItem.class))).willAnswer(invocation -> {
             CartItem item = invocation.getArgument(0);
             item.setId(5L);
-            cart.getItems().add(item);
             return item;
         });
 
@@ -224,13 +228,18 @@ class CartServiceTest {
     }
 
     @Test
-    void shouldRejectEmptyCartDuringCheckout() {
+    void shouldReturnNonReadySummaryForEmptyCartDuringCheckout() {
         Cart cart = buildCart();
         given(cartRepository.findBySessionId("session-1")).willReturn(Optional.of(cart));
 
-        assertThatThrownBy(() -> cartService.getCheckoutSummary("session-1"))
-                .isInstanceOf(InvalidRequestException.class)
-                .hasMessage("Cart is empty for session id: session-1");
+        var response = cartService.getCheckoutSummary("session-1");
+
+        assertThat(response.readyForCheckout()).isFalse();
+        assertThat(response.checkoutBlockedReason()).isEqualTo("CART_EMPTY");
+        assertThat(response.itemCount()).isZero();
+        assertThat(response.totalQuantity()).isZero();
+        assertThat(response.subtotal()).isEqualByComparingTo("0.00");
+        assertThat(response.remainingAmountForFreeShipping()).isEqualByComparingTo("1500.00");
     }
 
     @Test
