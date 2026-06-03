@@ -24,6 +24,7 @@ export interface ProductSummary {
   slug: string
   description: string | null
   brand: string | null
+  productType: string | null
   isActive: boolean
   categoryName: string
   categorySlug: string

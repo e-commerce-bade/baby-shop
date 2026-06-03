@@ -98,6 +98,7 @@ public class ProductService {
         product.setSlug(request.slug().trim());
         product.setDescription(request.description());
         product.setBrand(request.brand());
+        product.setProductType(hasText(request.productType()) ? request.productType().trim() : null);
         product.setActive(request.active());
     }
 
@@ -130,6 +131,7 @@ public class ProductService {
                 product.getSlug(),
                 product.getDescription(),
                 product.getBrand(),
+                product.getProductType(),
                 product.isActive(),
                 product.getCategory().getName(),
                 product.getCategory().getSlug(),
@@ -157,6 +159,7 @@ public class ProductService {
                 product.getSlug(),
                 product.getDescription(),
                 product.getBrand(),
+                product.getProductType(),
                 product.isActive(),
                 product.getCategory().getName(),
                 product.getCategory().getSlug(),

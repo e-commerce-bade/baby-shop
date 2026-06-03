@@ -4,6 +4,8 @@ import { useCallback } from 'react'
 import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 
 export interface ProductFilters {
+  categorySlug: string | null
+  productTypes: string[]
   colors: string[]
   sizes: string[]
   priceRange: string | null
@@ -19,6 +21,8 @@ export function useProductFilter() {
   const searchParams = useSearchParams()
 
   const filters: ProductFilters = {
+    categorySlug: searchParams.get('categorySlug') ?? searchParams.get('category'),
+    productTypes: parseList(searchParams.get('productTypes')),
     colors: parseList(searchParams.get('colors')),
     sizes: parseList(searchParams.get('sizes')),
     priceRange: searchParams.get('price'),
@@ -41,7 +45,7 @@ export function useProductFilter() {
   )
 
   const toggleList = useCallback(
-    (key: 'colors' | 'sizes', value: string) => {
+    (key: 'colors' | 'sizes' | 'productTypes', value: string) => {
       const current = parseList(searchParams.get(key))
       const next = current.includes(value)
         ? current.filter((v) => v !== value)
@@ -56,12 +60,19 @@ export function useProductFilter() {
     [buildParams],
   )
 
+  const setCategorySlug = useCallback(
+    (value: string | null) => buildParams({ categorySlug: value, category: null }),
+    [buildParams],
+  )
+
   const clearAll = useCallback(() => router.push(pathname), [router, pathname])
 
   const hasActiveFilters =
+    filters.categorySlug !== null ||
+    filters.productTypes.length > 0 ||
     filters.colors.length > 0 ||
     filters.sizes.length > 0 ||
     filters.priceRange !== null
 
-  return { filters, toggleList, setPriceRange, clearAll, hasActiveFilters }
+  return { filters, toggleList, setCategorySlug, setPriceRange, clearAll, hasActiveFilters }
 }

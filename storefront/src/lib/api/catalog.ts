@@ -29,6 +29,7 @@ interface BackendProductDetailResponse {
   slug: string
   description: string | null
   brand: string | null
+  productType: string | null
   active: boolean
   categoryName: string
   categorySlug: string
@@ -53,6 +54,7 @@ interface BackendProductSummaryResponse {
   slug: string
   description: string | null
   brand: string | null
+  productType: string | null
   active: boolean
   categoryName: string
   categorySlug: string
@@ -195,6 +197,7 @@ function mapSummary(
     slug: product.slug,
     description: product.description,
     brand: product.brand,
+    productType: product.productType,
     isActive: product.active,
     categoryName: product.categoryName,
     categorySlug: product.categorySlug,
@@ -217,6 +220,7 @@ function mapDetail(
     slug: product.slug,
     description: product.description,
     brand: product.brand,
+    productType: product.productType,
     isActive: product.active,
     categoryName: product.categoryName,
     categorySlug: product.categorySlug,

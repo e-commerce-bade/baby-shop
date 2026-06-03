@@ -4,6 +4,7 @@ import { useEffect, useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import AdminShell from '@/components/admin/AdminShell'
 import { formatPrice } from '@/lib/utils'
+import { filterProductTypes } from '@/lib/mock/filterData'
 
 interface AdminProfile {
   email: string
@@ -17,6 +18,7 @@ interface AdminProduct {
   name: string
   active: boolean
   brand?: string | null
+  productType?: string | null
   minPrice?: number | string | null
   currency?: string
   price?: number
@@ -363,6 +365,7 @@ function WorkingAddProductDrawer({
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [brand, setBrand] = useState('')
+  const [productType, setProductType] = useState('')
   const [categoryId, setCategoryId] = useState('')
   const [active, setActive] = useState(true)
   const [currency, setCurrency] = useState('TRY')
@@ -539,6 +542,11 @@ function WorkingAddProductDrawer({
       setFormError('Kategori secimi zorunlu.')
       return
     }
+    if (!productType.trim()) {
+      setTab('details')
+      setFormError('Urun tipi zorunlu.')
+      return
+    }
     if (variants.length === 0) {
       setTab('variant')
       setFormError('En az bir varyant olusturun.')
@@ -578,6 +586,7 @@ function WorkingAddProductDrawer({
         slug: generatedSlug,
         description: description.trim() || null,
         brand: brand.trim() || null,
+        productType: productType.trim(),
         active,
       }, 'Urun olusturulamadi.')
 
@@ -721,6 +730,28 @@ function WorkingAddProductDrawer({
                 {categories.length === 0 ? (
                   <p className="mt-1 text-[11.5px] text-[#C07B5A]">Once bir kategori ekleyin.</p>
                 ) : null}
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-[12px] font-bold text-[#5B4839]">
+                  Urun Tipi <span className="text-[#C07B5A]">*</span>
+                </label>
+                <input
+                  type="text"
+                  list="admin-product-type-options"
+                  placeholder="Pijama, Elbise, Gomlek..."
+                  value={productType}
+                  onChange={(e) => setProductType(e.target.value)}
+                  className="w-full rounded-[10px] border border-[#ECE3D6] bg-white px-3.5 py-2.5 text-[13px] text-[#3D2B1F] placeholder:text-[#C4B5A5] focus:border-[#A89070] focus:outline-none focus:ring-2 focus:ring-[#A89070]/20"
+                />
+                <datalist id="admin-product-type-options">
+                  {filterProductTypes.map((type) => (
+                    <option key={type} value={type} />
+                  ))}
+                </datalist>
+                <p className="mt-1 text-[11.5px] text-[#B5A090]">
+                  Yeni bir tip yazarsan filtrelerde de kullanilabilir.
+                </p>
               </div>
 
               <button
@@ -1056,6 +1087,7 @@ function ProductManagementDrawer({
                 <p className="mt-0.5 text-[12px] text-[#B5A090]">
                   {product.sku ?? `MM-${String(product.id).padStart(3, '0')}`}
                   {category ? ` - ${category}` : ''}
+                  {product.productType ? ` - ${product.productType}` : ''}
                 </p>
               </div>
               <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold ${product.active ? 'bg-[#EDF7F1] text-[#1A6640]' : 'bg-white text-[#B5A090]'}`}>
@@ -1126,6 +1158,7 @@ export default function AdminProductsPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [stockFilter, setStockFilter] = useState<StockFilter>('all')
   const [categoryFilter, setCategoryFilter] = useState('all')
+  const [productTypeFilter, setProductTypeFilter] = useState('all')
   const [ageFilter, setAgeFilter] = useState('all')
   const [colorFilter, setColorFilter] = useState('all')
   const [brandFilter, setBrandFilter] = useState('all')
@@ -1173,6 +1206,7 @@ export default function AdminProductsPage() {
 
   const filterOptions = useMemo(() => {
     const categories = new Set<string>()
+    const productTypes = new Set<string>()
     const ages = new Set<string>()
     const colors = new Set<string>()
     const brands = new Set<string>()
@@ -1180,6 +1214,7 @@ export default function AdminProductsPage() {
     products.forEach((product) => {
       const category = product.categoryName ?? product.category?.name
       if (category) categories.add(category)
+      if (product.productType) productTypes.add(product.productType)
       if (product.brand) brands.add(product.brand)
       product.variants?.forEach((variant) => {
         if (variant.sizeLabel) ages.add(variant.sizeLabel)
@@ -1189,6 +1224,7 @@ export default function AdminProductsPage() {
 
     return {
       categories: Array.from(categories).sort((a, b) => a.localeCompare(b, 'tr')),
+      productTypes: Array.from(productTypes).sort((a, b) => a.localeCompare(b, 'tr')),
       ages: Array.from(ages).sort((a, b) => a.localeCompare(b, 'tr', { numeric: true })),
       colors: Array.from(colors).sort((a, b) => a.localeCompare(b, 'tr')),
       brands: Array.from(brands).sort((a, b) => a.localeCompare(b, 'tr')),
@@ -1199,6 +1235,7 @@ export default function AdminProductsPage() {
     return products.filter((p) => {
       const variants = p.variants ?? []
       const category = p.categoryName ?? p.category?.name ?? ''
+      const productType = p.productType ?? ''
       const qty = p.stockQuantity ?? p.totalStock ?? variants.reduce((sum, variant) => sum + variant.stockQuantity, 0)
       const price = Number(p.basePrice ?? p.price ?? p.minPrice ?? variants[0]?.price ?? NaN)
 
@@ -1209,6 +1246,7 @@ export default function AdminProductsPage() {
           p.sku,
           p.brand,
           category,
+          productType,
           ...variants.flatMap((variant) => [variant.sku, variant.sizeLabel, variant.colorName]),
         ].filter(Boolean).join(' ').toLowerCase()
 
@@ -1220,6 +1258,7 @@ export default function AdminProductsPage() {
       if (stockFilter === 'out_of_stock' && qty > 0) return false
       if (stockFilter === 'low_stock' && (qty === 0 || qty > 5)) return false
       if (categoryFilter !== 'all' && category !== categoryFilter) return false
+      if (productTypeFilter !== 'all' && productType !== productTypeFilter) return false
       if (ageFilter !== 'all' && !variants.some((variant) => variant.sizeLabel === ageFilter)) return false
       if (colorFilter !== 'all' && !variants.some((variant) => variant.colorName === colorFilter)) return false
       if (brandFilter !== 'all' && (p.brand ?? '') !== brandFilter) return false
@@ -1235,6 +1274,7 @@ export default function AdminProductsPage() {
     statusFilter,
     stockFilter,
     categoryFilter,
+    productTypeFilter,
     ageFilter,
     colorFilter,
     brandFilter,
@@ -1433,6 +1473,17 @@ export default function AdminProductsPage() {
           </select>
 
           <select
+            value={productTypeFilter}
+            onChange={(e) => setProductTypeFilter(e.target.value)}
+            className="rounded-[10px] border border-[#ECE3D6] bg-white px-3 py-2 text-[13px] text-[#5B4839] focus:outline-none"
+          >
+            <option value="all">Tum Urun Tipleri</option>
+            {filterOptions.productTypes.map((type) => (
+              <option key={type} value={type}>{type}</option>
+            ))}
+          </select>
+
+          <select
             value={ageFilter}
             onChange={(e) => setAgeFilter(e.target.value)}
             className="rounded-[10px] border border-[#ECE3D6] bg-white px-3 py-2 text-[13px] text-[#5B4839] focus:outline-none"
@@ -1499,7 +1550,7 @@ export default function AdminProductsPage() {
             {filtered.length} ürün gösteriliyor
           </span>
 
-          {(search || statusFilter !== 'all' || stockFilter !== 'all' || categoryFilter !== 'all' || ageFilter !== 'all' || colorFilter !== 'all' || brandFilter !== 'all' || variantCountFilter !== 'all' || minPriceFilter || maxPriceFilter) && (
+          {(search || statusFilter !== 'all' || stockFilter !== 'all' || categoryFilter !== 'all' || productTypeFilter !== 'all' || ageFilter !== 'all' || colorFilter !== 'all' || brandFilter !== 'all' || variantCountFilter !== 'all' || minPriceFilter || maxPriceFilter) && (
             <button
               type="button"
               onClick={() => {
@@ -1507,6 +1558,7 @@ export default function AdminProductsPage() {
                 setStatusFilter('all')
                 setStockFilter('all')
                 setCategoryFilter('all')
+                setProductTypeFilter('all')
                 setAgeFilter('all')
                 setColorFilter('all')
                 setBrandFilter('all')
@@ -1553,7 +1605,7 @@ export default function AdminProductsPage() {
             {filtered.length === 0 ? (
               <tr>
                 <td colSpan={9} className="px-4 py-14 text-center text-[13px] text-[#B5A090]">
-                  {search || statusFilter !== 'all' || stockFilter !== 'all' || categoryFilter !== 'all' || ageFilter !== 'all' || colorFilter !== 'all' || brandFilter !== 'all' || variantCountFilter !== 'all' || minPriceFilter || maxPriceFilter
+                  {search || statusFilter !== 'all' || stockFilter !== 'all' || categoryFilter !== 'all' || productTypeFilter !== 'all' || ageFilter !== 'all' || colorFilter !== 'all' || brandFilter !== 'all' || variantCountFilter !== 'all' || minPriceFilter || maxPriceFilter
                     ? 'Arama kriterlerine uygun ürün bulunamadı.'
                     : 'Henüz ürün eklenmemiş.'}
                 </td>
@@ -1586,7 +1638,12 @@ export default function AdminProductsPage() {
                         </div>
                       </div>
                     </td>
-                    <td className="px-4 py-3.5 text-[#6B5747]">{category ?? '—'}</td>
+                    <td className="px-4 py-3.5 text-[#6B5747]">
+                      <div>{category ?? '-'}</div>
+                      {product.productType ? (
+                        <div className="mt-1 text-[11px] font-semibold text-[#B5A090]">{product.productType}</div>
+                      ) : null}
+                    </td>
                     <td className="px-4 py-3.5 text-[#6B5747]">{variants > 0 ? variants : '—'}</td>
                     <td className="px-4 py-3.5 font-semibold text-[#3D2B1F]">
                       {price !== undefined && price !== null ? formatPrice(price, product.currency ?? 'TRY') : '—'}
@@ -1629,7 +1686,7 @@ export default function AdminProductsPage() {
         {filtered.length === 0 ? (
           <div className="rounded-[16px] border border-dashed border-[#D5C9BA] bg-white px-5 py-12 text-center">
             <p className="text-[13px] text-[#B5A090]">
-              {search || statusFilter !== 'all' || stockFilter !== 'all' || categoryFilter !== 'all' || ageFilter !== 'all' || colorFilter !== 'all' || brandFilter !== 'all' || variantCountFilter !== 'all' || minPriceFilter || maxPriceFilter
+              {search || statusFilter !== 'all' || stockFilter !== 'all' || categoryFilter !== 'all' || productTypeFilter !== 'all' || ageFilter !== 'all' || colorFilter !== 'all' || brandFilter !== 'all' || variantCountFilter !== 'all' || minPriceFilter || maxPriceFilter
                 ? 'Sonuç bulunamadı.'
                 : 'Henüz ürün eklenmemiş.'}
             </p>
@@ -1649,6 +1706,7 @@ export default function AdminProductsPage() {
                     <p className="text-[11.5px] text-[#C4B5A5]">
                       {product.sku ?? `MM-${String(product.id).padStart(3, '0')}`}
                       {category ? ` · ${category}` : ''}
+                      {product.productType ? ` · ${product.productType}` : ''}
                     </p>
                   </div>
                   <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold ${product.active ? 'bg-[#EDF7F1] text-[#1A6640]' : 'bg-[#FAF6F1] text-[#B5A090]'}`}>

@@ -15,6 +15,7 @@ interface SearchParams {
   q?: string
   category?: string
   categorySlug?: string
+  productTypes?: string
   colors?: string
   sizes?: string
   price?: string
@@ -42,6 +43,11 @@ function applyFilters(
     result = result.filter((product) =>
       product.variants.some((variant) => selected.includes(variant.colorName)),
     )
+  }
+
+  if (params.productTypes) {
+    const selected = params.productTypes.split(',').filter(Boolean)
+    result = result.filter((product) => product.productType !== null && selected.includes(product.productType))
   }
 
   if (params.sizes) {
@@ -82,6 +88,8 @@ export default async function ProductsPage({
   const products = applyFilters(await fetchProducts(categorySlug), params)
 
   const activeCount =
+    (categorySlug ? 1 : 0) +
+    (params.productTypes?.split(',').filter(Boolean).length ?? 0) +
     (params.colors?.split(',').filter(Boolean).length ?? 0) +
     (params.sizes?.split(',').filter(Boolean).length ?? 0) +
     (params.price ? 1 : 0)

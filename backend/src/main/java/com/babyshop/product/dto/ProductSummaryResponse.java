@@ -9,6 +9,7 @@ public record ProductSummaryResponse(
         String slug,
         String description,
         String brand,
+        String productType,
         boolean active,
         String categoryName,
         String categorySlug,

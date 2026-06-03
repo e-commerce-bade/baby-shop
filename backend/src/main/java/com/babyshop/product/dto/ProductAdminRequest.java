@@ -17,6 +17,8 @@ public record ProductAdminRequest(
         String description,
         @Size(max = 120, message = "Product brand must be at most 120 characters")
         String brand,
+        @Size(max = 120, message = "Product type must be at most 120 characters")
+        String productType,
         @NotNull(message = "Product active flag is required")
         Boolean active
 ) {

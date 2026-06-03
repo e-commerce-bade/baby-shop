@@ -135,6 +135,7 @@ const navLinks: NavItem[] = [
   { href: '/admin', label: 'Dashboard', icon: IconGrid, exactMatch: true },
   { href: '/admin/orders', label: 'Siparişler', icon: IconBag },
   { href: '/admin/products', label: 'Ürünler', icon: IconPackage },
+  { href: '/admin/filters', label: 'Filtreler', icon: IconTag },
   { href: '/admin/categories', label: 'Kategoriler', icon: IconFolder },
   { href: '/admin/inventory', label: 'Stok / Envanter', icon: IconBox },
   { href: '/admin/customers', label: 'Müşteriler', icon: IconUsers },
@@ -147,6 +148,7 @@ const mobileTabLinks: NavItem[] = [
   { href: '/admin', label: 'Panel', icon: IconGrid, exactMatch: true },
   { href: '/admin/orders', label: 'Siparişler', icon: IconBag },
   { href: '/admin/products', label: 'Ürünler', icon: IconPackage },
+  { href: '/admin/filters', label: 'Filtreler', icon: IconTag },
   { href: '/admin/categories', label: 'Kategoriler', icon: IconFolder },
 ]
 
@@ -339,3 +341,4 @@ export default function AdminShell({
     </div>
   )
 }
+

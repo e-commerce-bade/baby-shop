@@ -51,7 +51,7 @@ class ProductAdminControllerTest {
     void shouldReturnProductsForAdmin() throws Exception {
         given(productService.getAllProductsForAdmin()).willReturn(List.of(
                 new ProductSummaryResponse(
-                        1L, "Baby Dress", "baby-dress", "Soft cotton dress", "Baby Shop", false,
+                        1L, "Baby Dress", "baby-dress", "Soft cotton dress", "Baby Shop", "Elbise", false,
                         "Dresses", "dresses", new BigDecimal("499.00"), "TRY", null, List.of()
                 )
         ));
@@ -72,7 +72,7 @@ class ProductAdminControllerTest {
 
     @Test
     void shouldCreateProduct() throws Exception {
-        ProductAdminRequest request = new ProductAdminRequest(1L, "Baby Dress", "baby-dress", "Soft cotton dress", "Baby Shop", true);
+        ProductAdminRequest request = new ProductAdminRequest(1L, "Baby Dress", "baby-dress", "Soft cotton dress", "Baby Shop", "Elbise", true);
         given(productService.createProduct(any(ProductAdminRequest.class))).willReturn(productDetail());
 
         mockMvc.perform(post("/api/v1/admin/products")
@@ -84,10 +84,10 @@ class ProductAdminControllerTest {
 
     @Test
     void shouldUpdateProduct() throws Exception {
-        ProductAdminRequest request = new ProductAdminRequest(1L, "Baby Dress Updated", "baby-dress", "Updated", "Baby Shop", true);
+        ProductAdminRequest request = new ProductAdminRequest(1L, "Baby Dress Updated", "baby-dress", "Updated", "Baby Shop", "Elbise", true);
         given(productService.updateProduct(anyLong(), any(ProductAdminRequest.class))).willReturn(
                 new ProductDetailResponse(
-                        1L, "Baby Dress Updated", "baby-dress", "Updated", "Baby Shop", true,
+                        1L, "Baby Dress Updated", "baby-dress", "Updated", "Baby Shop", "Elbise", true,
                         "Dresses", "dresses", new BigDecimal("499.00"), "TRY", List.of(), List.of()
                 )
         );
@@ -103,7 +103,7 @@ class ProductAdminControllerTest {
     void shouldUpdateProductActiveStatus() throws Exception {
         given(productService.updateProductActiveStatus(1L, false)).willReturn(
                 new ProductDetailResponse(
-                        1L, "Baby Dress", "baby-dress", "Soft cotton dress", "Baby Shop", false,
+                        1L, "Baby Dress", "baby-dress", "Soft cotton dress", "Baby Shop", "Elbise", false,
                         "Dresses", "dresses", new BigDecimal("499.00"), "TRY", List.of(), List.of()
                 )
         );
@@ -125,7 +125,7 @@ class ProductAdminControllerTest {
 
     @Test
     void shouldReturnConflictForDuplicateSlug() throws Exception {
-        ProductAdminRequest request = new ProductAdminRequest(1L, "Baby Dress", "baby-dress", "Soft cotton dress", "Baby Shop", true);
+        ProductAdminRequest request = new ProductAdminRequest(1L, "Baby Dress", "baby-dress", "Soft cotton dress", "Baby Shop", "Elbise", true);
         given(productService.createProduct(any(ProductAdminRequest.class)))
                 .willThrow(new DuplicateResourceException("Product slug already exists: baby-dress"));
 
@@ -148,7 +148,7 @@ class ProductAdminControllerTest {
 
     @Test
     void shouldReturnValidationErrorForInvalidRequest() throws Exception {
-        ProductAdminRequest request = new ProductAdminRequest(null, "", "", "desc", "Baby Shop", null);
+        ProductAdminRequest request = new ProductAdminRequest(null, "", "", "desc", "Baby Shop", null, null);
 
         mockMvc.perform(post("/api/v1/admin/products")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -164,6 +164,7 @@ class ProductAdminControllerTest {
                 "baby-dress",
                 "Soft cotton dress",
                 "Baby Shop",
+                "Elbise",
                 true,
                 "Dresses",
                 "dresses",

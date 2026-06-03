@@ -1,12 +1,23 @@
 export const filterCategories = [
-  { label: 'Elbiseler', count: 28 },
-  { label: 'Üst & Tişört', count: 36 },
-  { label: 'Alt Giyim', count: 24 },
-  { label: 'Tulumlar', count: 22 },
-  { label: 'Örgü', count: 20 },
-  { label: 'Dış Giyim', count: 16 },
-  { label: 'Pijamalar', count: 18 },
-  { label: 'Aksesuarlar', count: 34 },
+  { label: 'Yenidogan', value: 'yenidogan' },
+  { label: 'Kiz Bebek', value: 'kiz-bebek' },
+  { label: 'Erkek Bebek', value: 'erkek-bebek' },
+  { label: 'Kiz Cocuk', value: 'kiz-cocuk' },
+  { label: 'Erkek Cocuk', value: 'erkek-cocuk' },
+]
+
+export const filterProductTypes = [
+  'Pijama',
+  'Elbise',
+  'Gomlek',
+  'Tulum',
+  'Takim',
+  'Hirka',
+  'Pantolon',
+  'Body',
+  'Sweatshirt',
+  'Salopet',
+  'Aksesuar',
 ]
 
 export const filterSizes = [
@@ -15,18 +26,18 @@ export const filterSizes = [
 ]
 
 export const filterColors = [
-  { name: 'Yulaf',      hex: '#DDCBB3' },
-  { name: 'Pudra',      hex: '#E6BFBA' },
-  { name: 'Gök Mavisi', hex: '#BFD3E0' },
-  { name: 'Adaçayı',    hex: '#C2D2AE' },
-  { name: 'Vizon',      hex: '#D2BCA2' },
-  { name: 'Açık Pembe', hex: '#E3B9B4' },
-  { name: 'Kahve',      hex: '#5B4839' },
-  { name: 'Beyaz',      hex: '#ffffff' },
+  { name: 'Yulaf', hex: '#DDCBB3' },
+  { name: 'Pudra', hex: '#E6BFBA' },
+  { name: 'Gok Mavisi', hex: '#BFD3E0' },
+  { name: 'Adacayi', hex: '#C2D2AE' },
+  { name: 'Vizon', hex: '#D2BCA2' },
+  { name: 'Acik Pembe', hex: '#E3B9B4' },
+  { name: 'Kahve', hex: '#5B4839' },
+  { name: 'Beyaz', hex: '#ffffff' },
 ]
 
 export const filterPriceRanges = [
-  { label: '₺0 – ₺500',    value: 'under-500' },
-  { label: '₺500 – ₺700',  value: '500-700'   },
-  { label: '₺700 ve üzeri', value: 'over-700'  },
+  { label: '0 - 500 TL', value: 'under-500' },
+  { label: '500 - 700 TL', value: '500-700' },
+  { label: '700 TL ve uzeri', value: 'over-700' },
 ]

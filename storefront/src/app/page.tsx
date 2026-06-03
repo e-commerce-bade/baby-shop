@@ -12,6 +12,9 @@ export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 interface SearchParams {
+  category?: string
+  categorySlug?: string
+  productTypes?: string
   colors?: string
   sizes?: string
   price?: string
@@ -19,6 +22,16 @@ interface SearchParams {
 
 function applyFilters(products: ProductSummary[], params: SearchParams) {
   let result = [...products]
+
+  const categorySlug = params.categorySlug ?? params.category
+  if (categorySlug) {
+    result = result.filter((product) => product.categorySlug === categorySlug)
+  }
+
+  if (params.productTypes) {
+    const selected = params.productTypes.split(',').filter(Boolean)
+    result = result.filter((product) => product.productType !== null && selected.includes(product.productType))
+  }
 
   if (params.colors) {
     const selected = params.colors.split(',').filter(Boolean)
@@ -53,9 +66,10 @@ export default async function HomePage({
   searchParams: Promise<SearchParams>
 }) {
   const params = await searchParams
+  const categorySlug = params.categorySlug ?? params.category
   const [categories, products] = await Promise.all([
     fetchCategoryStripItems(),
-    fetchProducts(),
+    fetchProducts(categorySlug),
   ])
 
   const filteredProducts = applyFilters(products, params)

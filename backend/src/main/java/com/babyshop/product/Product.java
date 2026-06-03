@@ -47,6 +47,9 @@ public class Product {
     @Column(length = 120)
     private String brand;
 
+    @Column(name = "product_type", length = 120)
+    private String productType;
+
     @Column(name = "is_active", nullable = false)
     private boolean active;
 

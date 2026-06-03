@@ -5,4 +5,4 @@ dockerfilePath = "Dockerfile"
 [deploy]
 startCommand = "java -jar app.jar"
 healthcheckPath = "/api/v1/health"
-healthcheckTimeout = 60
+healthcheckTimeout = 300
