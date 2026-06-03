@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useCartStore, cartSubtotal } from '@/store/cartStore'
 import CartItem from '@/components/cart/CartItem'
 import CartSummary from '@/components/cart/CartSummary'
+import CheckoutForm from '@/components/cart/CheckoutForm'
 
 export default function CartPage() {
   const [mounted, setMounted] = useState(false)
@@ -52,7 +53,14 @@ export default function CartPage() {
           <h2 className="mb-5 font-serif text-[18px] font-semibold text-brown">
             Sipariş Özeti
           </h2>
-          <CartSummary subtotal={subtotal} currency={currency} />
+          <CartSummary
+            subtotal={subtotal}
+            currency={currency}
+            onCheckout={() => {
+              document.getElementById('checkout-first-name')?.focus()
+            }}
+          />
+          <CheckoutForm />
         </div>
 
       </div>

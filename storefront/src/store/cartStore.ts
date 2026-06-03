@@ -166,7 +166,7 @@ export const useCartStore = create<CartState>()(
         }
       },
 
-      clearCart: () => set({ items: [] }),
+      clearCart: () => set({ sessionId: newSessionId(), items: [] }),
       openDrawer: () => set({ isOpen: true }),
       closeDrawer: () => set({ isOpen: false }),
     }),
