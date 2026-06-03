@@ -4,6 +4,7 @@ import CategoryStrip from '@/components/home/CategoryStrip'
 import ProductSection from '@/components/home/ProductSection'
 import TrustBand from '@/components/home/TrustBand'
 import NewsletterBand from '@/components/home/NewsletterBand'
+import CampaignPlacement from '@/components/campaign/CampaignPlacement'
 import FilterSidebar from '@/components/product/filter/FilterSidebar'
 import { fetchCategoryStripItems, fetchProducts } from '@/lib/api/catalog'
 import type { ProductSummary } from '@/types/product'
@@ -85,6 +86,9 @@ export default async function HomePage({
 
       <div className="mt-5">
         <CategoryStrip categories={categories} />
+      </div>
+      <div className="mt-5">
+        <CampaignPlacement placement="homeBelowCategories" />
       </div>
 
       <div className="mt-5 grid grid-cols-[248px_1fr] items-start gap-7 max-[980px]:grid-cols-1">
