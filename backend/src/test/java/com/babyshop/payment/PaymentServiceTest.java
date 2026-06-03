@@ -36,7 +36,8 @@ class PaymentServiceTest {
 
     private final MockPaymentGateway mockPaymentGateway =
             new MockPaymentGateway(new PaymentProperties(
-                    new PaymentProperties.Mock("mock-callback-secret-for-tests")
+                    new PaymentProperties.Mock("mock-callback-secret-for-tests"),
+                    null
             ));
 
     @Test

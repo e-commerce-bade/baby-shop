@@ -10,6 +10,7 @@ import com.babyshop.payment.dto.PaymentCallbackResponse;
 import com.babyshop.payment.dto.PaymentInitiationRequest;
 import com.babyshop.payment.dto.PaymentResponse;
 import com.babyshop.payment.gateway.PaymentGateway;
+import com.babyshop.payment.gateway.PaymentGatewayCallbackResult;
 import com.babyshop.payment.gateway.PaymentGatewayInitiation;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -65,6 +66,8 @@ public class PaymentService {
         payment.setCurrency(order.getCurrency());
         payment.setTransactionId(transactionId);
         payment.setProviderReference(initiation.providerReference());
+        payment.setSuccessUrl(request.successUrl().trim());
+        payment.setCancelUrl(request.cancelUrl().trim());
 
         return toResponse(paymentRepository.save(payment), initiation.paymentPageUrl());
     }
@@ -113,7 +116,6 @@ public class PaymentService {
     @Transactional
     public PaymentCallbackResponse processCallback(String provider, PaymentCallbackRequest request) {
         String normalizedProvider = normalizeRequiredProvider(provider);
-        String normalizedCallbackStatus = normalizeRequiredCallbackStatus(request.status());
         Payment payment = findPaymentByTransactionOrReference(request.transactionId(), request.providerReference());
 
         if (!payment.getProvider().equalsIgnoreCase(normalizedProvider)) {
@@ -121,7 +123,8 @@ public class PaymentService {
         }
 
         PaymentGateway gateway = resolveGateway(normalizedProvider);
-        gateway.verifyCallback(request, payment);
+        PaymentGatewayCallbackResult callbackResult = gateway.verifyCallback(request, payment);
+        String normalizedCallbackStatus = normalizeRequiredCallbackStatus(callbackResult.status());
 
         if (PAYMENT_STATUS_SUCCEEDED.equalsIgnoreCase(payment.getStatus())) {
             if (PAYMENT_STATUS_SUCCEEDED.equals(normalizedCallbackStatus)) {
@@ -146,6 +149,17 @@ public class PaymentService {
                 : completePaymentAsFailed(payment);
 
         return toCallbackResponse(updatedPayment, false);
+    }
+
+    @Transactional
+    public String processCallbackAndResolveRedirect(String provider, PaymentCallbackRequest request) {
+        PaymentCallbackResponse response = processCallback(provider, request);
+        Payment payment = findPaymentByTransactionId(response.transactionId());
+        String redirectUrl = PAYMENT_STATUS_SUCCEEDED.equals(response.paymentStatus())
+                ? payment.getSuccessUrl()
+                : payment.getCancelUrl();
+
+        return appendPaymentQueryParams(redirectUrl, response);
     }
 
     private Payment findPaymentByTransactionId(String transactionId) {
@@ -263,5 +277,25 @@ public class PaymentService {
         }
 
         return value.trim();
+    }
+
+    private String appendPaymentQueryParams(String redirectUrl, PaymentCallbackResponse response) {
+        String normalizedRedirectUrl = normalizeOptional(redirectUrl);
+        if (normalizedRedirectUrl == null) {
+            return "/";
+        }
+
+        String separator = normalizedRedirectUrl.contains("?") ? "&" : "?";
+        return normalizedRedirectUrl
+                + separator
+                + "provider=" + encode(response.provider())
+                + "&transactionId=" + encode(response.transactionId())
+                + "&paymentStatus=" + encode(response.paymentStatus())
+                + "&orderNumber=" + encode(response.orderNumber())
+                + "&orderStatus=" + encode(response.orderStatus());
+    }
+
+    private String encode(String value) {
+        return java.net.URLEncoder.encode(value == null ? "" : value, java.nio.charset.StandardCharsets.UTF_8);
     }
 }
