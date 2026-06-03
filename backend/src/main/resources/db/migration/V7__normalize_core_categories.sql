@@ -29,5 +29,17 @@ WHERE category_id IN (
     SELECT id FROM categories WHERE slug = 'baby-boy'
 );
 
+UPDATE products
+SET category_id = (SELECT id FROM categories WHERE slug = 'kiz-cocuk')
+WHERE category_id IN (
+    SELECT id FROM categories WHERE slug = 'kids-girl'
+);
+
+UPDATE products
+SET category_id = (SELECT id FROM categories WHERE slug = 'erkek-cocuk')
+WHERE category_id IN (
+    SELECT id FROM categories WHERE slug = 'kids-boy'
+);
+
 DELETE FROM categories
 WHERE slug IN ('newborn', 'yeni-dogan', 'baby-girl', 'baby-boy', 'kids-girl', 'kids-boy');
