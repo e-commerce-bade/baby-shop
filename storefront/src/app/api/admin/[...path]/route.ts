@@ -32,6 +32,10 @@ async function proxyAdminRequest(request: Request, context: RouteContext) {
     body,
   })
 
+  if (response.status === 204 || response.status === 304) {
+    return new NextResponse(null, { status: response.status })
+  }
+
   const payload = await response.text()
 
   return new NextResponse(payload, {
