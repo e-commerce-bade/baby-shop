@@ -6,44 +6,58 @@ import RabbitLoader from '@/components/ui/RabbitLoader'
 
 type Phase = 'idle' | 'start' | 'running' | 'done'
 
+const MAX_NAVIGATION_MS = 4500
+
 export default function NavigationProgress() {
   const pathname = usePathname()
   const prevPath = useRef(pathname)
   const [phase, setPhase] = useState<Phase>('idle')
   const doneTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const idleTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const fallbackTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
-  // Detect link clicks → start overlay
+  function clearTimers() {
+    clearTimeout(doneTimer.current)
+    clearTimeout(idleTimer.current)
+    clearTimeout(fallbackTimer.current)
+  }
+
   useEffect(() => {
     function onLinkClick(e: MouseEvent) {
       const anchor = (e.target as Element).closest('a[href]') as HTMLAnchorElement | null
       if (!anchor) return
-      const href = anchor.getAttribute('href') ?? ''
-      if (!href || href.startsWith('http') || href.startsWith('#') || href.startsWith('mailto:')) return
-      if (href.split('?')[0] === pathname) return
+      if (anchor.target && anchor.target !== '_self') return
+      if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return
 
-      clearTimeout(doneTimer.current)
-      clearTimeout(idleTimer.current)
+      const href = anchor.getAttribute('href') ?? ''
+      if (!href || href.startsWith('#') || href.startsWith('mailto:')) return
+
+      const target = new URL(href, window.location.href)
+      if (target.origin !== window.location.origin) return
+      if (`${target.pathname}${target.search}` === `${window.location.pathname}${window.location.search}`) return
+
+      clearTimers()
       setPhase('start')
       requestAnimationFrame(() => requestAnimationFrame(() => setPhase('running')))
+      fallbackTimer.current = setTimeout(() => setPhase('idle'), MAX_NAVIGATION_MS)
     }
 
     document.addEventListener('click', onLinkClick, true)
     return () => document.removeEventListener('click', onLinkClick, true)
-  }, [pathname])
+  }, [])
 
-  // Navigation complete
   useEffect(() => {
     if (prevPath.current === pathname) return
     prevPath.current = pathname
 
-    clearTimeout(doneTimer.current)
-    clearTimeout(idleTimer.current)
+    clearTimers()
     setPhase('done')
     doneTimer.current = setTimeout(() => {
       idleTimer.current = setTimeout(() => setPhase('idle'), 300)
     }, 120)
   }, [pathname])
+
+  useEffect(() => clearTimers, [])
 
   if (phase === 'idle') return null
 
