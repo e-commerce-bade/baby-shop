@@ -45,7 +45,7 @@ public class MockPaymentGateway implements PaymentGateway {
     }
 
     @Override
-    public void verifyCallback(PaymentCallbackRequest request, Payment payment) {
+    public PaymentGatewayCallbackResult verifyCallback(PaymentCallbackRequest request, Payment payment) {
         String signature = normalizeRequired(request.signature(), "Payment callback signature is required for provider MOCK");
         String expectedSignature = generateSignature(
                 payment.getTransactionId(),
@@ -56,6 +56,11 @@ public class MockPaymentGateway implements PaymentGateway {
         if (!expectedSignature.equals(signature)) {
             throw new InvalidRequestException("Invalid payment callback signature for provider MOCK");
         }
+
+        return new PaymentGatewayCallbackResult(normalizeRequired(
+                request.status(),
+                "Payment callback status is required for provider MOCK"
+        ).toUpperCase(Locale.ROOT));
     }
 
     public String generateSignature(String transactionId, String providerReference, String status) {

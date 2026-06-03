@@ -163,7 +163,13 @@ class PaymentControllerTest {
 
     @Test
     void shouldReturnValidationErrorForInvalidCallbackRequest() throws Exception {
-        PaymentCallbackRequest request = new PaymentCallbackRequest(null, null, "", null, null);
+        PaymentCallbackRequest request = new PaymentCallbackRequest(
+                null,
+                null,
+                null,
+                "x".repeat(501),
+                null
+        );
 
         mockMvc.perform(post("/api/v1/payments/callbacks/MOCK")
                         .contentType(MediaType.APPLICATION_JSON)

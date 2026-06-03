@@ -50,6 +50,12 @@ public class Payment {
     @Column(name = "provider_reference", length = 150)
     private String providerReference;
 
+    @Column(name = "success_url", length = 500)
+    private String successUrl;
+
+    @Column(name = "cancel_url", length = 500)
+    private String cancelUrl;
+
     @Column(name = "paid_at")
     private OffsetDateTime paidAt;
 

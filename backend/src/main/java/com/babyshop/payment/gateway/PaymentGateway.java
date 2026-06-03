@@ -15,5 +15,5 @@ public interface PaymentGateway {
             String cancelUrl
     );
 
-    void verifyCallback(PaymentCallbackRequest request, Payment payment);
+    PaymentGatewayCallbackResult verifyCallback(PaymentCallbackRequest request, Payment payment);
 }

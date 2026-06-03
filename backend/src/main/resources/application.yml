@@ -25,12 +25,22 @@ spring:
     validate-on-migrate: true
 
 server:
-  port: ${SERVER_PORT:5050}
+  port: ${PORT:${SERVER_PORT:5050}}
 
 app:
   payment:
     mock:
       callback-secret: ${MOCK_PAYMENT_CALLBACK_SECRET:mock-callback-secret-change-me}
+    iyzico:
+      api-key: ${IYZICO_API_KEY:}
+      secret-key: ${IYZICO_SECRET_KEY:}
+      base-url: ${IYZICO_BASE_URL:https://sandbox-api.iyzipay.com}
+      callback-url: ${IYZICO_CALLBACK_URL:}
+      locale: ${IYZICO_LOCALE:tr}
+      enabled-installments: ${IYZICO_ENABLED_INSTALLMENTS:1}
+      force-three-ds: ${IYZICO_FORCE_THREE_DS:0}
+      default-buyer-identity-number: ${IYZICO_DEFAULT_BUYER_IDENTITY_NUMBER:11111111111}
+      default-buyer-ip: ${IYZICO_DEFAULT_BUYER_IP:127.0.0.1}
   security:
     admin:
       email: ${ADMIN_EMAIL:admin@babyshop.local}
