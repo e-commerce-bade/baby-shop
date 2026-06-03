@@ -1,4 +1,4 @@
-export const AUTH_COOKIE_NAME = 'minimori_access_token'
+export const AUTH_COOKIE_NAME = 'badebebe_access_token'
 
 export function authCookieOptions(maxAge?: number) {
   return {

@@ -42,6 +42,7 @@ interface BackendProductImageResponse {
   id: number
   imageUrl: string
   altText: string | null
+  colorName: string | null
   sortOrder: number
   primary: boolean
 }
@@ -65,55 +66,72 @@ const categoryDecorators: Record<
   string,
   Pick<CategoryDisplayItem, 'emoji' | 'ageRange' | 'backgroundColor' | 'imageUrl'>
 > = {
-  // İngilizce slug'lar
+  yenidogan: {
+    emoji: '🍼',
+    ageRange: '0-3 Ay',
+    backgroundColor: '#EFE6D9',
+    imageUrl: '/images/category_newborn.png',
+  },
+  'kiz-bebek': {
+    emoji: '🎀',
+    ageRange: '0-24 Ay',
+    backgroundColor: '#F4DEDB',
+    imageUrl: '/images/category_girl.png',
+  },
+  'erkek-bebek': {
+    emoji: '🧸',
+    ageRange: '0-24 Ay',
+    backgroundColor: '#D9E4EC',
+    imageUrl: '/images/category_boy.png',
+  },
+  'kiz-cocuk': {
+    emoji: '👗',
+    ageRange: '2-14 Yaş',
+    backgroundColor: '#F0E1DD',
+    imageUrl: '/images/category_girl.png',
+  },
+  'erkek-cocuk': {
+    emoji: '🌿',
+    ageRange: '2-14 Yaş',
+    backgroundColor: '#E4EBD9',
+    imageUrl: '/images/category_boy.png',
+  },
+  // Eski slug'lar icin fallback
   newborn: {
     emoji: '🍼',
-    ageRange: '0-12 ay',
-    backgroundColor: '#F2E6D6',
+    ageRange: '0-3 Ay',
+    backgroundColor: '#EFE6D9',
     imageUrl: '/images/category_newborn.png',
   },
   'baby-girl': {
     emoji: '🎀',
-    ageRange: '3 ay - 4 yaş',
-    backgroundColor: '#F6E0DD',
+    ageRange: '0-24 Ay',
+    backgroundColor: '#F4DEDB',
     imageUrl: '/images/category_girl.png',
   },
   'baby-boy': {
     emoji: '🧸',
-    ageRange: '3 ay - 4 yaş',
-    backgroundColor: '#DFE8EF',
+    ageRange: '0-24 Ay',
+    backgroundColor: '#D9E4EC',
     imageUrl: '/images/category_boy.png',
   },
   'kids-girl': {
-    emoji: '🌸',
-    ageRange: '4-8 yaş',
+    emoji: '👗',
+    ageRange: '2-14 Yaş',
     backgroundColor: '#F0E1DD',
-    imageUrl: null,
+    imageUrl: '/images/category_girl.png',
   },
   'kids-boy': {
     emoji: '🌿',
-    ageRange: '4-8 yaş',
+    ageRange: '2-14 Yaş',
     backgroundColor: '#E4EBD9',
-    imageUrl: null,
+    imageUrl: '/images/category_boy.png',
   },
-  // Türkçe slug'lar (backend Türkçe dönebilir)
   'yeni-dogan': {
     emoji: '🍼',
-    ageRange: '0-24 Ay',
+    ageRange: '0-3 Ay',
     backgroundColor: '#EFE6D9',
     imageUrl: '/images/category_newborn.png',
-  },
-  'kiz-cocuk': {
-    emoji: '👗',
-    ageRange: '0-7 Yaş',
-    backgroundColor: '#F4DEDB',
-    imageUrl: '/images/category_girl.png',
-  },
-  'erkek-cocuk': {
-    emoji: '🧸',
-    ageRange: '0-7 Yaş',
-    backgroundColor: '#D9E4EC',
-    imageUrl: '/images/category_boy.png',
   },
 }
 
@@ -143,6 +161,7 @@ function mapImage(
     id: image.id,
     imageUrl: image.imageUrl,
     altText: image.altText,
+    colorName: image.colorName,
     sortOrder: image.sortOrder,
     isPrimary: image.primary,
   }
@@ -159,6 +178,7 @@ function mapPrimaryImage(
     id: product.id * 1000,
     imageUrl: product.primaryImageUrl,
     altText: product.name,
+    colorName: null,
     sortOrder: 0,
     isPrimary: true,
   }
@@ -242,7 +262,7 @@ export async function fetchCategoryStripItems(): Promise<CategoryDisplayItem[]> 
     return mockCategoryStrip
   }
 
-  return categories.slice(0, 3).map((category, index) => {
+  return categories.slice(0, 5).map((category, index) => {
     const decorator =
       categoryDecorators[category.slug] ??
       Object.values(categoryDecorators)[index % Object.values(categoryDecorators).length]

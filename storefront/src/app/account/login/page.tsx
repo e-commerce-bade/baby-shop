@@ -51,7 +51,11 @@ function LoginLayout() {
       })
       const payload = await res.json().catch(() => null)
       if (!res.ok) throw new Error(payload?.message ?? 'Giriş yapılamadı.')
-      router.replace(nextPath.startsWith('/') ? nextPath : '/account')
+      if (payload?.role === 'ADMIN') {
+        router.replace('/admin')
+      } else {
+        router.replace(nextPath.startsWith('/') && !nextPath.startsWith('//') ? nextPath : '/account')
+      }
       router.refresh()
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : 'Giriş yapılamadı.')
@@ -68,7 +72,7 @@ function LoginLayout() {
           <div className="relative flex min-h-[500px] flex-col overflow-hidden bg-[#F0E8DE] max-[860px]:min-h-[220px]">
             {/*
               Buraya bebek görseli eklenecek:
-              <Image src="/images/login-hero.jpg" alt="MiniMori" fill className="object-cover object-center" />
+              <Image src="/images/login-hero.jpg" alt="Bade Bebe" fill className="object-cover object-center" />
             */}
 
             {/* Gradient overlay — metin okunabilirliği */}
@@ -84,7 +88,7 @@ function LoginLayout() {
             <div className="relative z-10 flex h-full flex-col justify-between p-9 max-[860px]:p-6">
               <div>
                 <Link href="/" className="inline-flex items-center gap-2">
-                  <span className="font-serif text-[26px] font-semibold text-brown">MiniMori</span>
+                  <span className="font-serif text-[26px] font-semibold text-brown">Bade Bebe</span>
                   <svg className="text-sage" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
                     <path d="M12 21V9" /><path d="M12 13c-3 0-5-2-5-5 3 0 5 2 5 5z" />
                     <path d="M12 11c2.5 0 4-1.7 4-4-2.5 0-4 1.7-4 4z" />
@@ -96,7 +100,7 @@ function LoginLayout() {
                     Tekrar hoş geldiniz,
                   </p>
                   <p className="font-serif text-[36px] font-semibold italic leading-[1.1] text-rose max-[860px]:text-[24px]">
-                    MiniMori&apos;ye.
+                    Bade Bebe'ye.
                   </p>
                   <p className="mt-4 max-w-[300px] text-[14px] leading-relaxed text-brown-2 max-[860px]:hidden">
                     Küçük anlar için zamansız parçalar, sevgi ve özenle hazırlandı.

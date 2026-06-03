@@ -15,7 +15,7 @@ export default function CheckoutHelpCard() {
         Yardıma mı ihtiyacınız var?
       </p>
       <Link
-        href="mailto:destek@minimori.com"
+        href="mailto:destek@badebebe.com"
         className="mt-2.5 inline-block text-[12.5px] font-bold text-rose underline underline-offset-2 transition-colors hover:text-rose-dk"
       >
         Bize yazın

@@ -1,32 +1,41 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { usePathname, useRouter } from 'next/navigation'
 import { formatPrice } from '@/lib/utils'
 import ColorSelector from './ColorSelector'
 import SizeSelector from './SizeSelector'
 import QuantityControl from './QuantityControl'
 import { useCartStore } from '@/store/cartStore'
+import { useFavoriteStore } from '@/store/favoriteStore'
 import type { ProductDetail } from '@/types/product'
 
 const DISCOUNT_RATE = 0.2
 
 interface Props {
   product: ProductDetail
+  selectedColor?: string
+  onColorSelect?: (color: string) => void
 }
 
-export default function ProductInfoPanel({ product }: Props) {
+export default function ProductInfoPanel({ product, selectedColor: selectedColorProp, onColorSelect }: Props) {
+  const router = useRouter()
+  const pathname = usePathname()
   const uniqueColors = useMemo(
     () => [...new Set(product.variants.map((variant) => variant.colorName))],
     [product.variants],
   )
 
-  const [selectedColor, setSelectedColor] = useState(uniqueColors[0] ?? '')
+  const [internalSelectedColor, setInternalSelectedColor] = useState(uniqueColors[0] ?? '')
+  const selectedColor = selectedColorProp ?? internalSelectedColor
   const [selectedSize, setSelectedSize] = useState<string | null>(null)
   const [quantity, setQuantity] = useState(1)
-  const [wishlisted, setWishlisted] = useState(false)
   const [isAdding, setIsAdding] = useState(false)
 
   const addItem = useCartStore((state) => state.addItem)
+  const isFavorite = useFavoriteStore((state) => state.isFavorite(product.id))
+  const toggleFavorite = useFavoriteStore((state) => state.toggleFavorite)
+  const clearFavorites = useFavoriteStore((state) => state.clearFavorites)
 
   const sizesForColor = useMemo(() => {
     const seen = new Set<string>()
@@ -74,6 +83,24 @@ export default function ProductInfoPanel({ product }: Props) {
     }
   }
 
+  async function handleFavoriteToggle() {
+    const response = await fetch('/api/account/me', {
+      cache: 'no-store',
+      credentials: 'same-origin',
+      headers: { Accept: 'application/json' },
+    })
+
+    if (response.status === 401) {
+      clearFavorites()
+      router.push(`/account/login?next=${encodeURIComponent(pathname)}`)
+      return
+    }
+
+    if (!response.ok) return
+
+    toggleFavorite(product)
+  }
+
   return (
     <div className="flex flex-col gap-5">
       <div>
@@ -81,15 +108,15 @@ export default function ProductInfoPanel({ product }: Props) {
           {product.name}
         </h1>
         <p className="mt-1.5 text-sm text-muted">
-          Günlük dönüşler için yumuşak ve nefes alabilir.
+          GÃ¼nlÃ¼k dÃ¶nÃ¼ÅŸler iÃ§in yumuÅŸak ve nefes alabilir.
         </p>
       </div>
 
       <div className="flex items-center gap-2">
-        <span className="text-[14px] tracking-[1px] text-rose">★★★★★</span>
+        <span className="text-[14px] tracking-[1px] text-rose">â˜…â˜…â˜…â˜…â˜…</span>
         <span className="text-sm font-extrabold text-brown">4.9</span>
         <span className="cursor-pointer text-[13px] text-muted underline underline-offset-2 hover:text-rose-dk">
-          (128 değerlendirme)
+          (128 deÄŸerlendirme)
         </span>
       </div>
 
@@ -101,7 +128,7 @@ export default function ProductInfoPanel({ product }: Props) {
           {formatPrice(originalPrice, product.currency)}
         </span>
         <span className="rounded-[20px] bg-rose px-2.5 py-1 text-[11px] font-extrabold uppercase tracking-[0.3px] text-white">
-          %{Math.round(DISCOUNT_RATE * 100)} İNDİRİM
+          %{Math.round(DISCOUNT_RATE * 100)} Ä°NDÄ°RÄ°M
         </span>
       </div>
 
@@ -116,7 +143,8 @@ export default function ProductInfoPanel({ product }: Props) {
           colors={uniqueColors}
           selected={selectedColor}
           onSelect={(color) => {
-            setSelectedColor(color)
+            if (onColorSelect) onColorSelect(color)
+            else setInternalSelectedColor(color)
             setSelectedSize(null)
           }}
         />
@@ -126,7 +154,7 @@ export default function ProductInfoPanel({ product }: Props) {
         <p className="text-[13.5px] font-bold text-brown">
           Beden:{' '}
           <span className="font-normal text-brown-2">
-            {selectedSize ?? 'Seç'}
+            {selectedSize ?? 'SeÃ§'}
           </span>
         </p>
         <SizeSelector
@@ -141,7 +169,7 @@ export default function ProductInfoPanel({ product }: Props) {
           className={`h-2 w-2 shrink-0 rounded-full ${inStock ? 'bg-[#6DB584]' : 'bg-rose-dk'}`}
         />
         {inStock
-          ? 'Stokta var - 1-2 iş günü içinde kargoya verilir'
+          ? 'Stokta var - 1-2 iÅŸ gÃ¼nÃ¼ iÃ§inde kargoya verilir'
           : 'Bu beden stokta yok'}
       </div>
 
@@ -159,21 +187,22 @@ export default function ProductInfoPanel({ product }: Props) {
           type="button"
           disabled={!canAddToCart || isAdding}
           onClick={() => void handleAddToCart()}
-          className="flex flex-1 items-center justify-center rounded-[14px] bg-rose py-4 text-[15px] font-bold text-white shadow-[0_10px_22px_-10px_rgba(197,127,123,.8)] transition-[background-color,transform] duration-[220ms] hover:-translate-y-0.5 hover:bg-rose-dk disabled:cursor-not-allowed disabled:opacity-50"
+          className="flex flex-1 items-center justify-center rounded-[14px] bg-rose py-4 text-[15px] font-bold text-white shadow-[0_10px_22px_-10px_rgba(138,114,88,.5)] transition-[background-color,transform] duration-[220ms] hover:-translate-y-0.5 hover:bg-rose-dk disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {isAdding ? 'Ekleniyor...' : !selectedSize ? 'Beden Seç' : 'Sepete Ekle'}
+          {isAdding ? 'Ekleniyor...' : !selectedSize ? 'Beden SeÃ§' : 'Sepete Ekle'}
         </button>
         <button
           type="button"
-          onClick={() => setWishlisted((current) => !current)}
-          aria-label="Favorilere ekle"
-          className={`grid h-[54px] w-[54px] shrink-0 place-items-center rounded-[12px] border transition-colors duration-200 ${wishlisted ? 'border-rose-soft bg-rose-tint text-rose' : 'border-line bg-white text-muted hover:border-rose-soft hover:bg-rose-tint hover:text-rose'}`}
+          onClick={() => void handleFavoriteToggle()}
+          aria-pressed={isFavorite}
+          aria-label={isFavorite ? 'Favorilerden çıkar' : 'Favorilere ekle'}
+          className={`grid h-[54px] w-[54px] shrink-0 place-items-center rounded-[12px] border transition-colors duration-200 ${isFavorite ? 'border-rose-soft bg-rose-tint text-rose' : 'border-line bg-white text-muted hover:border-rose-soft hover:bg-rose-tint hover:text-rose'}`}
         >
           <svg
             width="20"
             height="20"
             viewBox="0 0 24 24"
-            fill={wishlisted ? 'currentColor' : 'none'}
+            fill={isFavorite ? 'currentColor' : 'none'}
             stroke="currentColor"
             strokeWidth="1.8"
           >
@@ -184,9 +213,9 @@ export default function ProductInfoPanel({ product }: Props) {
 
       <div className="grid grid-cols-3 gap-2.5 border-t border-line pt-4">
         {[
-          { label: 'Güvenli Ödeme', sub: '%100 korumalı', icon: <LockIcon /> },
-          { label: 'Kolay İade', sub: '30 gün içinde', icon: <ReturnIcon /> },
-          { label: 'Hızlı Teslimat', sub: '2-4 iş günü', icon: <TruckIcon /> },
+          { label: 'GÃ¼venli Ã–deme', sub: '%100 korumalÄ±', icon: <LockIcon /> },
+          { label: 'Kolay Ä°ade', sub: '30 gÃ¼n iÃ§inde', icon: <ReturnIcon /> },
+          { label: 'HÄ±zlÄ± Teslimat', sub: '2-4 iÅŸ gÃ¼nÃ¼', icon: <TruckIcon /> },
         ].map((item) => (
           <div key={item.label} className="flex items-start gap-2">
             <div className="grid h-[30px] w-[30px] shrink-0 place-items-center rounded-full bg-cream-2 text-rose-dk">

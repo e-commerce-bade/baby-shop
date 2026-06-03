@@ -1,3 +1,5 @@
+'use client'
+
 import ProductCard from './ProductCard'
 import type { ProductSummary } from '@/types/product'
 import type { ComponentProps } from 'react'

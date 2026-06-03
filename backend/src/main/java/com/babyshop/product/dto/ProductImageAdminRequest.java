@@ -10,9 +10,14 @@ public record ProductImageAdminRequest(
         String imageUrl,
         @Size(max = 255, message = "Product image alt text must be at most 255 characters")
         String altText,
+        @Size(max = 80, message = "Product image color name must be at most 80 characters")
+        String colorName,
         @NotNull(message = "Product image sort order is required")
         Integer sortOrder,
         @NotNull(message = "Product image primary flag is required")
         Boolean primary
 ) {
+    public ProductImageAdminRequest(String imageUrl, String altText, Integer sortOrder, Boolean primary) {
+        this(imageUrl, altText, null, sortOrder, primary);
+    }
 }

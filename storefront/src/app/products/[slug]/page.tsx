@@ -1,8 +1,7 @@
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import ProductGallery from '@/components/product/detail/ProductGallery'
-import ProductInfoPanel from '@/components/product/detail/ProductInfoPanel'
+import ProductDetailExperience from '@/components/product/detail/ProductDetailExperience'
 import ProductAccordion from '@/components/product/detail/ProductAccordion'
 import FeaturesPanel from '@/components/product/detail/FeaturesPanel'
 import RelatedProducts from '@/components/product/detail/RelatedProducts'
@@ -95,16 +94,11 @@ export default async function ProductDetailPage({
       </nav>
 
       <div className="grid grid-cols-[minmax(0,560px)_minmax(360px,1fr)] gap-10 max-[980px]:grid-cols-1 max-[980px]:gap-8">
-        <ProductGallery
-          images={product.images}
-          productName={product.name}
+        <ProductDetailExperience
+          product={product}
           gradientFrom={gradFrom}
           gradientTo={gradTo}
-          isNew
         />
-        <div id="product-options">
-          <ProductInfoPanel product={product} />
-        </div>
       </div>
 
       <div className="mt-14 grid grid-cols-[5fr_6fr] gap-7 max-[980px]:grid-cols-1 max-[980px]:mt-10">

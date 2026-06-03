@@ -165,7 +165,7 @@ export default function CheckoutPage() {
           {/* Logo + geri */}
           <div>
             <Link href="/" className="font-serif text-[22px] font-semibold text-brown">
-              MiniMori
+              Bade Bebe
             </Link>
             <div className="mt-0.5">
               <Link
@@ -186,7 +186,7 @@ export default function CheckoutPage() {
           {/* Yardım */}
           <div className="hidden text-right text-[12px] text-muted sm:block">
             <p className="font-semibold">Yardıma mı ihtiyacınız var?</p>
-            <a href="mailto:destek@minimori.com" className="text-rose underline underline-offset-2 hover:text-rose-dk">
+            <a href="mailto:destek@badebebe.com" className="text-rose underline underline-offset-2 hover:text-rose-dk">
               Bize yazın
             </a>
           </div>

@@ -227,7 +227,7 @@ export const useCartStore = create<CartState>()(
       closeDrawer: () => set({ isOpen: false }),
     }),
     {
-      name: 'minimori-cart',
+      name: 'badebebe-cart',
       version: 2,
       storage: createJSONStorage(() =>
         typeof window !== 'undefined' ? localStorage : (null as unknown as Storage),

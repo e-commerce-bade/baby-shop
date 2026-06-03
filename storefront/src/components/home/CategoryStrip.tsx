@@ -7,7 +7,7 @@ interface Props {
 
 export default function CategoryStrip({ categories }: Props) {
   return (
-    <div className="grid grid-cols-3 gap-3 max-[680px]:gap-2">
+    <div className="grid grid-cols-5 gap-3 max-[980px]:grid-cols-3 max-[680px]:grid-cols-2 max-[680px]:gap-2">
       {categories.map((category) => (
         <Link
           key={category.id}

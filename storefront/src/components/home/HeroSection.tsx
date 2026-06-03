@@ -136,7 +136,7 @@ export default function HeroSection() {
               <>
                 <Image
                   src={slide.image}
-                  alt="MiniMori koleksiyon"
+                  alt="Bade Bebe koleksiyon"
                   fill
                   priority={i === 0}
                   sizes="100vw"

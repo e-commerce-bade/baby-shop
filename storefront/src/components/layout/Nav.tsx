@@ -5,10 +5,11 @@ type NavItem = { label: string; href: string; sale?: boolean }
 
 const navItems: NavItem[] = [
   { label: 'Yeni Gelenler', href: '/products' },
-  { label: 'Yeni Doğan', href: '/products?categorySlug=yeni-dogan' },
+  { label: 'Yenidoğan', href: '/products?categorySlug=yenidogan' },
+  { label: 'Kız Bebek', href: '/products?categorySlug=kiz-bebek' },
+  { label: 'Erkek Bebek', href: '/products?categorySlug=erkek-bebek' },
   { label: 'Kız Çocuk', href: '/products?categorySlug=kiz-cocuk' },
   { label: 'Erkek Çocuk', href: '/products?categorySlug=erkek-cocuk' },
-  { label: 'Çok Satanlar', href: '/products?sort=best-sellers' },
   { label: 'İndirim', href: '/products?sort=price-desc', sale: true },
 ]
 

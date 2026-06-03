@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { cn } from '@/lib/utils'
 import type { ProductImage } from '@/types/product'
 
@@ -23,6 +23,10 @@ export default function ProductGallery({
 }: Props) {
   const [active, setActive] = useState(0)
   const count = Math.max(images.length, 5)
+
+  useEffect(() => {
+    setActive(0)
+  }, [images])
 
   return (
     <div className="flex w-full max-w-[560px] gap-3 max-[980px]:mx-auto max-[680px]:flex-col-reverse">

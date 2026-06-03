@@ -102,7 +102,7 @@ function RegisterLayout() {
             />
 
             <Link href="/" className="relative z-10 inline-flex items-center gap-2">
-              <span className="font-serif text-[27px] font-semibold text-brown">MiniMori</span>
+              <span className="font-serif text-[27px] font-semibold text-brown">Bade Bebe</span>
               <svg className="text-sage" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
                 <path d="M12 21V9" />
                 <path d="M12 13c-3 0-5-2-5-5 3 0 5 2 5 5z" />
@@ -112,7 +112,7 @@ function RegisterLayout() {
 
             <div className="relative z-10 mt-12 max-w-[310px] max-[900px]:mt-7 max-[900px]:max-w-none">
               <p className="text-[12px] font-extrabold uppercase tracking-[0.18em] text-rose">
-                MiniMori ailesi
+                Bade Bebe ailesi
               </p>
               <h1 className="mt-3 font-serif text-[38px] font-semibold leading-[1.08] text-brown max-[680px]:text-[30px]">
                 Küçük anlar için hesabınızı oluşturun

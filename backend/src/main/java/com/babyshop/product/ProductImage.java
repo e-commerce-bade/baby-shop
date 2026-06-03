@@ -35,6 +35,9 @@ public class ProductImage {
     @Column(name = "alt_text", length = 255)
     private String altText;
 
+    @Column(name = "color_name", length = 80)
+    private String colorName;
+
     @Column(name = "sort_order", nullable = false)
     private int sortOrder;
 

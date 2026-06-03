@@ -2,6 +2,12 @@
 @tailwind components;
 @tailwind utilities;
 
+@keyframes rabbit-fill {
+  0%, 8%   { clip-path: inset(100% 0 0 0 round 50px); }
+  60%, 85% { clip-path: inset(0%   0 0 0 round 50px); }
+  100%     { clip-path: inset(100% 0 0 0 round 50px); }
+}
+
 @layer base {
   html {
     scroll-behavior: smooth;
