@@ -28,6 +28,7 @@ import static org.mockito.BDDMockito.doNothing;
 import static org.mockito.BDDMockito.given;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -99,7 +100,23 @@ class ProductAdminControllerTest {
     }
 
     @Test
-    void shouldSoftDeleteProduct() throws Exception {
+    void shouldUpdateProductActiveStatus() throws Exception {
+        given(productService.updateProductActiveStatus(1L, false)).willReturn(
+                new ProductDetailResponse(
+                        1L, "Baby Dress", "baby-dress", "Soft cotton dress", "Baby Shop", false,
+                        "Dresses", "dresses", new BigDecimal("499.00"), "TRY", List.of(), List.of()
+                )
+        );
+
+        mockMvc.perform(patch("/api/v1/admin/products/1/active")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("false"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.active").value(false));
+    }
+
+    @Test
+    void shouldDeleteProductPermanently() throws Exception {
         doNothing().when(productService).deleteProduct(1L);
 
         mockMvc.perform(delete("/api/v1/admin/products/1"))

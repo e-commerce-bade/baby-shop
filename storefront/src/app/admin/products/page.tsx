@@ -1008,6 +1008,112 @@ function WorkingAddProductDrawer({
   )
 }
 
+function ProductManagementDrawer({
+  product,
+  busyAction,
+  onClose,
+  onToggleActive,
+  onDelete,
+}: {
+  product: AdminProduct
+  busyAction: 'active' | 'delete' | null
+  onClose: () => void
+  onToggleActive: (product: AdminProduct) => Promise<void> | void
+  onDelete: (product: AdminProduct) => Promise<void> | void
+}) {
+  const variants = product.variants ?? []
+  const price = product.basePrice ?? product.price ?? product.minPrice
+  const qty = product.stockQuantity ?? product.totalStock ?? variants.reduce((sum, variant) => sum + variant.stockQuantity, 0)
+  const category = product.categoryName ?? product.category?.name
+
+  return (
+    <>
+      <div className="fixed inset-0 z-40 bg-black/20 backdrop-blur-sm" onClick={onClose} />
+      <div className="fixed inset-y-0 right-0 z-50 flex w-full max-w-md flex-col border-l border-[#ECE3D6] bg-white shadow-xl">
+        <div className="flex items-center justify-between border-b border-[#ECE3D6] px-6 py-4">
+          <div>
+            <h2 className="text-[16px] font-bold text-[#3D2B1F]">Urun Detayi</h2>
+            <p className="mt-0.5 text-[12px] text-[#B5A090]">Yayin durumu ve silme islemleri</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex h-8 w-8 items-center justify-center rounded-full text-[#C4B5A5] hover:bg-[#FAF6F1] hover:text-[#5B4839]"
+            aria-label="Paneli kapat"
+          >
+            <svg className="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+              <path d="M5 5l10 10M15 5L5 15" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-6 py-5">
+          <div className="rounded-[14px] border border-[#ECE3D6] bg-[#FAF6F1] p-4">
+            <div className="flex items-start gap-3">
+              <ProductImage src={product.thumbnailUrl ?? product.imageUrl ?? product.primaryImageUrl ?? undefined} name={product.name} />
+              <div className="min-w-0 flex-1">
+                <p className="text-[15px] font-bold text-[#3D2B1F]">{product.name}</p>
+                <p className="mt-0.5 text-[12px] text-[#B5A090]">
+                  {product.sku ?? `MM-${String(product.id).padStart(3, '0')}`}
+                  {category ? ` - ${category}` : ''}
+                </p>
+              </div>
+              <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold ${product.active ? 'bg-[#EDF7F1] text-[#1A6640]' : 'bg-white text-[#B5A090]'}`}>
+                {product.active ? 'Aktif' : 'Pasif'}
+              </span>
+            </div>
+
+            <div className="mt-4 grid grid-cols-3 gap-2 text-center">
+              <div className="rounded-[10px] bg-white px-3 py-2">
+                <p className="text-[11px] font-bold uppercase text-[#C4B5A5]">Fiyat</p>
+                <p className="mt-1 text-[13px] font-bold text-[#3D2B1F]">{price !== undefined && price !== null ? formatPrice(price, product.currency ?? 'TRY') : '-'}</p>
+              </div>
+              <div className="rounded-[10px] bg-white px-3 py-2">
+                <p className="text-[11px] font-bold uppercase text-[#C4B5A5]">Stok</p>
+                <p className="mt-1 text-[13px] font-bold text-[#3D2B1F]">{qty ?? '-'}</p>
+              </div>
+              <div className="rounded-[10px] bg-white px-3 py-2">
+                <p className="text-[11px] font-bold uppercase text-[#C4B5A5]">Varyant</p>
+                <p className="mt-1 text-[13px] font-bold text-[#3D2B1F]">{product.variantCount ?? variants.length}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-5 rounded-[14px] border border-[#ECE3D6] bg-white p-4">
+            <h3 className="text-[13px] font-bold text-[#3D2B1F]">Yayin durumu</h3>
+            <p className="mt-1 text-[12.5px] leading-5 text-[#7A6656]">
+              Pasife cekilen urun magazada gorunmez, ancak admin panelde kaydi, gorselleri ve varyantlari korunur.
+            </p>
+            <button
+              type="button"
+              onClick={() => void onToggleActive(product)}
+              disabled={busyAction !== null}
+              className="mt-4 w-full rounded-[10px] border border-[#D8CABB] bg-white px-4 py-2.5 text-[13px] font-bold text-[#5B4839] transition-colors hover:bg-[#FAF6F1] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {busyAction === 'active' ? 'Guncelleniyor...' : product.active ? 'Pasife Cek' : 'Aktife Al'}
+            </button>
+          </div>
+
+          <div className="mt-4 rounded-[14px] border border-[#F0B9B1] bg-[#FFF7F5] p-4">
+            <h3 className="text-[13px] font-bold text-[#8A1A1A]">Kalici silme</h3>
+            <p className="mt-1 text-[12.5px] leading-5 text-[#8A4A3E]">
+              Bu islem urunu, urune ait varyantlari ve gorsel kayitlarini geri alinamayacak sekilde siler. Sepetlerdeki ilgili satirlar da temizlenir.
+            </p>
+            <button
+              type="button"
+              onClick={() => void onDelete(product)}
+              disabled={busyAction !== null}
+              className="mt-4 w-full rounded-[10px] bg-[#B73B35] px-4 py-2.5 text-[13px] font-bold text-white transition-colors hover:bg-[#9F2F2A] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {busyAction === 'delete' ? 'Siliniyor...' : 'Kalici Olarak Sil'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </>
+  )
+}
+
 export default function AdminProductsPage() {
   const router = useRouter()
   const [profile, setProfile] = useState<AdminProfile | null>(null)
@@ -1027,8 +1133,9 @@ export default function AdminProductsPage() {
   const [minPriceFilter, setMinPriceFilter] = useState('')
   const [maxPriceFilter, setMaxPriceFilter] = useState('')
   const [showAddDrawer, setShowAddDrawer] = useState(false)
+  const [managingProduct, setManagingProduct] = useState<AdminProduct | null>(null)
   const [selected, setSelected] = useState<Set<number>>(new Set())
-  const [deletingId, setDeletingId] = useState<number | null>(null)
+  const [busyAction, setBusyAction] = useState<'active' | 'delete' | null>(null)
 
   useEffect(() => {
     let active = true
@@ -1157,11 +1264,41 @@ export default function AdminProductsPage() {
     setSelected(new Set())
   }
 
+  async function handleToggleProductActive(product: AdminProduct) {
+    const nextActive = !product.active
+
+    setBusyAction('active')
+    setError(null)
+    try {
+      const res = await fetch(`/api/admin/products/${product.id}/active`, {
+        method: 'PATCH',
+        cache: 'no-store',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(nextActive),
+      })
+
+      if (!res.ok) throw new Error(await readApiError(res, 'Urun durumu guncellenemedi.'))
+
+      await refreshCatalog()
+      setStatusFilter((current) => (current === 'active' ? 'all' : current))
+      setManagingProduct((current) => current ? { ...current, active: nextActive } : current)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Urun durumu guncellenirken hata olustu.')
+    } finally {
+      setBusyAction(null)
+    }
+  }
+
   async function handleDeleteProduct(product: AdminProduct) {
-    const confirmed = window.confirm(`${product.name} pasif hale getirilsin mi?`)
+    const confirmed = window.confirm(
+      `${product.name} kalici olarak silinecek.\n\nBu islem urunu, varyantlarini, gorsel kayitlarini ve sepetlerdeki ilgili satirlari geri alinamayacak sekilde siler. Devam etmek istiyor musunuz?`
+    )
     if (!confirmed) return
 
-    setDeletingId(product.id)
+    setBusyAction('delete')
     setError(null)
     try {
       const res = await fetch(`/api/admin/products/${product.id}`, {
@@ -1173,11 +1310,11 @@ export default function AdminProductsPage() {
       if (!res.ok) throw new Error(await readApiError(res, 'Urun silinemedi.'))
 
       await refreshCatalog()
-      setStatusFilter((current) => (current === 'active' ? 'all' : current))
+      setManagingProduct(null)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Urun silinirken hata olustu.')
     } finally {
-      setDeletingId(null)
+      setBusyAction(null)
     }
   }
 
@@ -1212,6 +1349,16 @@ export default function AdminProductsPage() {
           categories={categories}
           onSaved={refreshCatalog}
           onClose={() => setShowAddDrawer(false)}
+        />
+      )}
+
+      {managingProduct && (
+        <ProductManagementDrawer
+          product={managingProduct}
+          busyAction={busyAction}
+          onClose={() => setManagingProduct(null)}
+          onToggleActive={handleToggleProductActive}
+          onDelete={handleDeleteProduct}
         />
       )}
 
@@ -1459,17 +1606,13 @@ export default function AdminProductsPage() {
                     <td className="px-4 py-3.5 text-[#C4B5A5]">{formatDate(product.updatedAt)}</td>
                     <td className="px-4 py-3.5 text-right">
                       <div className="flex items-center justify-end gap-1">
-                        <button type="button" className="flex h-7 w-7 items-center justify-center rounded-[7px] text-[#C4B5A5] hover:bg-[#F4EEE6] hover:text-[#5B4839] transition-colors">
-                          <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M11 2l3 3-8 8H3v-3L11 2z" /></svg>
-                        </button>
                         <button
                           type="button"
-                          onClick={() => void handleDeleteProduct(product)}
-                          disabled={deletingId === product.id}
-                          className="flex h-7 w-7 items-center justify-center rounded-[7px] text-[#C4B5A5] transition-colors hover:bg-[#FEEAEA] hover:text-[#8A1A1A] disabled:cursor-not-allowed disabled:opacity-50"
-                          aria-label={`${product.name} urununu sil`}
+                          onClick={() => setManagingProduct(product)}
+                          className="flex h-7 w-7 items-center justify-center rounded-[7px] text-[#C4B5A5] hover:bg-[#F4EEE6] hover:text-[#5B4839] transition-colors"
+                          aria-label={`${product.name} detayini ac`}
                         >
-                          <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 4h12M5 4V2.5a.5.5 0 01.5-.5h5a.5.5 0 01.5.5V4M6 7v5M10 7v5M3 4l.8 9.6A1 1 0 004.8 14.7h6.4a1 1 0 001-.9L13 4" /></svg>
+                          <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M1.8 8s2.2-4 6.2-4 6.2 4 6.2 4-2.2 4-6.2 4-6.2-4-6.2-4z" /><circle cx="8" cy="8" r="1.8" /></svg>
                         </button>
                       </div>
                     </td>
@@ -1520,17 +1663,13 @@ export default function AdminProductsPage() {
                     <StockBadge qty={qty} />
                   </div>
                   <div className="flex gap-1">
-                    <button type="button" className="flex h-7 w-7 items-center justify-center rounded-[7px] text-[#C4B5A5] hover:bg-[#F4EEE6] hover:text-[#5B4839]">
-                      <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M11 2l3 3-8 8H3v-3L11 2z" /></svg>
-                    </button>
                     <button
                       type="button"
-                      onClick={() => void handleDeleteProduct(product)}
-                      disabled={deletingId === product.id}
-                      className="flex h-7 w-7 items-center justify-center rounded-[7px] text-[#C4B5A5] hover:bg-[#FEEAEA] hover:text-[#8A1A1A] disabled:cursor-not-allowed disabled:opacity-50"
-                      aria-label={`${product.name} urununu sil`}
+                      onClick={() => setManagingProduct(product)}
+                      className="flex h-7 w-7 items-center justify-center rounded-[7px] text-[#C4B5A5] hover:bg-[#F4EEE6] hover:text-[#5B4839]"
+                      aria-label={`${product.name} detayini ac`}
                     >
-                      <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 4h12M5 4V2.5a.5.5 0 01.5-.5h5a.5.5 0 01.5.5V4M6 7v5M10 7v5M3 4l.8 9.6A1 1 0 004.8 14.7h6.4a1 1 0 001-.9L13 4" /></svg>
+                      <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M1.8 8s2.2-4 6.2-4 6.2 4 6.2 4-2.2 4-6.2 4-6.2-4-6.2-4z" /><circle cx="8" cy="8" r="1.8" /></svg>
                     </button>
                   </div>
                 </div>

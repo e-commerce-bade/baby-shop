@@ -9,6 +9,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -43,6 +44,14 @@ public class ProductAdminController {
     @PutMapping("/{id}")
     public ResponseEntity<ProductDetailResponse> updateProduct(@PathVariable Long id, @Valid @RequestBody ProductAdminRequest request) {
         return ResponseEntity.ok(productService.updateProduct(id, request));
+    }
+
+    @PatchMapping("/{id}/active")
+    public ResponseEntity<ProductDetailResponse> updateProductActiveStatus(
+            @PathVariable Long id,
+            @RequestBody boolean active
+    ) {
+        return ResponseEntity.ok(productService.updateProductActiveStatus(id, active));
     }
 
     @DeleteMapping("/{id}")

@@ -283,6 +283,7 @@ export async function fetchProducts(categorySlug?: string): Promise<ProductSumma
       : ''
     const products = await backendFetch<BackendProductSummaryResponse[]>(
       `/api/v1/products${query}`,
+      { cache: 'no-store' },
     )
     return products.map(mapSummary)
   } catch (error) {
@@ -295,6 +296,7 @@ export async function fetchProductBySlug(slug: string): Promise<ProductDetail | 
   try {
     const product = await backendFetch<BackendProductDetailResponse>(
       `/api/v1/products/${encodeURIComponent(slug)}`,
+      { cache: 'no-store' },
     )
     return mapDetail(product)
   } catch (error) {

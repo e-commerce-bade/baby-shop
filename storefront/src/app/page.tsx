@@ -8,6 +8,9 @@ import FilterSidebar from '@/components/product/filter/FilterSidebar'
 import { fetchCategoryStripItems, fetchProducts } from '@/lib/api/catalog'
 import type { ProductSummary } from '@/types/product'
 
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 interface SearchParams {
   colors?: string
   sizes?: string

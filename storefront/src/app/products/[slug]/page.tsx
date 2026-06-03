@@ -8,6 +8,9 @@ import RelatedProducts from '@/components/product/detail/RelatedProducts'
 import MobileStickyBar from '@/components/product/detail/MobileStickyBar'
 import { fetchProductBySlug, fetchProducts } from '@/lib/api/catalog'
 
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 const PALETTES = [
   ['#EFE6D7', '#DDCBB340'],
   ['#F4E0DD', '#E6BFBA40'],

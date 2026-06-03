@@ -2,6 +2,7 @@ package com.babyshop.product;
 
 import com.babyshop.category.Category;
 import com.babyshop.category.CategoryRepository;
+import com.babyshop.cart.CartItemRepository;
 import com.babyshop.common.exception.DuplicateResourceException;
 import com.babyshop.product.dto.ProductDetailResponse;
 import com.babyshop.product.dto.ProductAdminRequest;
@@ -24,6 +25,7 @@ public class ProductService {
 
     private final ProductRepository productRepository;
     private final CategoryRepository categoryRepository;
+    private final CartItemRepository cartItemRepository;
 
     public List<ProductSummaryResponse> getActiveProducts(String categorySlug) {
         List<Product> products = hasText(categorySlug)
@@ -72,10 +74,17 @@ public class ProductService {
     }
 
     @Transactional
+    public ProductDetailResponse updateProductActiveStatus(Long id, boolean active) {
+        Product product = findProductById(id);
+        product.setActive(active);
+        return toDetailResponse(productRepository.save(product));
+    }
+
+    @Transactional
     public void deleteProduct(Long id) {
         Product product = findProductById(id);
-        product.setActive(false);
-        productRepository.save(product);
+        cartItemRepository.deleteAllByProductId(id);
+        productRepository.delete(product);
     }
 
     private Product findProductById(Long id) {

@@ -6,6 +6,9 @@ import ProductGrid from '@/components/product/ProductGrid'
 import { fetchProducts } from '@/lib/api/catalog'
 import type { ProductSummary } from '@/types/product'
 
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 export const metadata: Metadata = { title: 'Ürünler' }
 
 interface SearchParams {
