@@ -17,7 +17,7 @@ export default function FilterSidebar() {
     useProductFilter()
 
   return (
-    <aside className="sticky top-[18px] rounded-panel border border-line bg-cream-3 px-5 py-[22px]">
+    <aside className="sticky top-[18px] max-[980px]:static rounded-panel border border-line bg-cream-3 px-5 py-[22px]">
       {/* Header */}
       <div className="mb-2 flex items-center justify-between">
         <h3 className="font-serif text-xl font-semibold text-brown">Filtreler</h3>
