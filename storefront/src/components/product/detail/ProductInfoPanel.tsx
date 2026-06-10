@@ -108,15 +108,15 @@ export default function ProductInfoPanel({ product, selectedColor: selectedColor
           {product.name}
         </h1>
         <p className="mt-1.5 text-sm text-muted">
-          GÃ¼nlÃ¼k dÃ¶nÃ¼ÅŸler iÃ§in yumuÅŸak ve nefes alabilir.
+          Günlük dönüşler için yumuşak ve nefes alabilir.
         </p>
       </div>
 
       <div className="flex items-center gap-2">
-        <span className="text-[14px] tracking-[1px] text-rose">â˜…â˜…â˜…â˜…â˜…</span>
+        <span className="text-[14px] tracking-[1px] text-rose">★★★★★</span>
         <span className="text-sm font-extrabold text-brown">4.9</span>
         <span className="cursor-pointer text-[13px] text-muted underline underline-offset-2 hover:text-rose-dk">
-          (128 deÄŸerlendirme)
+          (128 değerlendirme)
         </span>
       </div>
 
@@ -128,7 +128,7 @@ export default function ProductInfoPanel({ product, selectedColor: selectedColor
           {formatPrice(originalPrice, product.currency)}
         </span>
         <span className="rounded-[20px] bg-rose px-2.5 py-1 text-[11px] font-extrabold uppercase tracking-[0.3px] text-white">
-          %{Math.round(DISCOUNT_RATE * 100)} Ä°NDÄ°RÄ°M
+          %{Math.round(DISCOUNT_RATE * 100)} İNDİRİM
         </span>
       </div>
 
@@ -154,7 +154,7 @@ export default function ProductInfoPanel({ product, selectedColor: selectedColor
         <p className="text-[13.5px] font-bold text-brown">
           Beden:{' '}
           <span className="font-normal text-brown-2">
-            {selectedSize ?? 'SeÃ§'}
+            {selectedSize ?? 'Seç'}
           </span>
         </p>
         <SizeSelector
@@ -169,7 +169,7 @@ export default function ProductInfoPanel({ product, selectedColor: selectedColor
           className={`h-2 w-2 shrink-0 rounded-full ${inStock ? 'bg-[#6DB584]' : 'bg-rose-dk'}`}
         />
         {inStock
-          ? 'Stokta var - 1-2 iÅŸ gÃ¼nÃ¼ iÃ§inde kargoya verilir'
+          ? 'Stokta var - 1-2 iş günü içinde kargoya verilir'
           : 'Bu beden stokta yok'}
       </div>
 
@@ -189,7 +189,7 @@ export default function ProductInfoPanel({ product, selectedColor: selectedColor
           onClick={() => void handleAddToCart()}
           className="flex flex-1 items-center justify-center rounded-[14px] bg-rose py-4 text-[15px] font-bold text-white shadow-[0_10px_22px_-10px_rgba(138,114,88,.5)] transition-[background-color,transform] duration-[220ms] hover:-translate-y-0.5 hover:bg-rose-dk disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {isAdding ? 'Ekleniyor...' : !selectedSize ? 'Beden SeÃ§' : 'Sepete Ekle'}
+          {isAdding ? 'Ekleniyor...' : !selectedSize ? 'Beden Seç' : 'Sepete Ekle'}
         </button>
         <button
           type="button"
@@ -213,9 +213,9 @@ export default function ProductInfoPanel({ product, selectedColor: selectedColor
 
       <div className="grid grid-cols-3 gap-2.5 border-t border-line pt-4">
         {[
-          { label: 'GÃ¼venli Ã–deme', sub: '%100 korumalÄ±', icon: <LockIcon /> },
-          { label: 'Kolay Ä°ade', sub: '30 gÃ¼n iÃ§inde', icon: <ReturnIcon /> },
-          { label: 'HÄ±zlÄ± Teslimat', sub: '2-4 iÅŸ gÃ¼nÃ¼', icon: <TruckIcon /> },
+          { label: 'Güvenli Ödeme', sub: '%100 korumalı', icon: <LockIcon /> },
+          { label: 'Kolay İade', sub: '30 gün içinde', icon: <ReturnIcon /> },
+          { label: 'Hızlı Teslimat', sub: '2-4 iş günü', icon: <TruckIcon /> },
         ].map((item) => (
           <div key={item.label} className="flex items-start gap-2">
             <div className="grid h-[30px] w-[30px] shrink-0 place-items-center rounded-full bg-cream-2 text-rose-dk">

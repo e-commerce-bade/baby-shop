@@ -3,3 +3,12 @@ node_modules/
 out/
 .env.local
 .env.*.local
+
+# Playwright / e2e artifacts (keep specs + config, ignore generated output)
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+/e2e/screenshots/
+dev-server.log
+audit-report.txt
