@@ -9,18 +9,17 @@ interface Props {
 
 export default function CheckboxFilter({ label, count, checked, onChange }: Props) {
   return (
-    <label className="flex cursor-pointer items-center gap-2.5 py-[5px] text-[13.5px] text-brown-2">
+    <button
+      type="button"
+      onClick={onChange}
+      role="checkbox"
+      aria-checked={checked}
+      className="flex w-full cursor-pointer items-center gap-2.5 py-[5px] text-left text-[13.5px] text-brown-2"
+    >
       <span
-        onClick={onChange}
-        role="checkbox"
-        aria-checked={checked}
-        tabIndex={0}
-        onKeyDown={(e) => e.key === 'Enter' && onChange()}
         className={cn(
-          'relative h-4 w-4 shrink-0 cursor-pointer rounded-[4px] border-[1.5px] transition-colors duration-150',
-          checked
-            ? 'border-rose bg-rose'
-            : 'border-muted-2 bg-white',
+          'relative h-4 w-4 shrink-0 rounded-[4px] border-[1.5px] transition-colors duration-150',
+          checked ? 'border-rose bg-rose' : 'border-muted-2 bg-white',
         )}
       >
         {checked && (
@@ -45,6 +44,6 @@ export default function CheckboxFilter({ label, count, checked, onChange }: Prop
       {count !== undefined && (
         <span className="text-xs font-semibold text-muted">{count}</span>
       )}
-    </label>
+    </button>
   )
 }

@@ -50,17 +50,27 @@ function countSelected(draft: ProductFilters): number {
 export default function FilterSidebar() {
   const { filters, applyFilters, clearAll } = useProductFilter()
   const [visibleFilters, setVisibleFilters] = useState(defaultVisibleFilters)
+  const [drawerOpen, setDrawerOpen] = useState(false)
 
   // Local draft: selections are staged here and only sent to the server when
-  // the user presses "Uygula", so toggling checkboxes no longer fires a request.
+  // the user presses "Uygula", so toggling controls never fires a request.
   const [draft, setDraft] = useState<ProductFilters>(filters)
 
-  // Re-sync the draft whenever the applied (URL) filters change — e.g. after an
-  // apply, a category nav click, or the browser back button.
+  // Re-sync the draft whenever the applied (URL) filters change.
   const appliedKey = useMemo(() => JSON.stringify(filters), [filters])
   useEffect(() => {
     setDraft(JSON.parse(appliedKey) as ProductFilters)
   }, [appliedKey])
+
+  // Lock body scroll while the mobile drawer is open.
+  useEffect(() => {
+    if (!drawerOpen) return
+    const previous = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = previous
+    }
+  }, [drawerOpen])
 
   useEffect(() => {
     let active = true
@@ -92,26 +102,30 @@ export default function FilterSidebar() {
   const selectedCount = countSelected(draft)
   const isDirty = JSON.stringify(draft) !== appliedKey
 
+  function handleApply() {
+    applyFilters(draft)
+    setDrawerOpen(false)
+  }
+
   function handleClear() {
     setDraft(EMPTY_DRAFT)
     clearAll()
+    setDrawerOpen(false)
   }
 
-  return (
-    <aside className="sticky top-[18px] max-[980px]:static rounded-panel border border-line bg-cream-3 px-5 py-[22px]">
-      <div className="mb-2 flex items-center justify-between">
-        <h3 className="font-serif text-xl font-semibold text-brown">Filtreler</h3>
-        {selectedCount > 0 && (
-          <button
-            type="button"
-            onClick={handleClear}
-            className="text-xs font-bold text-rose-dk transition-colors hover:text-rose"
-          >
-            Tümünü temizle
-          </button>
-        )}
-      </div>
+  const clearButton =
+    selectedCount > 0 ? (
+      <button
+        type="button"
+        onClick={handleClear}
+        className="text-xs font-bold text-rose-dk transition-colors hover:text-rose"
+      >
+        Tümünü temizle
+      </button>
+    ) : null
 
+  const groups = (
+    <>
       {visibleFilters.category ? (
         <FilterGroup title="Kategori">
           <div className="space-y-0">
@@ -199,23 +213,86 @@ export default function FilterSidebar() {
           </div>
         </FilterGroup>
       ) : null}
+    </>
+  )
 
-      {/* Apply bar — only this commits the selection to the server */}
-      <div className="mt-5 border-t border-line pt-4">
-        <button
-          type="button"
-          onClick={() => applyFilters(draft)}
-          disabled={!isDirty}
-          className="flex w-full items-center justify-center gap-2 rounded-pill bg-rose py-3 text-sm font-bold text-white transition-colors hover:bg-rose-dk disabled:cursor-not-allowed disabled:bg-line disabled:text-muted"
-        >
-          {isDirty ? 'Filtreleri Uygula' : 'Filtreler Uygulandı'}
-          {selectedCount > 0 ? (
-            <span className="grid h-5 min-w-5 place-items-center rounded-full bg-white/25 px-1.5 text-[11px] font-extrabold leading-none">
-              {selectedCount}
-            </span>
-          ) : null}
-        </button>
-      </div>
-    </aside>
+  const applyButton = (
+    <button
+      type="button"
+      onClick={handleApply}
+      disabled={!isDirty}
+      className="flex w-full items-center justify-center gap-2 rounded-pill bg-rose py-3 text-sm font-bold text-white transition-colors hover:bg-rose-dk disabled:cursor-not-allowed disabled:bg-line disabled:text-muted"
+    >
+      {isDirty ? 'Filtreleri Uygula' : 'Filtreler Uygulandı'}
+      {selectedCount > 0 ? (
+        <span className="grid h-5 min-w-5 place-items-center rounded-full bg-white/25 px-1.5 text-[11px] font-extrabold leading-none">
+          {selectedCount}
+        </span>
+      ) : null}
+    </button>
+  )
+
+  return (
+    <>
+      {/* Desktop sidebar (in-flow grid column) */}
+      <aside className="sticky top-[18px] rounded-panel border border-line bg-cream-3 px-5 py-[22px] max-[980px]:hidden">
+        <div className="mb-2 flex items-center justify-between">
+          <h3 className="font-serif text-xl font-semibold text-brown">Filtreler</h3>
+          {clearButton}
+        </div>
+        {groups}
+        <div className="mt-5 border-t border-line pt-4">{applyButton}</div>
+      </aside>
+
+      {/* Mobile trigger — fixed, so it stays out of the grid layout */}
+      <button
+        type="button"
+        onClick={() => setDrawerOpen(true)}
+        className="fixed bottom-5 left-1/2 z-40 hidden -translate-x-1/2 items-center gap-2 rounded-pill bg-brown px-6 py-3.5 text-sm font-bold text-white shadow-card max-[980px]:flex"
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+          <path d="M3 5h18M6 12h12M10 19h4" />
+        </svg>
+        Filtrele
+        {selectedCount > 0 ? (
+          <span className="grid h-5 min-w-5 place-items-center rounded-full bg-white/25 px-1.5 text-[11px] font-extrabold leading-none">
+            {selectedCount}
+          </span>
+        ) : null}
+      </button>
+
+      {/* Mobile drawer */}
+      {drawerOpen ? (
+        <div className="fixed inset-0 z-50 min-[981px]:hidden">
+          <div
+            className="absolute inset-0 bg-black/30"
+            onClick={() => setDrawerOpen(false)}
+            aria-hidden="true"
+          />
+          <div className="absolute inset-y-0 left-0 flex w-[86%] max-w-[360px] flex-col bg-cream-3 shadow-xl">
+            <div className="flex items-center justify-between border-b border-line px-5 py-4">
+              <h3 className="font-serif text-xl font-semibold text-brown">Filtreler</h3>
+              <button
+                type="button"
+                onClick={() => setDrawerOpen(false)}
+                aria-label="Kapat"
+                className="grid h-8 w-8 place-items-center rounded-full text-muted transition-colors hover:bg-cream-2 hover:text-brown"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                  <path d="M6 6l12 12M18 6L6 18" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-5 py-4">
+              {clearButton ? <div className="mb-2 flex justify-end">{clearButton}</div> : null}
+              {groups}
+            </div>
+
+            <div className="border-t border-line p-4">{applyButton}</div>
+          </div>
+        </div>
+      ) : null}
+    </>
   )
 }

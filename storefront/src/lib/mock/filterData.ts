@@ -1,9 +1,11 @@
+// Labels are display-only; the `value` (category slug) is what gets sent to the
+// backend, so these can be shown in proper Turkish without affecting filtering.
 export const filterCategories = [
-  { label: 'Yenidogan', value: 'yenidogan' },
-  { label: 'Kiz Bebek', value: 'kiz-bebek' },
+  { label: 'Yenidoğan', value: 'yenidogan' },
+  { label: 'Kız Bebek', value: 'kiz-bebek' },
   { label: 'Erkek Bebek', value: 'erkek-bebek' },
-  { label: 'Kiz Cocuk', value: 'kiz-cocuk' },
-  { label: 'Erkek Cocuk', value: 'erkek-cocuk' },
+  { label: 'Kız Çocuk', value: 'kiz-cocuk' },
+  { label: 'Erkek Çocuk', value: 'erkek-cocuk' },
 ]
 
 export const filterProductTypes = [
@@ -39,5 +41,5 @@ export const filterColors = [
 export const filterPriceRanges = [
   { label: '0 - 500 TL', value: 'under-500' },
   { label: '500 - 700 TL', value: '500-700' },
-  { label: '700 TL ve uzeri', value: 'over-700' },
+  { label: '700 TL ve üzeri', value: 'over-700' },
 ]
