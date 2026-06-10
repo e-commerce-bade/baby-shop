@@ -15,7 +15,7 @@ export default function AnnouncementBar() {
       </button>
 
       <span style={{ color: '#BF8060' }}>♥</span>
-      <span>75 USD üzeri siparişlerde ücretsiz kargo</span>
+      <span>750 TL üzeri siparişlerde ücretsiz kargo</span>
 
       <button
         className="absolute right-3.5 grid h-[26px] w-[26px] place-items-center rounded-full transition-colors duration-200 hover:bg-white/60"

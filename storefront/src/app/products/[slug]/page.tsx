@@ -78,7 +78,7 @@ export default async function ProductDetailPage({
       id: 'shipping',
       title: 'Kargo ve İade',
       content:
-        '75 USD üzeri siparişlerde ücretsiz kargo · 1-2 iş günü içinde kargoya verilir · 30 gün içinde ücretsiz iade · Orijinal etiketleri sökülmemiş olmalıdır',
+        '750 TL üzeri siparişlerde ücretsiz kargo · 1-2 iş günü içinde kargoya verilir · 30 gün içinde ücretsiz iade · Orijinal etiketleri sökülmemiş olmalıdır',
     },
   ]
 

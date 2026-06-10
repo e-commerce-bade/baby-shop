@@ -7,7 +7,7 @@ interface Props {
   children: React.ReactNode
 }
 
-export default function FilterGroup({ title, defaultOpen = true, children }: Props) {
+export default function FilterGroup({ title, defaultOpen = false, children }: Props) {
   const [open, setOpen] = useState(defaultOpen)
 
   return (
@@ -19,14 +19,21 @@ export default function FilterGroup({ title, defaultOpen = true, children }: Pro
         aria-expanded={open}
       >
         <h4 className="text-sm font-extrabold text-brown">{title}</h4>
-        <span
+        <svg
           className={cn(
-            'text-lg leading-none text-muted transition-transform duration-200',
-            open ? 'rotate-0' : 'rotate-45',
+            'h-3.5 w-3.5 shrink-0 text-muted transition-transform duration-200',
+            open ? 'rotate-180' : 'rotate-0',
           )}
+          viewBox="0 0 12 12"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
         >
-          {open ? '—' : '+'}
-        </span>
+          <path d="M2.5 4.5L6 8l3.5-3.5" />
+        </svg>
       </button>
 
       <div

@@ -113,16 +113,16 @@ export default function FilterSidebar() {
     setDrawerOpen(false)
   }
 
-  const clearButton =
-    selectedCount > 0 ? (
-      <button
-        type="button"
-        onClick={handleClear}
-        className="text-xs font-bold text-rose-dk transition-colors hover:text-rose"
-      >
-        Tümünü temizle
-      </button>
-    ) : null
+  const clearAllButton = (
+    <button
+      type="button"
+      onClick={handleClear}
+      disabled={selectedCount === 0}
+      className="w-full rounded-pill border border-line py-2.5 text-[13px] font-bold text-brown-2 transition-colors hover:border-rose-soft hover:text-rose-dk disabled:cursor-not-allowed disabled:opacity-40"
+    >
+      Tüm Filtreleri Temizle
+    </button>
+  )
 
   const groups = (
     <>
@@ -232,16 +232,22 @@ export default function FilterSidebar() {
     </button>
   )
 
+  const actionBar = (
+    <div className="space-y-2">
+      {applyButton}
+      {clearAllButton}
+    </div>
+  )
+
   return (
     <>
       {/* Desktop sidebar (in-flow grid column) */}
       <aside className="sticky top-[18px] rounded-panel border border-line bg-cream-3 px-5 py-[22px] max-[980px]:hidden">
-        <div className="mb-2 flex items-center justify-between">
+        <div className="mb-2">
           <h3 className="font-serif text-xl font-semibold text-brown">Filtreler</h3>
-          {clearButton}
         </div>
         {groups}
-        <div className="mt-5 border-t border-line pt-4">{applyButton}</div>
+        <div className="mt-5 border-t border-line pt-4">{actionBar}</div>
       </aside>
 
       {/* Mobile trigger — fixed, so it stays out of the grid layout */}
@@ -285,11 +291,10 @@ export default function FilterSidebar() {
             </div>
 
             <div className="flex-1 overflow-y-auto px-5 py-4">
-              {clearButton ? <div className="mb-2 flex justify-end">{clearButton}</div> : null}
               {groups}
             </div>
 
-            <div className="border-t border-line p-4">{applyButton}</div>
+            <div className="border-t border-line p-4">{actionBar}</div>
           </div>
         </div>
       ) : null}
