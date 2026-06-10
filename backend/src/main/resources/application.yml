@@ -43,7 +43,7 @@ app:
       default-buyer-ip: ${IYZICO_DEFAULT_BUYER_IP:127.0.0.1}
   security:
     google:
-      client-id: ${GOOGLE_CLIENT_ID:}
+      client-id: ${GOOGLE_CLIENT_ID:708355217675-6c6mv60vqi8kuj4mui3c65kevgpshf2j.apps.googleusercontent.com}
     admin:
       email: ${ADMIN_EMAIL:admin@babyshop.local}
       password: ${ADMIN_PASSWORD:change-me}
