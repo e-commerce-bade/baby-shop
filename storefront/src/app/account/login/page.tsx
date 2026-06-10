@@ -1,11 +1,29 @@
 'use client'
 
-import { Suspense, useState } from 'react'
+import { Suspense, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
+
+declare global {
+  interface Window {
+    google?: {
+      accounts: {
+        id: {
+          initialize: (config: {
+            client_id: string
+            callback: (response: { credential?: string }) => void
+          }) => void
+          renderButton: (parent: HTMLElement, options: Record<string, unknown>) => void
+        }
+      }
+    }
+  }
+}
+
+const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID
 
 // ─── Schema (değişmedi) ───────────────────────────────────────────────────────
 
@@ -34,6 +52,7 @@ function LoginLayout() {
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [showPassword, setShowPassword] = useState(false)
   const nextPath = searchParams.get('next') || '/account'
+  const googleButtonRef = useRef<HTMLDivElement>(null)
 
   const {
     register,
@@ -61,6 +80,62 @@ function LoginLayout() {
       setSubmitError(err instanceof Error ? err.message : 'Giriş yapılamadı.')
     }
   }
+
+  // ── Google ile giriş (Google Identity Services) ─────────────────────────────
+  useEffect(() => {
+    if (!GOOGLE_CLIENT_ID || !googleButtonRef.current) return
+
+    async function handleCredential(response: { credential?: string }) {
+      if (!response.credential) return
+      setSubmitError(null)
+      try {
+        const res = await fetch('/api/auth/google', {
+          method: 'POST',
+          headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+          body: JSON.stringify({ idToken: response.credential }),
+        })
+        const payload = await res.json().catch(() => null)
+        if (!res.ok) throw new Error(payload?.message ?? 'Google ile giriş yapılamadı.')
+        if (payload?.role === 'ADMIN') {
+          router.replace('/admin')
+        } else {
+          router.replace(nextPath.startsWith('/') && !nextPath.startsWith('//') ? nextPath : '/account')
+        }
+        router.refresh()
+      } catch (err) {
+        setSubmitError(err instanceof Error ? err.message : 'Google ile giriş yapılamadı.')
+      }
+    }
+
+    function init() {
+      const gsi = window.google?.accounts?.id
+      if (!gsi || !googleButtonRef.current) return
+      gsi.initialize({ client_id: GOOGLE_CLIENT_ID as string, callback: handleCredential })
+      googleButtonRef.current.replaceChildren()
+      gsi.renderButton(googleButtonRef.current, {
+        type: 'standard',
+        theme: 'outline',
+        size: 'large',
+        text: 'continue_with',
+        shape: 'pill',
+        logo_alignment: 'center',
+        width: 360,
+      })
+    }
+
+    const existing = document.getElementById('google-gsi-script')
+    if (existing) {
+      init()
+      return
+    }
+    const script = document.createElement('script')
+    script.id = 'google-gsi-script'
+    script.src = 'https://accounts.google.com/gsi/client'
+    script.async = true
+    script.defer = true
+    script.onload = init
+    document.body.appendChild(script)
+  }, [router, nextPath])
 
   return (
     <div className="min-h-[70vh] bg-cream-3 px-[38px] py-12 max-[680px]:px-4 max-[680px]:py-8">
@@ -234,17 +309,21 @@ function LoginLayout() {
               <div className="h-px flex-1 bg-line" />
             </div>
 
-            {/* Sosyal giriş — UI only, henüz bağlı değil */}
+            {/* Sosyal giriş */}
             <div className="space-y-2.5">
-              <button
-                type="button"
-                disabled
-                className="flex w-full items-center justify-center gap-3 rounded-[14px] border border-line py-3 text-[14px] font-semibold text-brown-2 opacity-60 transition-colors"
-                title="Yakında"
-              >
-                <GoogleIcon />
-                Google ile devam et
-              </button>
+              {GOOGLE_CLIENT_ID ? (
+                <div ref={googleButtonRef} className="flex min-h-[44px] justify-center [color-scheme:light]" />
+              ) : (
+                <button
+                  type="button"
+                  disabled
+                  className="flex w-full items-center justify-center gap-3 rounded-[14px] border border-line py-3 text-[14px] font-semibold text-brown-2 opacity-60 transition-colors"
+                  title="Yakında"
+                >
+                  <GoogleIcon />
+                  Google ile devam et
+                </button>
+              )}
               <button
                 type="button"
                 disabled

@@ -3,6 +3,7 @@ package com.babyshop.auth;
 import com.babyshop.auth.dto.AuthLoginRequest;
 import com.babyshop.auth.dto.AuthRegisterRequest;
 import com.babyshop.auth.dto.AuthTokenResponse;
+import com.babyshop.auth.dto.GoogleLoginRequest;
 import com.babyshop.common.exception.DuplicateResourceException;
 import com.babyshop.common.exception.InvalidRequestException;
 import com.babyshop.common.security.SecurityProperties;
@@ -35,6 +36,7 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtEncoder jwtEncoder;
     private final SecurityProperties securityProperties;
+    private final GoogleTokenVerifier googleTokenVerifier;
 
     public AuthTokenResponse login(AuthLoginRequest request) {
         UserAccount user = userAccountRepository.findByEmailIgnoreCase(normalizeEmail(request.email()))
@@ -68,6 +70,38 @@ public class AuthService {
         user.setRoles(new LinkedHashSet<>(List.of(customerRole)));
 
         return issueToken(userAccountRepository.save(user));
+    }
+
+    @Transactional
+    public AuthTokenResponse loginWithGoogle(GoogleLoginRequest request) {
+        GoogleUserInfo info = googleTokenVerifier.verify(request.idToken());
+        String normalizedEmail = normalizeEmail(info.email());
+
+        UserAccount user = userAccountRepository.findByEmailIgnoreCase(normalizedEmail)
+                .orElseGet(() -> createGoogleUser(normalizedEmail, info));
+
+        if (!user.isActive()) {
+            throw new BadCredentialsException("Account is disabled");
+        }
+
+        return issueToken(user);
+    }
+
+    private UserAccount createGoogleUser(String email, GoogleUserInfo info) {
+        Role customerRole = roleRepository.findByName(CUSTOMER_ROLE)
+                .orElseGet(this::createCustomerRole);
+
+        UserAccount user = new UserAccount();
+        user.setEmail(email);
+        // No password login for Google accounts — store an unusable random hash
+        // so the NOT NULL column is satisfied without a guessable value.
+        user.setPasswordHash(passwordEncoder.encode(java.util.UUID.randomUUID().toString()));
+        user.setFirstName(trimToNull(info.firstName()));
+        user.setLastName(trimToNull(info.lastName()));
+        user.setActive(true);
+        user.setRoles(new LinkedHashSet<>(List.of(customerRole)));
+
+        return userAccountRepository.save(user);
     }
 
     private AuthTokenResponse issueToken(UserAccount user) {

@@ -42,6 +42,8 @@ app:
       default-buyer-identity-number: ${IYZICO_DEFAULT_BUYER_IDENTITY_NUMBER:11111111111}
       default-buyer-ip: ${IYZICO_DEFAULT_BUYER_IP:127.0.0.1}
   security:
+    google:
+      client-id: ${GOOGLE_CLIENT_ID:}
     admin:
       email: ${ADMIN_EMAIL:admin@babyshop.local}
       password: ${ADMIN_PASSWORD:change-me}

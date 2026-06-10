@@ -3,6 +3,7 @@ package com.babyshop.auth;
 import com.babyshop.auth.dto.AuthLoginRequest;
 import com.babyshop.auth.dto.AuthRegisterRequest;
 import com.babyshop.auth.dto.AuthTokenResponse;
+import com.babyshop.auth.dto.GoogleLoginRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -26,5 +27,10 @@ public class AuthController {
     @PostMapping("/register")
     public ResponseEntity<AuthTokenResponse> register(@Valid @RequestBody AuthRegisterRequest request) {
         return ResponseEntity.ok(authService.register(request));
+    }
+
+    @PostMapping("/google")
+    public ResponseEntity<AuthTokenResponse> google(@Valid @RequestBody GoogleLoginRequest request) {
+        return ResponseEntity.ok(authService.loginWithGoogle(request));
     }
 }
