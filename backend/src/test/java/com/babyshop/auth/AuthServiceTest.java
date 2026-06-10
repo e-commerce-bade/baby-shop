@@ -41,6 +41,9 @@ class AuthServiceTest {
     @Mock
     private JwtEncoder jwtEncoder;
 
+    @Mock
+    private GoogleTokenVerifier googleTokenVerifier;
+
     @InjectMocks
     private AuthService authService;
 
@@ -48,7 +51,7 @@ class AuthServiceTest {
     void shouldLoginWithDatabaseUser() {
         UserAccount user = buildUser(true, "{bcrypt}hash", Set.of(buildRole("ADMIN")));
         SecurityProperties properties = securityProperties();
-        authService = new AuthService(userAccountRepository, roleRepository, passwordEncoder, jwtEncoder, properties);
+        authService = new AuthService(userAccountRepository, roleRepository, passwordEncoder, jwtEncoder, properties, googleTokenVerifier);
 
         Jwt jwt = Jwt.withTokenValue("token")
                 .header("alg", "HS256")
@@ -71,7 +74,7 @@ class AuthServiceTest {
     @Test
     void shouldRejectInactiveUser() {
         UserAccount user = buildUser(false, "{bcrypt}hash", Set.of(buildRole("ADMIN")));
-        authService = new AuthService(userAccountRepository, roleRepository, passwordEncoder, jwtEncoder, securityProperties());
+        authService = new AuthService(userAccountRepository, roleRepository, passwordEncoder, jwtEncoder, securityProperties(), googleTokenVerifier);
 
         given(userAccountRepository.findByEmailIgnoreCase("admin@babyshop.local")).willReturn(Optional.of(user));
 
@@ -83,7 +86,7 @@ class AuthServiceTest {
     @Test
     void shouldRejectUserWithoutRoles() {
         UserAccount user = buildUser(true, "{bcrypt}hash", new HashSet<>());
-        authService = new AuthService(userAccountRepository, roleRepository, passwordEncoder, jwtEncoder, securityProperties());
+        authService = new AuthService(userAccountRepository, roleRepository, passwordEncoder, jwtEncoder, securityProperties(), googleTokenVerifier);
 
         given(userAccountRepository.findByEmailIgnoreCase("admin@babyshop.local")).willReturn(Optional.of(user));
         given(passwordEncoder.matches("change-me", "{bcrypt}hash")).willReturn(true);
@@ -95,7 +98,7 @@ class AuthServiceTest {
 
     @Test
     void shouldRejectMissingUser() {
-        authService = new AuthService(userAccountRepository, roleRepository, passwordEncoder, jwtEncoder, securityProperties());
+        authService = new AuthService(userAccountRepository, roleRepository, passwordEncoder, jwtEncoder, securityProperties(), googleTokenVerifier);
         given(userAccountRepository.findByEmailIgnoreCase("admin@babyshop.local")).willReturn(Optional.empty());
 
         assertThatThrownBy(() -> authService.login(new AuthLoginRequest("admin@babyshop.local", "change-me")))
@@ -106,7 +109,7 @@ class AuthServiceTest {
     @Test
     void shouldRegisterCustomerAndReturnToken() {
         SecurityProperties properties = securityProperties();
-        authService = new AuthService(userAccountRepository, roleRepository, passwordEncoder, jwtEncoder, properties);
+        authService = new AuthService(userAccountRepository, roleRepository, passwordEncoder, jwtEncoder, properties, googleTokenVerifier);
 
         Role customerRole = buildRole("CUSTOMER");
         Jwt jwt = Jwt.withTokenValue("registered-token")
@@ -138,7 +141,7 @@ class AuthServiceTest {
     @Test
     void shouldRejectDuplicateRegistrationEmail() {
         UserAccount existingUser = buildUser(true, "{bcrypt}hash", Set.of(buildRole("CUSTOMER")));
-        authService = new AuthService(userAccountRepository, roleRepository, passwordEncoder, jwtEncoder, securityProperties());
+        authService = new AuthService(userAccountRepository, roleRepository, passwordEncoder, jwtEncoder, securityProperties(), googleTokenVerifier);
 
         given(userAccountRepository.findByEmailIgnoreCase("customer@babyshop.local")).willReturn(Optional.of(existingUser));
 
