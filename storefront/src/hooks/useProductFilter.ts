@@ -65,6 +65,29 @@ export function useProductFilter() {
     [buildParams],
   )
 
+  /**
+   * Commit a full draft of filters to the URL in a single navigation, so the
+   * server only refetches once when the user presses "Apply" — instead of on
+   * every individual checkbox toggle. Preserves unrelated params (q, sort).
+   */
+  const applyFilters = useCallback(
+    (draft: ProductFilters) => {
+      const params = new URLSearchParams()
+      const q = searchParams.get('q')
+      const sort = searchParams.get('sort')
+      if (q) params.set('q', q)
+      if (sort) params.set('sort', sort)
+      if (draft.categorySlug) params.set('categorySlug', draft.categorySlug)
+      if (draft.productTypes.length) params.set('productTypes', draft.productTypes.join(','))
+      if (draft.colors.length) params.set('colors', draft.colors.join(','))
+      if (draft.sizes.length) params.set('sizes', draft.sizes.join(','))
+      if (draft.priceRange) params.set('price', draft.priceRange)
+      const qs = params.toString()
+      router.push(qs ? `${pathname}?${qs}` : pathname)
+    },
+    [router, pathname, searchParams],
+  )
+
   const clearAll = useCallback(() => router.push(pathname), [router, pathname])
 
   const hasActiveFilters =
@@ -74,5 +97,5 @@ export function useProductFilter() {
     filters.sizes.length > 0 ||
     filters.priceRange !== null
 
-  return { filters, toggleList, setCategorySlug, setPriceRange, clearAll, hasActiveFilters }
+  return { filters, toggleList, setCategorySlug, setPriceRange, applyFilters, clearAll, hasActiveFilters }
 }
