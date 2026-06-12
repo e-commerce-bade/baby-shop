@@ -48,6 +48,15 @@ interface ProductVariant {
   active: boolean
 }
 
+interface AdminProductImage {
+  id: number
+  imageUrl: string
+  altText: string | null
+  colorName: string | null
+  sortOrder: number
+  primary: boolean
+}
+
 interface AdminCategory {
   id: number
   name: string
@@ -1045,17 +1054,137 @@ function ProductManagementDrawer({
   onClose,
   onToggleActive,
   onDelete,
+  onImagesChanged,
 }: {
   product: AdminProduct
   busyAction: 'active' | 'delete' | null
   onClose: () => void
   onToggleActive: (product: AdminProduct) => Promise<void> | void
   onDelete: (product: AdminProduct) => Promise<void> | void
+  onImagesChanged: () => Promise<void> | void
 }) {
   const variants = product.variants ?? []
   const price = product.basePrice ?? product.price ?? product.minPrice
   const qty = product.stockQuantity ?? product.totalStock ?? variants.reduce((sum, variant) => sum + variant.stockQuantity, 0)
   const category = product.categoryName ?? product.category?.name
+  const [images, setImages] = useState<AdminProductImage[]>([])
+  const [imagesLoading, setImagesLoading] = useState(true)
+  const [imageError, setImageError] = useState<string | null>(null)
+  const [uploadingImage, setUploadingImage] = useState(false)
+  const [imageAltText, setImageAltText] = useState(product.name)
+  const [imageColorName, setImageColorName] = useState('')
+
+  useEffect(() => {
+    let active = true
+
+    async function loadImages() {
+      setImagesLoading(true)
+      setImageError(null)
+      try {
+        const res = await fetch(`/api/admin/products/${product.id}/images`, {
+          cache: 'no-store',
+          headers: { Accept: 'application/json' },
+        })
+        if (!res.ok) throw new Error(await readApiError(res, 'Urun gorselleri yuklenemedi.'))
+        const payload = (await res.json()) as AdminProductImage[]
+        if (active) setImages(payload)
+      } catch (e) {
+        if (active) setImageError(e instanceof Error ? e.message : 'Urun gorselleri yuklenemedi.')
+      } finally {
+        if (active) setImagesLoading(false)
+      }
+    }
+
+    void loadImages()
+    return () => { active = false }
+  }, [product.id])
+
+  async function refreshImages() {
+    const res = await fetch(`/api/admin/products/${product.id}/images`, {
+      cache: 'no-store',
+      headers: { Accept: 'application/json' },
+    })
+    if (!res.ok) throw new Error(await readApiError(res, 'Urun gorselleri yenilenemedi.'))
+    setImages((await res.json()) as AdminProductImage[])
+    await onImagesChanged()
+  }
+
+  async function handleImageUpload(file: File | null) {
+    setImageError(null)
+    if (!file) return
+
+    setUploadingImage(true)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+
+      const uploadRes = await fetch('/api/admin/uploads', {
+        method: 'POST',
+        body: formData,
+      })
+      if (!uploadRes.ok) throw new Error(await readApiError(uploadRes, 'Gorsel yuklenemedi.'))
+
+      const uploadPayload = (await uploadRes.json()) as { imageUrl: string }
+      const nextSortOrder = Math.max(0, ...images.map((image) => image.sortOrder)) + 1
+
+      await postJson<AdminProductImage>(`/api/admin/products/${product.id}/images`, {
+        imageUrl: uploadPayload.imageUrl,
+        altText: imageAltText.trim() || product.name,
+        colorName: imageColorName.trim() || null,
+        sortOrder: nextSortOrder,
+        primary: images.length === 0,
+      }, 'Urun gorseli kaydedilemedi.')
+
+      setImageAltText(product.name)
+      setImageColorName('')
+      await refreshImages()
+    } catch (e) {
+      setImageError(e instanceof Error ? e.message : 'Gorsel yuklenemedi.')
+    } finally {
+      setUploadingImage(false)
+    }
+  }
+
+  async function updateImage(image: AdminProductImage, patch: Partial<AdminProductImage>) {
+    setImageError(null)
+    try {
+      await fetch(`/api/admin/products/${product.id}/images/${image.id}`, {
+        method: 'PUT',
+        cache: 'no-store',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          imageUrl: (patch.imageUrl ?? image.imageUrl).trim(),
+          altText: patch.altText ?? image.altText,
+          colorName: patch.colorName ?? image.colorName,
+          sortOrder: patch.sortOrder ?? image.sortOrder,
+          primary: patch.primary ?? image.primary,
+        }),
+      }).then(async (res) => {
+        if (!res.ok) throw new Error(await readApiError(res, 'Gorsel guncellenemedi.'))
+      })
+      await refreshImages()
+    } catch (e) {
+      setImageError(e instanceof Error ? e.message : 'Gorsel guncellenemedi.')
+    }
+  }
+
+  async function deleteImage(image: AdminProductImage) {
+    setImageError(null)
+    try {
+      const res = await fetch(`/api/admin/products/${product.id}/images/${image.id}`, {
+        method: 'DELETE',
+        cache: 'no-store',
+        headers: { Accept: 'application/json' },
+      })
+      if (!res.ok) throw new Error(await readApiError(res, 'Gorsel silinemedi.'))
+      await refreshImages()
+    } catch (e) {
+      setImageError(e instanceof Error ? e.message : 'Gorsel silinemedi.')
+    }
+  }
 
   return (
     <>
@@ -1124,6 +1253,107 @@ function ProductManagementDrawer({
             >
               {busyAction === 'active' ? 'Guncelleniyor...' : product.active ? 'Pasife Cek' : 'Aktife Al'}
             </button>
+          </div>
+
+          <div className="mt-4 rounded-[14px] border border-[#ECE3D6] bg-white p-4">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div>
+                <h3 className="text-[13px] font-bold text-[#3D2B1F]">Urun gorselleri</h3>
+                <p className="mt-1 text-[12px] text-[#B5A090]">JPG, PNG veya WEBP - max 5MB</p>
+              </div>
+              {images.length > 0 ? (
+                <span className="rounded-full bg-[#FAF6F1] px-2.5 py-1 text-[11px] font-bold text-[#A89070]">
+                  {images.length} gorsel
+                </span>
+              ) : null}
+            </div>
+
+            {imageError ? (
+              <div className="mb-3 rounded-[10px] bg-[#FEEAEA] px-3 py-2 text-[12px] text-[#8A1A1A]">{imageError}</div>
+            ) : null}
+
+            <div className="rounded-[12px] border border-dashed border-[#D5C9BA] bg-[#FAF6F1] p-3">
+              <div className="grid grid-cols-[1fr_112px] gap-2">
+                <input
+                  type="text"
+                  value={imageAltText}
+                  onChange={(event) => setImageAltText(event.target.value)}
+                  placeholder="Alt metin"
+                  className="h-10 rounded-[9px] border border-[#ECE3D6] bg-white px-3 text-[12.5px] text-[#3D2B1F] outline-none placeholder:text-[#C4B5A5] focus:border-[#A89070] focus:ring-2 focus:ring-[#A89070]/20"
+                />
+                <input
+                  type="text"
+                  value={imageColorName}
+                  onChange={(event) => setImageColorName(event.target.value)}
+                  placeholder="Renk"
+                  className="h-10 rounded-[9px] border border-[#ECE3D6] bg-white px-3 text-[12.5px] text-[#3D2B1F] outline-none placeholder:text-[#C4B5A5] focus:border-[#A89070] focus:ring-2 focus:ring-[#A89070]/20"
+                />
+              </div>
+
+              <input
+                id={`product-image-upload-${product.id}`}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="sr-only"
+                onChange={(event) => void handleImageUpload(event.target.files?.[0] ?? null)}
+              />
+              <label
+                htmlFor={`product-image-upload-${product.id}`}
+                className={`mt-3 flex h-11 cursor-pointer items-center justify-center rounded-[10px] bg-[#C07B5A] text-[13px] font-bold text-white transition-colors hover:bg-[#A86849] ${uploadingImage ? 'pointer-events-none opacity-70' : ''}`}
+              >
+                {uploadingImage ? 'Gorsel yukleniyor...' : 'Gorsel Yukle'}
+              </label>
+            </div>
+
+            <div className="mt-3 space-y-2">
+              {imagesLoading ? (
+                <div className="rounded-[10px] border border-[#F4EEE6] px-3 py-4 text-center text-[12.5px] text-[#B5A090]">
+                  Gorseller yukleniyor...
+                </div>
+              ) : images.length === 0 ? (
+                <div className="rounded-[10px] border border-[#F4EEE6] px-3 py-4 text-center text-[12.5px] text-[#B5A090]">
+                  Bu urun icin henuz gorsel yok.
+                </div>
+              ) : (
+                images.map((image) => (
+                  <div key={image.id} className="rounded-[12px] border border-[#F4EEE6] p-2.5">
+                    <div className="flex gap-3">
+                      <img src={image.imageUrl} alt={image.altText ?? product.name} className="h-20 w-20 rounded-[10px] object-cover" />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="truncate text-[12.5px] font-bold text-[#3D2B1F]">{image.altText || product.name}</p>
+                            <p className="mt-0.5 text-[11.5px] text-[#B5A090]">
+                              {image.colorName || 'Renk yok'} - Sira {image.sortOrder}
+                            </p>
+                          </div>
+                          {image.primary ? (
+                            <span className="shrink-0 rounded-full bg-[#EDF7F1] px-2 py-1 text-[10.5px] font-bold text-[#1A6640]">Ana</span>
+                          ) : null}
+                        </div>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            disabled={image.primary}
+                            onClick={() => void updateImage(image, { primary: true })}
+                            className="rounded-[8px] border border-[#ECE3D6] px-2.5 py-1.5 text-[11.5px] font-bold text-[#5B4839] transition-colors hover:bg-[#FAF6F1] disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            Ana yap
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void deleteImage(image)}
+                            className="rounded-[8px] bg-[#FEEAEA] px-2.5 py-1.5 text-[11.5px] font-bold text-[#8A1A1A] transition-colors hover:bg-[#FAD4D4]"
+                          >
+                            Sil
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
 
           <div className="mt-4 rounded-[14px] border border-[#F0B9B1] bg-[#FFF7F5] p-4">
@@ -1399,6 +1629,7 @@ export default function AdminProductsPage() {
           onClose={() => setManagingProduct(null)}
           onToggleActive={handleToggleProductActive}
           onDelete={handleDeleteProduct}
+          onImagesChanged={refreshCatalog}
         />
       )}
 
