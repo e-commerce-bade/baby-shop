@@ -65,6 +65,13 @@ public class CategoryService {
     }
 
     @Transactional
+    public CategoryResponse updateCategoryActiveStatus(Long id, boolean active) {
+        Category category = findCategoryById(id);
+        category.setActive(active);
+        return toResponse(categoryRepository.save(category));
+    }
+
+    @Transactional
     public void deleteCategory(Long id) {
         Category category = findCategoryById(id);
         category.setActive(false);

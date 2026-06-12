@@ -24,6 +24,7 @@ import static org.mockito.BDDMockito.doNothing;
 import static org.mockito.BDDMockito.given;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -79,6 +80,18 @@ class CategoryAdminControllerTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.name").value("Party Dresses"));
+    }
+
+    @Test
+    void shouldUpdateCategoryActiveStatus() throws Exception {
+        given(categoryService.updateCategoryActiveStatus(2L, false))
+                .willReturn(new CategoryResponse(2L, 1L, "Dresses", "dresses", "Baby girl dresses", false, 2));
+
+        mockMvc.perform(patch("/api/v1/admin/categories/2/active")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("false"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.active").value(false));
     }
 
     @Test

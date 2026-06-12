@@ -8,6 +8,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -42,6 +43,14 @@ public class CategoryAdminController {
     @PutMapping("/{id}")
     public ResponseEntity<CategoryResponse> updateCategory(@PathVariable Long id, @Valid @RequestBody CategoryAdminRequest request) {
         return ResponseEntity.ok(categoryService.updateCategory(id, request));
+    }
+
+    @PatchMapping("/{id}/active")
+    public ResponseEntity<CategoryResponse> updateCategoryActiveStatus(
+            @PathVariable Long id,
+            @RequestBody boolean active
+    ) {
+        return ResponseEntity.ok(categoryService.updateCategoryActiveStatus(id, active));
     }
 
     @DeleteMapping("/{id}")

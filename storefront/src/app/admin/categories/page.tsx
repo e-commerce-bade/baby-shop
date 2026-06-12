@@ -13,6 +13,7 @@ interface AdminProfile {
 
 interface AdminCategory {
   id: number
+  parentId?: number | null
   name: string
   active: boolean
   slug?: string
@@ -30,12 +31,15 @@ function formatDate(iso: string | undefined | null) {
 function AddCategoryDrawer({
   onClose,
   onSaved,
+  sortOrder,
 }: {
   onClose: () => void
   onSaved: () => void
+  sortOrder: number
 }) {
   const [name, setName] = useState('')
   const [slug, setSlug] = useState('')
+  const [description, setDescription] = useState('')
   const [active, setActive] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -62,7 +66,13 @@ function AddCategoryDrawer({
       const res = await fetch('/api/admin/categories', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim(), slug: slug || toSlug(name), active }),
+        body: JSON.stringify({
+          name: name.trim(),
+          slug: slug || toSlug(name),
+          description: description.trim() || null,
+          active,
+          sortOrder,
+        }),
       })
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { message?: string }
@@ -126,6 +136,8 @@ function AddCategoryDrawer({
             <label className="mb-1.5 block text-[12px] font-bold text-[#5B4839]">Açıklama</label>
             <textarea
               rows={3}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
               placeholder="Kategori açıklaması..."
               className="w-full resize-none rounded-[10px] border border-[#ECE3D6] bg-white px-3.5 py-2.5 text-[13px] text-[#3D2B1F] placeholder:text-[#C4B5A5] focus:border-[#A89070] focus:outline-none focus:ring-2 focus:ring-[#A89070]/20"
             />
@@ -170,6 +182,166 @@ function AddCategoryDrawer({
   )
 }
 
+function EditCategoryDrawer({
+  category,
+  onClose,
+  onSaved,
+}: {
+  category: AdminCategory
+  onClose: () => void
+  onSaved: () => void
+}) {
+  const [name, setName] = useState(category.name)
+  const [slug, setSlug] = useState(category.slug ?? '')
+  const [description, setDescription] = useState(category.description ?? '')
+  const [active, setActive] = useState(category.active)
+  const [sortOrder, setSortOrder] = useState(String(category.sortOrder ?? 0))
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function handleSave() {
+    const nextSortOrder = Number.parseInt(sortOrder, 10)
+
+    if (!name.trim()) { setError('Kategori adı zorunludur.'); return }
+    if (!slug.trim()) { setError('Slug zorunludur.'); return }
+    if (Number.isNaN(nextSortOrder) || nextSortOrder < 0) {
+      setError('Sıralama değeri sıfır veya daha büyük bir sayı olmalı.')
+      return
+    }
+
+    setSaving(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/admin/categories/${category.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          parentId: category.parentId ?? null,
+          name: name.trim(),
+          slug: slug.trim(),
+          description: description.trim() || null,
+          active,
+          sortOrder: nextSortOrder,
+        }),
+      })
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { message?: string }
+        throw new Error(body.message ?? 'Kategori güncellenemedi.')
+      }
+      onSaved()
+      onClose()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Hata oluştu.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <>
+      <div className="fixed inset-0 z-40 bg-black/20 backdrop-blur-sm" onClick={onClose} />
+      <div className="fixed inset-y-0 right-0 z-50 flex w-full max-w-sm flex-col border-l border-[#ECE3D6] bg-white shadow-xl">
+        <div className="flex items-center justify-between border-b border-[#ECE3D6] px-6 py-4">
+          <h2 className="text-[16px] font-bold text-[#3D2B1F]">Kategoriyi Düzenle</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={saving}
+            className="flex h-8 w-8 items-center justify-center rounded-full text-[#C4B5A5] hover:bg-[#FAF6F1] hover:text-[#5B4839] disabled:opacity-50"
+            title="Kapat"
+          >
+            <svg className="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M5 5l10 10M15 5L5 15" /></svg>
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
+          {error && (
+            <div className="rounded-[10px] bg-[#FEEAEA] px-4 py-3 text-[13px] text-[#8A1A1A]">{error}</div>
+          )}
+
+          <div>
+            <label className="mb-1.5 block text-[12px] font-bold text-[#5B4839]">
+              Kategori Adı <span className="text-[#C07B5A]">*</span>
+            </label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="w-full rounded-[10px] border border-[#ECE3D6] bg-white px-3.5 py-2.5 text-[13px] text-[#3D2B1F] placeholder:text-[#C4B5A5] focus:border-[#A89070] focus:outline-none focus:ring-2 focus:ring-[#A89070]/20"
+            />
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-[12px] font-bold text-[#5B4839]">Slug</label>
+            <input
+              type="text"
+              value={slug}
+              onChange={(e) => setSlug(e.target.value)}
+              className="w-full rounded-[10px] border border-[#ECE3D6] bg-white px-3.5 py-2.5 text-[13px] font-mono text-[#3D2B1F] placeholder:text-[#C4B5A5] focus:border-[#A89070] focus:outline-none focus:ring-2 focus:ring-[#A89070]/20"
+            />
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-[12px] font-bold text-[#5B4839]">Açıklama</label>
+            <textarea
+              rows={3}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              className="w-full resize-none rounded-[10px] border border-[#ECE3D6] bg-white px-3.5 py-2.5 text-[13px] text-[#3D2B1F] placeholder:text-[#C4B5A5] focus:border-[#A89070] focus:outline-none focus:ring-2 focus:ring-[#A89070]/20"
+            />
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-[12px] font-bold text-[#5B4839]">Sıralama</label>
+            <input
+              type="number"
+              min={0}
+              value={sortOrder}
+              onChange={(e) => setSortOrder(e.target.value)}
+              className="w-full rounded-[10px] border border-[#ECE3D6] bg-white px-3.5 py-2.5 text-[13px] text-[#3D2B1F] placeholder:text-[#C4B5A5] focus:border-[#A89070] focus:outline-none focus:ring-2 focus:ring-[#A89070]/20"
+            />
+          </div>
+
+          <div className="flex items-center justify-between rounded-[10px] border border-[#ECE3D6] px-4 py-3">
+            <div>
+              <p className="text-[13px] font-semibold text-[#3D2B1F]">Aktif</p>
+              <p className="text-[11.5px] text-[#C4B5A5]">Storefront'ta görüntülensin</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setActive((v) => !v)}
+              className={`relative h-6 w-11 rounded-full transition-colors ${active ? 'bg-[#C07B5A]' : 'bg-[#D5C9BA]'}`}
+            >
+              <div
+                className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${active ? 'translate-x-5' : 'translate-x-0.5'}`}
+              />
+            </button>
+          </div>
+        </div>
+
+        <div className="flex gap-3 border-t border-[#ECE3D6] px-6 py-4">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={saving}
+            className="flex-1 rounded-[10px] border border-[#ECE3D6] py-2.5 text-[13px] font-bold text-[#5B4839] hover:bg-[#FAF6F1] transition-colors disabled:opacity-50"
+          >
+            İptal
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleSave()}
+            disabled={saving}
+            className="flex-1 rounded-[10px] bg-[#C07B5A] py-2.5 text-[13px] font-bold text-white transition-colors hover:bg-[#A86849] disabled:opacity-60"
+          >
+            {saving ? 'Kaydediliyor...' : 'Kaydet'}
+          </button>
+        </div>
+      </div>
+    </>
+  )
+}
+
 function DeleteConfirm({ name, onConfirm, onCancel }: { name: string; onConfirm: () => void; onCancel: () => void }) {
   return (
     <>
@@ -204,6 +376,7 @@ export default function AdminCategoriesPage() {
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [showAdd, setShowAdd] = useState(false)
+  const [editTarget, setEditTarget] = useState<AdminCategory | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<AdminCategory | null>(null)
 
   async function loadCategories() {
@@ -246,6 +419,10 @@ export default function AdminCategoriesPage() {
     () => categories.filter((c) => !search || c.name.toLowerCase().includes(search.toLowerCase())),
     [categories, search]
   )
+  const nextSortOrder = useMemo(
+    () => Math.max(0, ...categories.map((category) => category.sortOrder ?? 0)) + 1,
+    [categories]
+  )
 
   async function handleDelete(cat: AdminCategory) {
     try {
@@ -261,10 +438,10 @@ export default function AdminCategoriesPage() {
 
   async function handleToggleActive(cat: AdminCategory) {
     try {
-      const res = await fetch(`/api/admin/categories/${cat.id}`, {
+      const res = await fetch(`/api/admin/categories/${cat.id}/active`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ active: !cat.active }),
+        body: JSON.stringify(!cat.active),
       })
       if (!res.ok) return
       await loadCategories()
@@ -301,6 +478,14 @@ export default function AdminCategoriesPage() {
       {showAdd && (
         <AddCategoryDrawer
           onClose={() => setShowAdd(false)}
+          onSaved={() => void loadCategories()}
+          sortOrder={nextSortOrder}
+        />
+      )}
+      {editTarget && (
+        <EditCategoryDrawer
+          category={editTarget}
+          onClose={() => setEditTarget(null)}
           onSaved={() => void loadCategories()}
         />
       )}
@@ -416,6 +601,7 @@ export default function AdminCategoriesPage() {
                     <div className="flex items-center justify-end gap-1">
                       <button
                         type="button"
+                        onClick={() => setEditTarget(cat)}
                         className="flex h-7 w-7 items-center justify-center rounded-[7px] text-[#C4B5A5] hover:bg-[#F4EEE6] hover:text-[#5B4839] transition-colors"
                         title="Düzenle"
                       >

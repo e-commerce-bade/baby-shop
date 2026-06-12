@@ -53,6 +53,16 @@ interface InventoryRow {
 
 type StockFilter = 'all' | 'low' | 'out' | 'inactive'
 
+interface VariantEditForm {
+  sku: string
+  sizeLabel: string
+  colorName: string
+  stockQuantity: string
+  price: string
+  currency: string
+  active: boolean
+}
+
 const LOW_STOCK_LIMIT = 5
 
 function ProductImage({ src, name }: { src: string | null; name: string }) {
@@ -124,6 +134,9 @@ export default function AdminInventoryPage() {
   const [filter, setFilter] = useState<StockFilter>('all')
   const [draftStocks, setDraftStocks] = useState<Record<number, string>>({})
   const [updatingVariantId, setUpdatingVariantId] = useState<number | null>(null)
+  const [editingRow, setEditingRow] = useState<InventoryRow | null>(null)
+  const [editForm, setEditForm] = useState<VariantEditForm | null>(null)
+  const [savingEdit, setSavingEdit] = useState(false)
 
   useEffect(() => {
     let active = true
@@ -228,6 +241,109 @@ export default function AdminInventoryPage() {
     setDraftStocks((current) => ({ ...current, [row.variantId]: value }))
   }
 
+  function openVariantEditor(row: InventoryRow) {
+    setError(null)
+    setNotice(null)
+    setEditingRow(row)
+    setEditForm({
+      sku: row.sku ?? '',
+      sizeLabel: row.sizeLabel,
+      colorName: row.colorName,
+      stockQuantity: String(row.stockQuantity),
+      price: String(row.price),
+      currency: row.currency,
+      active: row.active,
+    })
+  }
+
+  function closeVariantEditor() {
+    if (savingEdit) return
+    setEditingRow(null)
+    setEditForm(null)
+  }
+
+  function applyUpdatedVariant(row: InventoryRow, updatedVariant: ProductVariant) {
+    setProducts((current) =>
+      current.map((product) => product.id === row.productId
+        ? {
+            ...product,
+            variants: product.variants.map((variant) => variant.id === row.variantId ? updatedVariant : variant),
+          }
+        : product),
+    )
+  }
+
+  async function updateVariant() {
+    if (!editingRow || !editForm) return
+
+    const stockQuantity = Number.parseInt(editForm.stockQuantity, 10)
+    const price = Number.parseFloat(editForm.price.replace(',', '.'))
+    const currency = editForm.currency.trim().toUpperCase()
+
+    if (!editForm.sizeLabel.trim() || !editForm.colorName.trim()) {
+      setError('Beden ve renk alanları zorunludur.')
+      return
+    }
+
+    if (Number.isNaN(stockQuantity) || stockQuantity < 0) {
+      setError('Stok değeri sıfır veya daha büyük bir sayı olmalı.')
+      return
+    }
+
+    if (Number.isNaN(price) || price < 0) {
+      setError('Fiyat sıfır veya daha büyük bir sayı olmalı.')
+      return
+    }
+
+    if (currency.length !== 3) {
+      setError('Para birimi 3 karakter olmalı. Örn: TRY')
+      return
+    }
+
+    setError(null)
+    setNotice(null)
+    setSavingEdit(true)
+
+    try {
+      const response = await fetch(
+        `/api/admin/products/${editingRow.productId}/variants/${editingRow.variantId}`,
+        {
+          method: 'PUT',
+          headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sku: editForm.sku.trim() || null,
+            sizeLabel: editForm.sizeLabel.trim(),
+            colorName: editForm.colorName.trim(),
+            stockQuantity,
+            price,
+            currency,
+            active: editForm.active,
+          }),
+        },
+      )
+
+      const payload = await response.json().catch(() => null)
+      if (!response.ok) {
+        throw new Error(payload?.message ?? 'Varyant güncellenemedi.')
+      }
+
+      const updatedVariant = payload as ProductVariant
+      applyUpdatedVariant(editingRow, updatedVariant)
+      setDraftStocks((current) => {
+        const next = { ...current }
+        delete next[editingRow.variantId]
+        return next
+      })
+      setNotice(`${editingRow.productName} varyantı güncellendi.`)
+      setEditingRow(null)
+      setEditForm(null)
+    } catch (updateError) {
+      setError(updateError instanceof Error ? updateError.message : 'Varyant güncellenemedi.')
+    } finally {
+      setSavingEdit(false)
+    }
+  }
+
   async function updateStock(row: InventoryRow) {
     const nextStock = Number.parseInt(draftValue(row), 10)
 
@@ -330,6 +446,17 @@ export default function AdminInventoryPage() {
 
   return (
     <AdminShell displayName={displayName}>
+      {editingRow && editForm ? (
+        <VariantEditDrawer
+          row={editingRow}
+          form={editForm}
+          saving={savingEdit}
+          onChange={setEditForm}
+          onClose={closeVariantEditor}
+          onSave={() => void updateVariant()}
+        />
+      ) : null}
+
       <div className="mb-5 flex items-center justify-between gap-3">
         <div>
           <h1 className="text-[26px] font-bold text-[#3D2B1F]">Stok / Envanter</h1>
@@ -467,6 +594,7 @@ export default function AdminInventoryPage() {
                   updating={updatingVariantId === row.variantId}
                   onDraftChange={(value) => setDraft(row, value)}
                   onSave={() => void updateStock(row)}
+                  onEdit={() => openVariantEditor(row)}
                 />
               ))
             )}
@@ -488,11 +616,160 @@ export default function AdminInventoryPage() {
               updating={updatingVariantId === row.variantId}
               onDraftChange={(value) => setDraft(row, value)}
               onSave={() => void updateStock(row)}
+              onEdit={() => openVariantEditor(row)}
             />
           ))
         )}
       </div>
     </AdminShell>
+  )
+}
+
+function VariantEditDrawer({
+  row,
+  form,
+  saving,
+  onChange,
+  onClose,
+  onSave,
+}: {
+  row: InventoryRow
+  form: VariantEditForm
+  saving: boolean
+  onChange: (form: VariantEditForm) => void
+  onClose: () => void
+  onSave: () => void
+}) {
+  function updateField<K extends keyof VariantEditForm>(field: K, value: VariantEditForm[K]) {
+    onChange({ ...form, [field]: value })
+  }
+
+  return (
+    <>
+      <div className="fixed inset-0 z-40 bg-black/20 backdrop-blur-sm" onClick={onClose} />
+      <aside className="fixed inset-y-0 right-0 z-50 flex w-full max-w-md flex-col border-l border-[#ECE3D6] bg-white shadow-xl">
+        <div className="flex items-center justify-between border-b border-[#ECE3D6] px-6 py-4">
+          <div className="min-w-0">
+            <h2 className="truncate text-[16px] font-bold text-[#3D2B1F]">Varyantı Düzenle</h2>
+            <p className="mt-0.5 truncate text-[12px] text-[#A89070]">{row.productName}</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={saving}
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[#C4B5A5] transition-colors hover:bg-[#FAF6F1] hover:text-[#5B4839] disabled:opacity-50"
+            title="Kapat"
+          >
+            <svg className="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M5 5l10 10M15 5L5 15" /></svg>
+          </button>
+        </div>
+
+        <div className="flex-1 space-y-4 overflow-y-auto px-6 py-5">
+          <div className="grid grid-cols-2 gap-3">
+            <label className="block">
+              <span className="mb-1.5 block text-[12px] font-bold text-[#5B4839]">Beden</span>
+              <input
+                type="text"
+                value={form.sizeLabel}
+                onChange={(event) => updateField('sizeLabel', event.target.value)}
+                className="h-10 w-full rounded-[10px] border border-[#ECE3D6] bg-white px-3.5 text-[13px] text-[#3D2B1F] outline-none focus:border-[#A89070] focus:ring-2 focus:ring-[#A89070]/20"
+              />
+            </label>
+
+            <label className="block">
+              <span className="mb-1.5 block text-[12px] font-bold text-[#5B4839]">Renk</span>
+              <input
+                type="text"
+                value={form.colorName}
+                onChange={(event) => updateField('colorName', event.target.value)}
+                className="h-10 w-full rounded-[10px] border border-[#ECE3D6] bg-white px-3.5 text-[13px] text-[#3D2B1F] outline-none focus:border-[#A89070] focus:ring-2 focus:ring-[#A89070]/20"
+              />
+            </label>
+          </div>
+
+          <label className="block">
+            <span className="mb-1.5 block text-[12px] font-bold text-[#5B4839]">SKU</span>
+            <input
+              type="text"
+              value={form.sku}
+              onChange={(event) => updateField('sku', event.target.value)}
+              placeholder="SKU"
+              className="h-10 w-full rounded-[10px] border border-[#ECE3D6] bg-white px-3.5 text-[13px] text-[#3D2B1F] outline-none placeholder:text-[#C4B5A5] focus:border-[#A89070] focus:ring-2 focus:ring-[#A89070]/20"
+            />
+          </label>
+
+          <div className="grid grid-cols-[1fr_1fr_96px] gap-3">
+            <label className="block">
+              <span className="mb-1.5 block text-[12px] font-bold text-[#5B4839]">Stok</span>
+              <input
+                type="number"
+                min={0}
+                step={1}
+                value={form.stockQuantity}
+                onChange={(event) => updateField('stockQuantity', event.target.value)}
+                className="h-10 w-full rounded-[10px] border border-[#ECE3D6] bg-white px-3.5 text-[13px] font-semibold text-[#3D2B1F] outline-none focus:border-[#A89070] focus:ring-2 focus:ring-[#A89070]/20"
+              />
+            </label>
+
+            <label className="block">
+              <span className="mb-1.5 block text-[12px] font-bold text-[#5B4839]">Fiyat</span>
+              <input
+                type="number"
+                min={0}
+                step="0.01"
+                value={form.price}
+                onChange={(event) => updateField('price', event.target.value)}
+                className="h-10 w-full rounded-[10px] border border-[#ECE3D6] bg-white px-3.5 text-[13px] font-semibold text-[#3D2B1F] outline-none focus:border-[#A89070] focus:ring-2 focus:ring-[#A89070]/20"
+              />
+            </label>
+
+            <label className="block">
+              <span className="mb-1.5 block text-[12px] font-bold text-[#5B4839]">Birim</span>
+              <input
+                type="text"
+                maxLength={3}
+                value={form.currency}
+                onChange={(event) => updateField('currency', event.target.value.toUpperCase())}
+                className="h-10 w-full rounded-[10px] border border-[#ECE3D6] bg-white px-3.5 text-[13px] font-bold uppercase text-[#3D2B1F] outline-none focus:border-[#A89070] focus:ring-2 focus:ring-[#A89070]/20"
+              />
+            </label>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => updateField('active', !form.active)}
+            className="flex w-full items-center justify-between rounded-[10px] border border-[#ECE3D6] px-4 py-3 text-left transition-colors hover:bg-[#FAF6F1]"
+          >
+            <span>
+              <span className="block text-[13px] font-semibold text-[#3D2B1F]">Aktif</span>
+              <span className="block text-[11.5px] text-[#A89070]">Storefront ve stok hesaplarına dahil edilsin</span>
+            </span>
+            <span className={`relative h-6 w-11 rounded-full transition-colors ${form.active ? 'bg-[#C07B5A]' : 'bg-[#D5C9BA]'}`}>
+              <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${form.active ? 'translate-x-5' : 'translate-x-0.5'}`} />
+            </span>
+          </button>
+        </div>
+
+        <div className="flex gap-3 border-t border-[#ECE3D6] px-6 py-4">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={saving}
+            className="flex-1 rounded-[10px] border border-[#ECE3D6] py-2.5 text-[13px] font-bold text-[#5B4839] transition-colors hover:bg-[#FAF6F1] disabled:opacity-50"
+          >
+            İptal
+          </button>
+          <button
+            type="button"
+            onClick={onSave}
+            disabled={saving}
+            className="flex-1 rounded-[10px] bg-[#C07B5A] py-2.5 text-[13px] font-bold text-white transition-colors hover:bg-[#A86849] disabled:opacity-60"
+          >
+            {saving ? 'Kaydediliyor...' : 'Kaydet'}
+          </button>
+        </div>
+      </aside>
+    </>
   )
 }
 
@@ -530,12 +807,14 @@ function InventoryTableRow({
   updating,
   onDraftChange,
   onSave,
+  onEdit,
 }: {
   row: InventoryRow
   draftValue: string
   updating: boolean
   onDraftChange: (value: string) => void
   onSave: () => void
+  onEdit: () => void
 }) {
   const changed = draftValue !== String(row.stockQuantity)
 
@@ -565,14 +844,24 @@ function InventoryTableRow({
         />
       </td>
       <td className="px-4 py-3.5 text-right">
-        <button
-          type="button"
-          disabled={!changed || updating}
-          onClick={onSave}
-          className="rounded-[9px] bg-[#C07B5A] px-3 py-2 text-[12px] font-bold text-white transition-colors hover:bg-[#A86849] disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {updating ? 'Kaydediliyor' : 'Kaydet'}
-        </button>
+        <div className="flex items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={onEdit}
+            className="flex h-9 w-9 items-center justify-center rounded-[9px] border border-[#ECE3D6] text-[#A89070] transition-colors hover:bg-[#FAF6F1] hover:text-[#5B4839]"
+            title="Varyantı düzenle"
+          >
+            <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M11 2l3 3-8 8H3v-3L11 2z" /></svg>
+          </button>
+          <button
+            type="button"
+            disabled={!changed || updating}
+            onClick={onSave}
+            className="rounded-[9px] bg-[#C07B5A] px-3 py-2 text-[12px] font-bold text-white transition-colors hover:bg-[#A86849] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {updating ? 'Kaydediliyor' : 'Kaydet'}
+          </button>
+        </div>
       </td>
     </tr>
   )
@@ -584,12 +873,14 @@ function InventoryMobileCard({
   updating,
   onDraftChange,
   onSave,
+  onEdit,
 }: {
   row: InventoryRow
   draftValue: string
   updating: boolean
   onDraftChange: (value: string) => void
   onSave: () => void
+  onEdit: () => void
 }) {
   const changed = draftValue !== String(row.stockQuantity)
 
@@ -601,11 +892,12 @@ function InventoryMobileCard({
           <p className="font-semibold text-[#3D2B1F]">{row.productName}</p>
           <p className="mt-0.5 text-[11.5px] text-[#A89070]">{row.sizeLabel} / {row.colorName}</p>
           <p className="mt-0.5 text-[11.5px] text-[#C4B5A5]">{row.sku ?? 'SKU yok'}</p>
+          <p className="mt-1 text-[12px] font-bold text-[#3D2B1F]">{formatPrice(row.price, row.currency)}</p>
         </div>
         <StockBadge row={row} />
       </div>
 
-      <div className="mt-4 grid grid-cols-[1fr_auto] gap-3">
+      <div className="mt-4 grid grid-cols-[1fr_auto_auto] gap-3">
         <input
           type="number"
           min={0}
@@ -613,6 +905,14 @@ function InventoryMobileCard({
           onChange={(event) => onDraftChange(event.target.value)}
           className="h-10 rounded-[9px] border border-[#ECE3D6] bg-white px-3 text-[13px] font-semibold text-[#3D2B1F] outline-none focus:border-[#A89070] focus:ring-2 focus:ring-[#A89070]/20"
         />
+        <button
+          type="button"
+          onClick={onEdit}
+          className="flex h-10 w-10 items-center justify-center rounded-[9px] border border-[#ECE3D6] text-[#A89070] transition-colors hover:bg-[#FAF6F1] hover:text-[#5B4839]"
+          title="Varyantı düzenle"
+        >
+          <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M11 2l3 3-8 8H3v-3L11 2z" /></svg>
+        </button>
         <button
           type="button"
           disabled={!changed || updating}
