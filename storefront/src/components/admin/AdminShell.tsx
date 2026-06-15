@@ -3,7 +3,7 @@
 import type { JSX } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useFavoriteStore } from '@/store/favoriteStore'
 
 type IconProps = { className?: string }
@@ -131,6 +131,16 @@ function IconChevron({ className }: IconProps) {
   )
 }
 
+function IconHome({ className }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 9.5L10 3l7 6.5" />
+      <path d="M5 8.5V17h10V8.5" />
+      <path d="M8 17v-5h4v5" />
+    </svg>
+  )
+}
+
 const navLinks: NavItem[] = [
   { href: '/admin', label: 'Dashboard', icon: IconGrid, exactMatch: true },
   { href: '/admin/orders', label: 'Siparişler', icon: IconBag },
@@ -163,6 +173,19 @@ export default function AdminShell({
   const router = useRouter()
   const clearFavorites = useFavoriteStore((s) => s.clearFavorites)
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false)
+  const profileMenuRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function handlePointerDown(event: PointerEvent) {
+      if (!profileMenuRef.current?.contains(event.target as Node)) {
+        setProfileMenuOpen(false)
+      }
+    }
+
+    document.addEventListener('pointerdown', handlePointerDown)
+    return () => document.removeEventListener('pointerdown', handlePointerDown)
+  }, [])
 
   function isActive(link: NavItem) {
     if (link.exactMatch) return pathname === link.href
@@ -301,18 +324,52 @@ export default function AdminShell({
               <span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-[#C07B5A]" />
             </button>
 
-            <button
-              type="button"
-              className="flex h-9 items-center gap-2 rounded-[10px] border border-[#ECE3D6] bg-white px-2.5 transition-colors hover:bg-[#FAF6F1]"
-            >
-              <div className="flex h-6 w-6 items-center justify-center rounded-full bg-[#F4EEE6] text-[11px] font-bold text-[#5B4839]">
-                {initials}
-              </div>
-              <span className="hidden text-[13px] font-semibold text-[#3D2B1F] sm:block">
-                {displayName ?? 'Admin'}
-              </span>
-              <IconChevron className="h-3.5 w-3.5 text-[#C4B5A5]" />
-            </button>
+            <div ref={profileMenuRef} className="relative">
+              <button
+                type="button"
+                aria-haspopup="menu"
+                aria-expanded={profileMenuOpen}
+                onClick={() => setProfileMenuOpen((value) => !value)}
+                className="flex h-9 items-center gap-2 rounded-[10px] border border-[#ECE3D6] bg-white px-2.5 transition-colors hover:bg-[#FAF6F1]"
+              >
+                <div className="flex h-6 w-6 items-center justify-center rounded-full bg-[#F4EEE6] text-[11px] font-bold text-[#5B4839]">
+                  {initials}
+                </div>
+                <span className="hidden text-[13px] font-semibold text-[#3D2B1F] sm:block">
+                  {displayName ?? 'Admin'}
+                </span>
+                <IconChevron className={`h-3.5 w-3.5 text-[#C4B5A5] transition-transform ${profileMenuOpen ? 'rotate-180' : ''}`} />
+              </button>
+
+              {profileMenuOpen ? (
+                <div
+                  role="menu"
+                  className="absolute right-0 top-11 w-48 overflow-hidden rounded-[12px] border border-[#ECE3D6] bg-white py-1.5 shadow-[0_18px_42px_-22px_rgba(91,72,57,.45)]"
+                >
+                  <Link
+                    href="/"
+                    role="menuitem"
+                    onClick={() => setProfileMenuOpen(false)}
+                    className="flex items-center gap-2.5 px-3.5 py-2.5 text-[13px] font-semibold text-[#5B4839] transition-colors hover:bg-[#FAF6F1]"
+                  >
+                    <IconHome className="h-4 w-4 text-[#C07B5A]" />
+                    Ana Sayfa
+                  </Link>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setProfileMenuOpen(false)
+                      void handleLogout()
+                    }}
+                    className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-[13px] font-semibold text-[#B35A48] transition-colors hover:bg-[#FFF6F2]"
+                  >
+                    <IconClose className="h-4 w-4" />
+                    Çıkış Yap
+                  </button>
+                </div>
+              ) : null}
+            </div>
           </div>
         </header>
 

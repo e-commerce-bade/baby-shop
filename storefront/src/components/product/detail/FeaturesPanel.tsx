@@ -23,7 +23,7 @@ const features = [
   {
     id: 'loved',
     title: 'Ebeveynlerin Sevgilisi',
-    subtitle: 'Binlerce 5 yıldızlı değerlendirme',
+    subtitle: 'Konforlu günlük kullanım',
     icon: (
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
         <path d="M12 21s-7-4.5-7-10a4 4 0 017-2.5A4 4 0 0119 11c0 5.5-7 10-7 10z" />

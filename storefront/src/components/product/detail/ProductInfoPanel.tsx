@@ -112,14 +112,6 @@ export default function ProductInfoPanel({ product, selectedColor: selectedColor
         </p>
       </div>
 
-      <div className="flex items-center gap-2">
-        <span className="text-[14px] tracking-[1px] text-rose">★★★★★</span>
-        <span className="text-sm font-extrabold text-brown">4.9</span>
-        <span className="cursor-pointer text-[13px] text-muted underline underline-offset-2 hover:text-rose-dk">
-          (128 değerlendirme)
-        </span>
-      </div>
-
       <div className="flex flex-wrap items-baseline gap-3">
         <span className="font-serif text-[36px] font-semibold leading-none text-brown">
           {formatPrice(currentPrice, product.currency)}
