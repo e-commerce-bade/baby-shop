@@ -28,6 +28,8 @@ interface AdminProduct {
   name: string
   slug: string
   active: boolean
+  brand?: string | null
+  productType?: string | null
   categoryName: string | null
   minPrice: number | string | null
   currency: string
@@ -39,6 +41,8 @@ interface InventoryRow {
   productId: number
   productName: string
   productActive: boolean
+  brand: string | null
+  productType: string | null
   categoryName: string | null
   imageUrl: string | null
   variantId: number
@@ -51,7 +55,8 @@ interface InventoryRow {
   active: boolean
 }
 
-type StockFilter = 'all' | 'low' | 'out' | 'inactive'
+type StatusFilter = 'all' | 'active' | 'inactive'
+type StockFilter = 'all' | 'in_stock' | 'low_stock' | 'out_of_stock'
 
 interface VariantEditForm {
   sku: string
@@ -108,6 +113,8 @@ function flattenProducts(products: AdminProduct[]): InventoryRow[] {
       productId: product.id,
       productName: product.name,
       productActive: product.active,
+      brand: product.brand ?? null,
+      productType: product.productType ?? null,
       categoryName: product.categoryName,
       imageUrl: product.primaryImageUrl,
       variantId: variant.id,
@@ -131,7 +138,15 @@ export default function AdminInventoryPage() {
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [search, setSearch] = useState('')
-  const [filter, setFilter] = useState<StockFilter>('all')
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
+  const [stockFilter, setStockFilter] = useState<StockFilter>('all')
+  const [categoryFilter, setCategoryFilter] = useState('all')
+  const [productTypeFilter, setProductTypeFilter] = useState('all')
+  const [sizeFilter, setSizeFilter] = useState('all')
+  const [colorFilter, setColorFilter] = useState('all')
+  const [brandFilter, setBrandFilter] = useState('all')
+  const [minPriceFilter, setMinPriceFilter] = useState('')
+  const [maxPriceFilter, setMaxPriceFilter] = useState('')
   const [draftStocks, setDraftStocks] = useState<Record<number, string>>({})
   const [updatingVariantId, setUpdatingVariantId] = useState<number | null>(null)
   const [editingRow, setEditingRow] = useState<InventoryRow | null>(null)
@@ -195,28 +210,106 @@ export default function AdminInventoryPage() {
 
   const rows = useMemo(() => flattenProducts(products), [products])
 
+  const filterOptions = useMemo(() => {
+    const categories = new Set<string>()
+    const productTypes = new Set<string>()
+    const sizes = new Set<string>()
+    const colors = new Set<string>()
+    const brands = new Set<string>()
+
+    rows.forEach((row) => {
+      if (row.categoryName) categories.add(row.categoryName)
+      if (row.productType) productTypes.add(row.productType)
+      if (row.sizeLabel) sizes.add(row.sizeLabel)
+      if (row.colorName) colors.add(row.colorName)
+      if (row.brand) brands.add(row.brand)
+    })
+
+    return {
+      categories: Array.from(categories).sort((a, b) => a.localeCompare(b, 'tr')),
+      productTypes: Array.from(productTypes).sort((a, b) => a.localeCompare(b, 'tr')),
+      sizes: Array.from(sizes).sort((a, b) => a.localeCompare(b, 'tr', { numeric: true })),
+      colors: Array.from(colors).sort((a, b) => a.localeCompare(b, 'tr')),
+      brands: Array.from(brands).sort((a, b) => a.localeCompare(b, 'tr')),
+    }
+  }, [rows])
+
   const filteredRows = useMemo(() => {
-    const q = search.trim().toLowerCase()
+    const q = search.trim().toLocaleLowerCase('tr-TR')
+    const minPrice = minPriceFilter === '' ? null : Number(minPriceFilter)
+    const maxPrice = maxPriceFilter === '' ? null : Number(maxPriceFilter)
 
     return rows.filter((row) => {
+      const isActive = row.active && row.productActive
+      const price = Number(row.price)
+
       if (q) {
         const haystack = [
           row.productName,
           row.sku,
+          row.brand,
           row.categoryName,
+          row.productType,
           row.sizeLabel,
           row.colorName,
-        ].filter(Boolean).join(' ').toLowerCase()
+        ].filter(Boolean).join(' ').toLocaleLowerCase('tr-TR')
 
         if (!haystack.includes(q)) return false
       }
 
-      if (filter === 'low') return row.active && row.productActive && row.stockQuantity > 0 && row.stockQuantity <= LOW_STOCK_LIMIT
-      if (filter === 'out') return row.active && row.productActive && row.stockQuantity === 0
-      if (filter === 'inactive') return !row.active || !row.productActive
+      if (statusFilter === 'active' && !isActive) return false
+      if (statusFilter === 'inactive' && isActive) return false
+      if (stockFilter === 'in_stock' && (!isActive || row.stockQuantity <= 0)) return false
+      if (stockFilter === 'low_stock' && (!isActive || row.stockQuantity <= 0 || row.stockQuantity > LOW_STOCK_LIMIT)) return false
+      if (stockFilter === 'out_of_stock' && (!isActive || row.stockQuantity !== 0)) return false
+      if (categoryFilter !== 'all' && row.categoryName !== categoryFilter) return false
+      if (productTypeFilter !== 'all' && row.productType !== productTypeFilter) return false
+      if (sizeFilter !== 'all' && row.sizeLabel !== sizeFilter) return false
+      if (colorFilter !== 'all' && row.colorName !== colorFilter) return false
+      if (brandFilter !== 'all' && row.brand !== brandFilter) return false
+      if (minPrice !== null && Number.isFinite(minPrice) && (!Number.isFinite(price) || price < minPrice)) return false
+      if (maxPrice !== null && Number.isFinite(maxPrice) && (!Number.isFinite(price) || price > maxPrice)) return false
       return true
     })
-  }, [filter, rows, search])
+  }, [
+    brandFilter,
+    categoryFilter,
+    colorFilter,
+    maxPriceFilter,
+    minPriceFilter,
+    productTypeFilter,
+    rows,
+    search,
+    sizeFilter,
+    statusFilter,
+    stockFilter,
+  ])
+
+  const hasActiveFilters = Boolean(
+    search ||
+    statusFilter !== 'all' ||
+    stockFilter !== 'all' ||
+    categoryFilter !== 'all' ||
+    productTypeFilter !== 'all' ||
+    sizeFilter !== 'all' ||
+    colorFilter !== 'all' ||
+    brandFilter !== 'all' ||
+    minPriceFilter ||
+    maxPriceFilter,
+  )
+
+  function clearFilters() {
+    setSearch('')
+    setStatusFilter('all')
+    setStockFilter('all')
+    setCategoryFilter('all')
+    setProductTypeFilter('all')
+    setSizeFilter('all')
+    setColorFilter('all')
+    setBrandFilter('all')
+    setMinPriceFilter('')
+    setMaxPriceFilter('')
+  }
 
   const metrics = useMemo(() => {
     const activeRows = rows.filter((row) => row.active && row.productActive)
@@ -484,47 +577,131 @@ export default function AdminInventoryPage() {
         <MetricCard label="Pasif" value={metrics.inactive} hint="ürün veya varyant" />
       </section>
 
-      <div className="mb-4 flex flex-wrap items-center gap-3">
-        <div className="relative min-w-[240px] max-w-sm flex-1">
-          <svg className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#C4B5A5]" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
-            <circle cx="9" cy="9" r="5.5" /><path d="M17 17l-3.5-3.5" />
-          </svg>
+      <div className="mb-4 rounded-[16px] border border-[#ECE3D6] bg-white p-4">
+        <div className="grid grid-cols-4 gap-3 max-[1180px]:grid-cols-3 max-[820px]:grid-cols-2 max-[560px]:grid-cols-1">
+          <div className="relative col-span-2 max-[820px]:col-span-2 max-[560px]:col-span-1">
+            <svg className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#C4B5A5]" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+              <circle cx="9" cy="9" r="5.5" /><path d="M17 17l-3.5-3.5" />
+            </svg>
+            <input
+              type="search"
+              placeholder="Ürün, SKU, marka, renk veya beden ara..."
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              className="w-full rounded-[10px] border border-[#ECE3D6] bg-white py-2 pl-9 pr-4 text-[13px] text-[#3D2B1F] placeholder:text-[#C4B5A5] focus:border-[#A89070] focus:outline-none focus:ring-2 focus:ring-[#A89070]/20"
+            />
+          </div>
+
+          <select
+            value={statusFilter}
+            onChange={(event) => setStatusFilter(event.target.value as StatusFilter)}
+            className="rounded-[10px] border border-[#ECE3D6] bg-white px-3 py-2 text-[13px] text-[#5B4839] focus:outline-none"
+          >
+            <option value="all">Tüm Durumlar</option>
+            <option value="active">Aktif</option>
+            <option value="inactive">Pasif</option>
+          </select>
+
+          <select
+            value={stockFilter}
+            onChange={(event) => setStockFilter(event.target.value as StockFilter)}
+            className="rounded-[10px] border border-[#ECE3D6] bg-white px-3 py-2 text-[13px] text-[#5B4839] focus:outline-none"
+          >
+            <option value="all">Tüm Stok</option>
+            <option value="in_stock">Stokta</option>
+            <option value="low_stock">Az Stok</option>
+            <option value="out_of_stock">Tükendi</option>
+          </select>
+
+          <select
+            value={categoryFilter}
+            onChange={(event) => setCategoryFilter(event.target.value)}
+            className="rounded-[10px] border border-[#ECE3D6] bg-white px-3 py-2 text-[13px] text-[#5B4839] focus:outline-none"
+          >
+            <option value="all">Tüm Kategoriler</option>
+            {filterOptions.categories.map((category) => (
+              <option key={category} value={category}>{category}</option>
+            ))}
+          </select>
+
+          <select
+            value={productTypeFilter}
+            onChange={(event) => setProductTypeFilter(event.target.value)}
+            className="rounded-[10px] border border-[#ECE3D6] bg-white px-3 py-2 text-[13px] text-[#5B4839] focus:outline-none"
+          >
+            <option value="all">Tüm Ürün Tipleri</option>
+            {filterOptions.productTypes.map((type) => (
+              <option key={type} value={type}>{type}</option>
+            ))}
+          </select>
+
+          <select
+            value={sizeFilter}
+            onChange={(event) => setSizeFilter(event.target.value)}
+            className="rounded-[10px] border border-[#ECE3D6] bg-white px-3 py-2 text-[13px] text-[#5B4839] focus:outline-none"
+          >
+            <option value="all">Tüm Yaş/Beden</option>
+            {filterOptions.sizes.map((size) => (
+              <option key={size} value={size}>{size}</option>
+            ))}
+          </select>
+
+          <select
+            value={colorFilter}
+            onChange={(event) => setColorFilter(event.target.value)}
+            className="rounded-[10px] border border-[#ECE3D6] bg-white px-3 py-2 text-[13px] text-[#5B4839] focus:outline-none"
+          >
+            <option value="all">Tüm Renkler</option>
+            {filterOptions.colors.map((color) => (
+              <option key={color} value={color}>{color}</option>
+            ))}
+          </select>
+
+          <select
+            value={brandFilter}
+            onChange={(event) => setBrandFilter(event.target.value)}
+            className="rounded-[10px] border border-[#ECE3D6] bg-white px-3 py-2 text-[13px] text-[#5B4839] focus:outline-none"
+          >
+            <option value="all">Tüm Markalar</option>
+            {filterOptions.brands.map((brand) => (
+              <option key={brand} value={brand}>{brand}</option>
+            ))}
+          </select>
+
           <input
-            type="search"
-            placeholder="Ürün, SKU, renk veya beden ara..."
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            className="w-full rounded-[10px] border border-[#ECE3D6] bg-white py-2 pl-9 pr-4 text-[13px] text-[#3D2B1F] placeholder:text-[#C4B5A5] focus:border-[#A89070] focus:outline-none focus:ring-2 focus:ring-[#A89070]/20"
+            type="number"
+            min={0}
+            placeholder="Min fiyat"
+            value={minPriceFilter}
+            onChange={(event) => setMinPriceFilter(event.target.value)}
+            className="rounded-[10px] border border-[#ECE3D6] bg-white px-3 py-2 text-[13px] text-[#5B4839] placeholder:text-[#C4B5A5] focus:outline-none"
+          />
+
+          <input
+            type="number"
+            min={0}
+            placeholder="Max fiyat"
+            value={maxPriceFilter}
+            onChange={(event) => setMaxPriceFilter(event.target.value)}
+            className="rounded-[10px] border border-[#ECE3D6] bg-white px-3 py-2 text-[13px] text-[#5B4839] placeholder:text-[#C4B5A5] focus:outline-none"
           />
         </div>
 
-        <select
-          value={filter}
-          onChange={(event) => setFilter(event.target.value as StockFilter)}
-          className="rounded-[10px] border border-[#ECE3D6] bg-white px-3 py-2 text-[13px] text-[#5B4839] focus:outline-none"
-        >
-          <option value="all">Tüm Stoklar</option>
-          <option value="low">Az Stok</option>
-          <option value="out">Tükenen</option>
-          <option value="inactive">Pasif</option>
-        </select>
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+          <span className="text-[12.5px] text-[#B5A090]">
+            {filteredRows.length} varyant gösteriliyor
+          </span>
 
-        {(search || filter !== 'all') ? (
-          <button
-            type="button"
-            onClick={() => {
-              setSearch('')
-              setFilter('all')
-            }}
-            className="rounded-[10px] border border-[#ECE3D6] bg-white px-3 py-2 text-[12.5px] font-semibold text-[#5B4839] transition-colors hover:bg-[#FAF6F1]"
-          >
-            Filtreleri Temizle
-          </button>
-        ) : null}
-
-        <span className="ml-auto text-[12.5px] text-[#B5A090]">
-          {filteredRows.length} varyant gösteriliyor
-        </span>
+          {hasActiveFilters ? (
+            <button
+              type="button"
+              onClick={clearFilters}
+              className="rounded-[10px] border border-[#ECE3D6] bg-white px-3 py-2 text-[12.5px] font-semibold text-[#C07B5A] transition-colors hover:bg-[#FAF6F1]"
+            >
+              Filtreleri Temizle
+            </button>
+          ) : null}
+        </div>
       </div>
 
       {notice ? (
