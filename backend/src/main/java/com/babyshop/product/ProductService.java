@@ -56,10 +56,8 @@ public class ProductService {
 
     @Transactional
     public ProductDetailResponse createProduct(ProductAdminRequest request) {
-        validateSlugForCreate(request.slug());
-
         Product product = new Product();
-        applyRequest(product, request);
+        applyRequest(product, request, generateUniqueSlug(request.slug()));
 
         return toDetailResponse(productRepository.save(product));
     }
@@ -68,7 +66,7 @@ public class ProductService {
     public ProductDetailResponse updateProduct(Long id, ProductAdminRequest request) {
         Product product = findProductById(id);
         validateSlugForUpdate(id, request.slug());
-        applyRequest(product, request);
+        applyRequest(product, request, request.slug().trim());
 
         return toDetailResponse(productRepository.save(product));
     }
@@ -92,10 +90,10 @@ public class ProductService {
                 .orElseThrow(() -> new ResourceNotFoundException("Product not found for id: " + id));
     }
 
-    private void applyRequest(Product product, ProductAdminRequest request) {
+    private void applyRequest(Product product, ProductAdminRequest request, String slug) {
         product.setCategory(resolveCategory(request.categoryId()));
         product.setName(request.name().trim());
-        product.setSlug(request.slug().trim());
+        product.setSlug(slug);
         product.setDescription(request.description());
         product.setBrand(request.brand());
         product.setProductType(hasText(request.productType()) ? request.productType().trim() : null);
@@ -107,10 +105,27 @@ public class ProductService {
                 .orElseThrow(() -> new ResourceNotFoundException("Category not found for id: " + categoryId));
     }
 
-    private void validateSlugForCreate(String slug) {
-        if (productRepository.existsBySlug(slug.trim())) {
-            throw new DuplicateResourceException("Product slug already exists: " + slug);
+    private String generateUniqueSlug(String requestedSlug) {
+        String baseSlug = requestedSlug.trim();
+        if (!productRepository.existsBySlug(baseSlug)) {
+            return baseSlug;
         }
+
+        for (int suffix = 2; ; suffix++) {
+            String candidate = appendSlugSuffix(baseSlug, suffix);
+            if (!productRepository.existsBySlug(candidate)) {
+                return candidate;
+            }
+        }
+    }
+
+    private String appendSlugSuffix(String baseSlug, int suffix) {
+        String suffixText = "-" + suffix;
+        int maxBaseLength = 220 - suffixText.length();
+        String trimmedBase = baseSlug.length() > maxBaseLength
+                ? baseSlug.substring(0, maxBaseLength).replaceAll("-+$", "")
+                : baseSlug;
+        return trimmedBase + suffixText;
     }
 
     private void validateSlugForUpdate(Long id, String slug) {

@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import AdminShell from '@/components/admin/AdminShell'
+import { getColorHex } from '@/lib/colors'
 import { formatPrice } from '@/lib/utils'
 import { filterProductTypes } from '@/lib/mock/filterData'
 
@@ -834,8 +835,12 @@ function WorkingAddProductDrawer({
                         key={color}
                         type="button"
                         onClick={() => removeColor(color)}
-                        className="rounded-full bg-[#F4EEE6] px-3 py-1.5 text-[12px] font-bold text-[#5B4839] hover:bg-[#ECE3D6]"
+                        className="inline-flex items-center gap-1.5 rounded-full bg-[#F4EEE6] px-3 py-1.5 text-[12px] font-bold text-[#5B4839] hover:bg-[#ECE3D6]"
                       >
+                        <span
+                          className="h-3 w-3 rounded-full border border-white shadow-[0_0_0_1px_#D5C9BA]"
+                          style={{ backgroundColor: getColorHex(color) }}
+                        />
                         {color} x
                       </button>
                     ))}
@@ -900,7 +905,13 @@ function WorkingAddProductDrawer({
                       <div key={variant.key} className="rounded-[10px] border border-[#ECE3D6] bg-white p-3">
                         <div className="mb-2 flex items-center justify-between gap-2">
                           <div>
-                            <p className="text-[12.5px] font-bold text-[#3D2B1F]">{variant.colorName} / {variant.sizeLabel}</p>
+                            <p className="flex items-center gap-1.5 text-[12.5px] font-bold text-[#3D2B1F]">
+                              <span
+                                className="h-3 w-3 rounded-full border border-white shadow-[0_0_0_1px_#D5C9BA]"
+                                style={{ backgroundColor: getColorHex(variant.colorName) }}
+                              />
+                              {variant.colorName} / {variant.sizeLabel}
+                            </p>
                             <p className="text-[11px] text-[#B5A090]">{variant.sku}</p>
                           </div>
                           <button
