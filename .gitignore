@@ -13,6 +13,7 @@
 /storefront/.next-build/
 /storefront/out/
 /storefront/*.tsbuildinfo
+/storefront/.uploads/
 /storefront/public/uploads/
 
 # generated reports
