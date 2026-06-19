@@ -207,45 +207,48 @@ function SalesChart({ data, currency }: { data: DailySales[]; currency: string }
   const peakLeftPct = (peak.x / w) * 100
 
   return (
-    <div className="relative">
-      <div className="mb-1 flex justify-between text-[10px] text-[#C4B5A5]">
+    <div className="flex gap-2">
+      {/* Y axis (revenue) */}
+      <div className="flex h-[130px] flex-col justify-between text-right text-[10px] text-[#C4B5A5]">
         <span>{formatAxis(axisMax, currency)}</span>
         <span>{formatAxis(axisMax / 2, currency)}</span>
         <span>₺0</span>
       </div>
-      <div className="relative h-[130px] overflow-hidden">
-        <svg viewBox={`0 0 ${w} ${h}`} className="absolute inset-0 h-full w-full" preserveAspectRatio="none">
-          <defs>
-            <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#C07B5A" stopOpacity="0.18" />
-              <stop offset="100%" stopColor="#C07B5A" stopOpacity="0" />
-            </linearGradient>
-          </defs>
-          <path d={areaPath} fill="url(#chartGrad)" />
-          <path d={linePath} fill="none" stroke="#C07B5A" strokeWidth="1.8" vectorEffect="non-scaling-stroke" />
+      <div className="relative flex-1">
+        <div className="relative h-[130px] overflow-hidden">
+          <svg viewBox={`0 0 ${w} ${h}`} className="absolute inset-0 h-full w-full" preserveAspectRatio="none">
+            <defs>
+              <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#C07B5A" stopOpacity="0.18" />
+                <stop offset="100%" stopColor="#C07B5A" stopOpacity="0" />
+              </linearGradient>
+            </defs>
+            <path d={areaPath} fill="url(#chartGrad)" />
+            <path d={linePath} fill="none" stroke="#C07B5A" strokeWidth="1.8" vectorEffect="non-scaling-stroke" />
+            {peak.revenue > 0 ? (
+              <>
+                <circle cx={peak.x} cy={peak.y} r="3.5" fill="#C07B5A" />
+                <circle cx={peak.x} cy={peak.y} r="7" fill="#C07B5A" fillOpacity="0.18" />
+              </>
+            ) : null}
+          </svg>
           {peak.revenue > 0 ? (
-            <>
-              <circle cx={peak.x} cy={peak.y} r="3.5" fill="#C07B5A" />
-              <circle cx={peak.x} cy={peak.y} r="7" fill="#C07B5A" fillOpacity="0.18" />
-            </>
+            <div
+              className="absolute top-2 -translate-x-1/2 rounded-[8px] border border-[#ECE3D6] bg-white px-2.5 py-1.5 shadow-sm"
+              style={{ left: `${Math.min(Math.max(peakLeftPct, 12), 88)}%` }}
+            >
+              <p className="text-[9.5px] font-bold text-[#C4B5A5]">{peakLabel}</p>
+              <p className="text-[12px] font-extrabold text-[#3D2B1F]">{formatPrice(peak.revenue, currency)}</p>
+            </div>
           ) : null}
-        </svg>
-        {peak.revenue > 0 ? (
-          <div
-            className="absolute top-2 -translate-x-1/2 rounded-[8px] border border-[#ECE3D6] bg-white px-2.5 py-1.5 shadow-sm"
-            style={{ left: `${Math.min(Math.max(peakLeftPct, 12), 88)}%` }}
-          >
-            <p className="text-[9.5px] font-bold text-[#C4B5A5]">{peakLabel}</p>
-            <p className="text-[12px] font-extrabold text-[#3D2B1F]">{formatPrice(peak.revenue, currency)}</p>
-          </div>
-        ) : null}
-      </div>
-      <div className="mt-2 flex justify-between">
-        {points.map((p) => (
-          <span key={p.date} className="text-[10px] text-[#C4B5A5]">
-            {new Date(p.date).getDate()}
-          </span>
-        ))}
+        </div>
+        <div className="mt-2 flex justify-between">
+          {points.map((p) => (
+            <span key={p.date} className="text-[10px] text-[#C4B5A5]">
+              {new Date(p.date).getDate()}
+            </span>
+          ))}
+        </div>
       </div>
     </div>
   )
