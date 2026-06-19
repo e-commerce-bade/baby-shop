@@ -38,6 +38,7 @@ interface OrderResponse {
 
 interface PaymentResponse {
   paymentPageUrl: string | null
+  checkoutFormContent: string | null
 }
 
 function optionalValue(value?: string) {
@@ -81,6 +82,7 @@ export default function CheckoutPage() {
   const [mounted, setMounted]         = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [shipping, setShipping]       = useState('standard')
+  const [checkoutFormContent, setCheckoutFormContent] = useState<string | null>(null)
 
   const sessionId              = useCartStore((s) => s.sessionId)
   const hasHydrated            = useCartStore((s) => s.hasHydrated)
@@ -105,6 +107,22 @@ export default function CheckoutPage() {
     if (!mounted || !hasHydrated) return
     void refreshCheckoutSummary()
   }, [hasHydrated, mounted, refreshCheckoutSummary])
+
+  // iyzico Ödeme Formu icerigini (script) modal icindeki kapsayiciya enjekte et.
+  // innerHTML script calistirmaz; createContextualFragment calistirilabilir script dugumleri uretir.
+  useEffect(() => {
+    if (!checkoutFormContent) return
+    const container = document.getElementById('iyzipay-checkout-form')
+    if (!container) return
+    container.innerHTML = ''
+    const range = document.createRange()
+    range.selectNode(document.body)
+    const fragment = range.createContextualFragment(checkoutFormContent)
+    document.body.appendChild(fragment)
+    return () => {
+      container.innerHTML = ''
+    }
+  }, [checkoutFormContent])
 
   async function onSubmit(values: CheckoutFormValues) {
     setSubmitError(null)
@@ -152,12 +170,20 @@ export default function CheckoutPage() {
         throw new Error(paymentPayload?.message ?? `Ödeme başlatılamadı (${paymentRes.status}).`)
       }
 
-      const paymentPageUrl = (paymentPayload as PaymentResponse | null)?.paymentPageUrl
+      const payment = paymentPayload as PaymentResponse | null
+
+      // Tercih: iyzico Ödeme Formu'nu sayfa icinde modalda goster (musteri sayfadan ayrilmaz).
+      const formContent = payment?.checkoutFormContent
+      if (formContent && formContent.trim()) {
+        setCheckoutFormContent(formContent)
+        return
+      }
+
+      // Yedek: form icerigi yoksa iyzico'nun barindirilan odeme sayfasina yonlendir.
+      const paymentPageUrl = payment?.paymentPageUrl
       if (!paymentPageUrl) {
         throw new Error('Ödeme sayfası oluşturulamadı.')
       }
-
-      // iyzico ödeme sayfasına yönlendir. Sepet, başarılı dönüşte temizlenir.
       window.location.href = paymentPageUrl
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : 'Sipariş oluşturulamadı.')
@@ -362,6 +388,28 @@ export default function CheckoutPage() {
 
         </div>
       </main>
+
+      {/* iyzico Ödeme Formu — sayfa içi modal (müşteri sayfadan ayrılmaz) */}
+      {checkoutFormContent && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4">
+          <div className="relative my-8 w-full max-w-[480px] rounded-panel border border-line bg-white p-5 shadow-card">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="font-serif text-[18px] font-semibold text-brown">Güvenli Ödeme</h2>
+              <button
+                type="button"
+                onClick={() => setCheckoutFormContent(null)}
+                aria-label="Kapat"
+                className="grid h-8 w-8 place-items-center rounded-full text-muted transition-colors hover:bg-cream-2 hover:text-brown"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                  <path d="M6 6l12 12M18 6L6 18" />
+                </svg>
+              </button>
+            </div>
+            <div id="iyzipay-checkout-form" className="responsive" />
+          </div>
+        </div>
+      )}
     </div>
   )
 }

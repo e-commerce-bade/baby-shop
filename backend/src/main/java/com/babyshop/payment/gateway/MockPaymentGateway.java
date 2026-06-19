@@ -41,7 +41,7 @@ public class MockPaymentGateway implements PaymentGateway {
                 + "&cancelUrl=" + encode(cancelUrl)
                 + "&orderNumber=" + order.getOrderNumber();
 
-        return new PaymentGatewayInitiation(providerReference, paymentPageUrl);
+        return new PaymentGatewayInitiation(providerReference, paymentPageUrl, null);
     }
 
     @Override

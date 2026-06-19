@@ -38,6 +38,7 @@ class IyzicoPaymentGatewayTest {
         response.setStatus("success");
         response.setToken("iyzico-token");
         response.setPaymentPageUrl("https://sandbox-api.iyzipay.com/checkoutform/iyzico-token");
+        response.setCheckoutFormContent("<script>iyziInit</script>");
 
         given(iyzicoClient.initializeCheckoutForm(any(), any())).willReturn(response);
 
@@ -50,6 +51,7 @@ class IyzicoPaymentGatewayTest {
 
         assertThat(initiation.providerReference()).isEqualTo("iyzico-token");
         assertThat(initiation.paymentPageUrl()).contains("checkoutform/iyzico-token");
+        assertThat(initiation.checkoutFormContent()).isEqualTo("<script>iyziInit</script>");
 
         ArgumentCaptor<CreateCheckoutFormInitializeRequest> requestCaptor =
                 ArgumentCaptor.forClass(CreateCheckoutFormInitializeRequest.class);

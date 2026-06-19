@@ -192,7 +192,8 @@ class PaymentControllerTest {
                 "TRY",
                 "TXN-123",
                 "MOCK-TXN-123",
-                "https://mock-payments.local/checkout/TXN-123"
+                "https://mock-payments.local/checkout/TXN-123",
+                null
         );
     }
 

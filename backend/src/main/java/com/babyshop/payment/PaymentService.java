@@ -69,7 +69,7 @@ public class PaymentService {
         payment.setSuccessUrl(request.successUrl().trim());
         payment.setCancelUrl(request.cancelUrl().trim());
 
-        return toResponse(paymentRepository.save(payment), initiation.paymentPageUrl());
+        return toResponse(paymentRepository.save(payment), initiation.paymentPageUrl(), initiation.checkoutFormContent());
     }
 
     public PaymentResponse getPaymentByTransactionId(String transactionId) {
@@ -237,6 +237,10 @@ public class PaymentService {
     }
 
     private PaymentResponse toResponse(Payment payment, String paymentPageUrl) {
+        return toResponse(payment, paymentPageUrl, null);
+    }
+
+    private PaymentResponse toResponse(Payment payment, String paymentPageUrl, String checkoutFormContent) {
         return new PaymentResponse(
                 payment.getId(),
                 payment.getOrder().getOrderNumber(),
@@ -246,7 +250,8 @@ public class PaymentService {
                 payment.getCurrency(),
                 payment.getTransactionId(),
                 payment.getProviderReference(),
-                paymentPageUrl
+                paymentPageUrl,
+                checkoutFormContent
         );
     }
 

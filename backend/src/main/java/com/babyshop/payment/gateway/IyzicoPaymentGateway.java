@@ -83,7 +83,8 @@ public class IyzicoPaymentGateway implements PaymentGateway {
 
         return new PaymentGatewayInitiation(
                 token,
-                required(paymentPageUrl, "iyzico payment page URL is missing")
+                required(paymentPageUrl, "iyzico payment page URL is missing"),
+                response.getCheckoutFormContent()
         );
     }
 

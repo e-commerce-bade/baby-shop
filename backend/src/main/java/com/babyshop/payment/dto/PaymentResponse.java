@@ -11,6 +11,7 @@ public record PaymentResponse(
         String currency,
         String transactionId,
         String providerReference,
-        String paymentPageUrl
+        String paymentPageUrl,
+        String checkoutFormContent
 ) {
 }
