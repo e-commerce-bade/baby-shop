@@ -113,6 +113,8 @@ export default function CheckoutPage() {
   // innerHTML script calistirmaz; createContextualFragment calistirilabilir script dugumleri uretir.
   useEffect(() => {
     if (!checkoutFormContent) return
+    // Modal viewport'a gore ortalanir; onceki scroll konumu kalintisi kalmasin diye basa al.
+    window.scrollTo({ top: 0, left: 0 })
     const container = document.getElementById('iyzipay-checkout-form')
     if (!container) return
     container.innerHTML = ''
@@ -208,25 +210,27 @@ export default function CheckoutPage() {
   // Sepet durumundan bağımsız göster; aksi halde aşağıdaki boş-sepet guard'ı modalı gizler.
   if (checkoutFormContent) {
     return (
-      <div className="flex min-h-screen items-start justify-center bg-cream-3 px-4 py-10">
-        <div className="relative w-full max-w-[480px] rounded-panel border border-line bg-white p-5 shadow-card">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="font-serif text-[18px] font-semibold text-brown">Güvenli Ödeme</h2>
-            <button
-              type="button"
-              onClick={() => setCheckoutFormContent(null)}
-              aria-label="Kapat"
-              className="grid h-8 w-8 place-items-center rounded-full text-muted transition-colors hover:bg-cream-2 hover:text-brown"
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                <path d="M6 6l12 12M18 6L6 18" />
-              </svg>
-            </button>
+      <div className="fixed inset-0 z-50 overflow-y-auto bg-black/40">
+        <div className="flex min-h-full items-center justify-center p-4">
+          <div className="relative w-full max-w-[480px] rounded-panel border border-line bg-white p-5 shadow-card">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="font-serif text-[18px] font-semibold text-brown">Güvenli Ödeme</h2>
+              <button
+                type="button"
+                onClick={() => setCheckoutFormContent(null)}
+                aria-label="Kapat"
+                className="grid h-8 w-8 place-items-center rounded-full text-muted transition-colors hover:bg-cream-2 hover:text-brown"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                  <path d="M6 6l12 12M18 6L6 18" />
+                </svg>
+              </button>
+            </div>
+            <p className="mb-4 text-[12.5px] leading-relaxed text-muted">
+              Kart bilgileriniz iyzico&apos;nun güvenli altyapısında işlenir. Ödeme tamamlanınca otomatik yönlendirileceksiniz.
+            </p>
+            <div id="iyzipay-checkout-form" className="responsive" />
           </div>
-          <p className="mb-4 text-[12.5px] leading-relaxed text-muted">
-            Kart bilgileriniz iyzico&apos;nun güvenli altyapısında işlenir. Ödeme tamamlanınca otomatik yönlendirileceksiniz.
-          </p>
-          <div id="iyzipay-checkout-form" className="responsive" />
         </div>
       </div>
     )
