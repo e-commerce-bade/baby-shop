@@ -91,6 +91,7 @@ export default function CheckoutPage() {
   const summary                = useCartStore((s) => s.checkoutSummary)
   const localSubtotal          = useCartStore(cartSubtotal)
   const refreshCheckoutSummary = useCartStore((s) => s.refreshCheckoutSummary)
+  const startNewCart           = useCartStore((s) => s.startNewCart)
 
   const {
     register,
@@ -149,7 +150,13 @@ export default function CheckoutPage() {
       })
       const payload = await res.json().catch(() => null)
       if (!res.ok) {
-        throw new Error(payload?.message ?? `Sipariş oluşturulamadı (${res.status}).`)
+        const message = payload?.message ?? `Sipariş oluşturulamadı (${res.status}).`
+        // Sepet zaten siparise donusmus (CHECKED_OUT): yeni sepet baslat ki kullanici sikismasin.
+        if (res.status === 400 && /not active for checkout/i.test(message)) {
+          startNewCart()
+          throw new Error('Bu sepet zaten işleme alınmış. Sepetinizi sıfırladık; lütfen ürünleri tekrar ekleyip yeniden deneyin.')
+        }
+        throw new Error(message)
       }
       const order = payload as OrderResponse
 
@@ -176,6 +183,8 @@ export default function CheckoutPage() {
       const formContent = payment?.checkoutFormContent
       if (formContent && formContent.trim()) {
         setCheckoutFormContent(formContent)
+        // Backend sepeti siparis aninda tuketti; frontend sepetini sifirla.
+        startNewCart()
         return
       }
 
@@ -184,6 +193,7 @@ export default function CheckoutPage() {
       if (!paymentPageUrl) {
         throw new Error('Ödeme sayfası oluşturulamadı.')
       }
+      startNewCart()
       window.location.href = paymentPageUrl
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : 'Sipariş oluşturulamadı.')
@@ -193,6 +203,34 @@ export default function CheckoutPage() {
   // ── Loading ────────────────────────────────────────────────────────────────
   if (!mounted || !hasHydrated || isSyncing) {
     return <div className="min-h-[60vh]" />
+  }
+
+  // ── iyzico Ödeme Formu açık (sipariş oluşturuldu, sepet tüketildi) ─────────
+  // Sepet durumundan bağımsız göster; aksi halde aşağıdaki boş-sepet guard'ı modalı gizler.
+  if (checkoutFormContent) {
+    return (
+      <div className="flex min-h-screen items-start justify-center bg-cream-3 px-4 py-10">
+        <div className="relative w-full max-w-[480px] rounded-panel border border-line bg-white p-5 shadow-card">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="font-serif text-[18px] font-semibold text-brown">Güvenli Ödeme</h2>
+            <button
+              type="button"
+              onClick={() => setCheckoutFormContent(null)}
+              aria-label="Kapat"
+              className="grid h-8 w-8 place-items-center rounded-full text-muted transition-colors hover:bg-cream-2 hover:text-brown"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                <path d="M6 6l12 12M18 6L6 18" />
+              </svg>
+            </button>
+          </div>
+          <p className="mb-4 text-[12.5px] leading-relaxed text-muted">
+            Kart bilgileriniz iyzico&apos;nun güvenli altyapısında işlenir. Ödeme tamamlanınca otomatik yönlendirileceksiniz.
+          </p>
+          <div id="iyzipay-checkout-form" className="responsive" />
+        </div>
+      </div>
+    )
   }
 
   // ── Sepet boş / checkout için hazır değil ─────────────────────────────────
@@ -388,28 +426,6 @@ export default function CheckoutPage() {
 
         </div>
       </main>
-
-      {/* iyzico Ödeme Formu — sayfa içi modal (müşteri sayfadan ayrılmaz) */}
-      {checkoutFormContent && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4">
-          <div className="relative my-8 w-full max-w-[480px] rounded-panel border border-line bg-white p-5 shadow-card">
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="font-serif text-[18px] font-semibold text-brown">Güvenli Ödeme</h2>
-              <button
-                type="button"
-                onClick={() => setCheckoutFormContent(null)}
-                aria-label="Kapat"
-                className="grid h-8 w-8 place-items-center rounded-full text-muted transition-colors hover:bg-cream-2 hover:text-brown"
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                  <path d="M6 6l12 12M18 6L6 18" />
-                </svg>
-              </button>
-            </div>
-            <div id="iyzipay-checkout-form" className="responsive" />
-          </div>
-        </div>
-      )}
     </div>
   )
 }
