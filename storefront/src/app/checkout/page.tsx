@@ -46,6 +46,19 @@ function optionalValue(value?: string) {
   return v ? v : undefined
 }
 
+// iyzico Ödeme Formu'nun enjekte ettigi tum scriptleri ve global state'i kaldirir.
+// Modal kapatilip tekrar acildiginda formun yeniden render olabilmesi icin sart;
+// aksi halde bayat global state (iyziInit / dinamik checkoutform.js) yuzunden bos gorunur.
+function cleanupIyzico() {
+  document
+    .querySelectorAll('script[data-iyzico="true"], script[src*="iyzipay"], script[src*="iyzico"]')
+    .forEach((el) => el.remove())
+  const container = document.getElementById('iyzipay-checkout-form')
+  if (container) container.innerHTML = ''
+  const w = window as unknown as { iyziInit?: unknown }
+  w.iyziInit = undefined
+}
+
 // ─── Input & Field helpers ────────────────────────────────────────────────────
 
 const inputCls =
@@ -117,13 +130,19 @@ export default function CheckoutPage() {
     window.scrollTo({ top: 0, left: 0 })
     const container = document.getElementById('iyzipay-checkout-form')
     if (!container) return
-    container.innerHTML = ''
+
+    // Onceki acilistan kalan iyzico artiklarini temizle, sonra taze enjekte et.
+    cleanupIyzico()
+
     const range = document.createRange()
     range.selectNode(document.body)
     const fragment = range.createContextualFragment(checkoutFormContent)
+    // Bizim ekledigimiz scriptleri isaretle ki kapanista/yeniden acilista kaldirabilelim.
+    fragment.querySelectorAll('script').forEach((s) => s.setAttribute('data-iyzico', 'true'))
     document.body.appendChild(fragment)
+
     return () => {
-      container.innerHTML = ''
+      cleanupIyzico()
     }
   }, [checkoutFormContent])
 
