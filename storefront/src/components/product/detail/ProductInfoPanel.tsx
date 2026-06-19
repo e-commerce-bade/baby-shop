@@ -12,6 +12,12 @@ import type { ProductDetail } from '@/types/product'
 
 const DISCOUNT_RATE = 0.2
 
+// Beden etiketindeki ilk sayiya gore sirala ("3 Yas" < "10 Yas", "0-3 Ay" < "3-6 Ay")
+function sizeSortKey(label: string): number {
+  const match = label.match(/\d+/)
+  return match ? parseInt(match[0], 10) : Number.MAX_SAFE_INTEGER
+}
+
 interface Props {
   product: ProductDetail
   selectedColor?: string
@@ -50,6 +56,7 @@ export default function ProductInfoPanel({ product, selectedColor: selectedColor
         label: variant.sizeLabel,
         inStock: variant.stockQuantity > 0,
       }))
+      .sort((a, b) => sizeSortKey(a.label) - sizeSortKey(b.label))
   }, [product.variants, selectedColor])
 
   const currentVariant = product.variants.find(

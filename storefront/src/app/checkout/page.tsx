@@ -5,7 +5,6 @@ import Link from 'next/link'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { formatPrice } from '@/lib/utils'
 import { useCartStore, cartSubtotal } from '@/store/cartStore'
 import CheckoutSteps from '@/components/checkout/CheckoutSteps'
 import CheckoutSection from '@/components/checkout/CheckoutSection'
@@ -35,6 +34,10 @@ interface OrderResponse {
   status: string
   totalAmount: number | string
   currency: string
+}
+
+interface PaymentResponse {
+  paymentPageUrl: string | null
 }
 
 function optionalValue(value?: string) {
@@ -77,7 +80,6 @@ function Field({
 export default function CheckoutPage() {
   const [mounted, setMounted]         = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
-  const [createdOrder, setCreatedOrder] = useState<OrderResponse | null>(null)
   const [shipping, setShipping]       = useState('standard')
 
   const sessionId              = useCartStore((s) => s.sessionId)
@@ -87,7 +89,6 @@ export default function CheckoutPage() {
   const summary                = useCartStore((s) => s.checkoutSummary)
   const localSubtotal          = useCartStore(cartSubtotal)
   const refreshCheckoutSummary = useCartStore((s) => s.refreshCheckoutSummary)
-  const startNewCart           = useCartStore((s) => s.startNewCart)
 
   const {
     register,
@@ -101,9 +102,9 @@ export default function CheckoutPage() {
   useEffect(() => setMounted(true), [])
 
   useEffect(() => {
-    if (!mounted || !hasHydrated || createdOrder) return
+    if (!mounted || !hasHydrated) return
     void refreshCheckoutSummary()
-  }, [createdOrder, hasHydrated, mounted, refreshCheckoutSummary])
+  }, [hasHydrated, mounted, refreshCheckoutSummary])
 
   async function onSubmit(values: CheckoutFormValues) {
     setSubmitError(null)
@@ -132,8 +133,32 @@ export default function CheckoutPage() {
       if (!res.ok) {
         throw new Error(payload?.message ?? `Sipariş oluşturulamadı (${res.status}).`)
       }
-      setCreatedOrder(payload as OrderResponse)
-      startNewCart()
+      const order = payload as OrderResponse
+
+      // Sipariş oluşturuldu; iyzico güvenli ödeme sayfasını başlat.
+      const origin = window.location.origin
+      const paymentRes = await fetch('/api/payments/initiate', {
+        method: 'POST',
+        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderNumber: order.orderNumber,
+          provider: 'IYZICO',
+          successUrl: `${origin}/payment/success`,
+          cancelUrl: `${origin}/payment/cancel`,
+        }),
+      })
+      const paymentPayload = await paymentRes.json().catch(() => null)
+      if (!paymentRes.ok) {
+        throw new Error(paymentPayload?.message ?? `Ödeme başlatılamadı (${paymentRes.status}).`)
+      }
+
+      const paymentPageUrl = (paymentPayload as PaymentResponse | null)?.paymentPageUrl
+      if (!paymentPageUrl) {
+        throw new Error('Ödeme sayfası oluşturulamadı.')
+      }
+
+      // iyzico ödeme sayfasına yönlendir. Sepet, başarılı dönüşte temizlenir.
+      window.location.href = paymentPageUrl
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : 'Sipariş oluşturulamadı.')
     }
@@ -142,11 +167,6 @@ export default function CheckoutPage() {
   // ── Loading ────────────────────────────────────────────────────────────────
   if (!mounted || !hasHydrated || isSyncing) {
     return <div className="min-h-[60vh]" />
-  }
-
-  // ── Sipariş oluşturuldu ────────────────────────────────────────────────────
-  if (createdOrder) {
-    return <OrderConfirmation order={createdOrder} />
   }
 
   // ── Sepet boş / checkout için hazır değil ─────────────────────────────────
@@ -347,49 +367,6 @@ export default function CheckoutPage() {
 }
 
 // ─── Alt görünümler ───────────────────────────────────────────────────────────
-
-function OrderConfirmation({ order }: { order: OrderResponse }) {
-  return (
-    <div className="min-h-screen bg-cream-3 px-5 py-14">
-      <div className="mx-auto max-w-[560px] rounded-panel border border-line bg-white px-8 py-10 text-center shadow-card">
-        <div className="mx-auto mb-5 grid h-14 w-14 place-items-center rounded-full bg-[#E2EAD8] text-sage">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
-            <path d="M5 13l4 4L19 7" />
-          </svg>
-        </div>
-        <p className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-rose">
-          Sipariş Alındı
-        </p>
-        <h1 className="mt-2 font-serif text-[30px] font-semibold text-brown">
-          Teşekkürler!
-        </h1>
-        <p className="mx-auto mt-3 max-w-[420px] text-[13.5px] leading-relaxed text-muted">
-          Siparişiniz başarıyla oluşturuldu. Ödeme entegrasyonu tamamlandığında bu adım ödeme sayfasına yönlendirecek.
-        </p>
-
-        <div className="mt-6 divide-y divide-line rounded-[14px] border border-line bg-cream-3 text-left">
-          {[
-            { label: 'Sipariş No', value: order.orderNumber },
-            { label: 'Durum',      value: order.status },
-            { label: 'Toplam',     value: formatPrice(order.totalAmount, order.currency) },
-          ].map(({ label, value }) => (
-            <div key={label} className="flex justify-between gap-4 px-5 py-3 text-[13px]">
-              <span className="text-muted">{label}</span>
-              <span className="font-bold text-brown">{value}</span>
-            </div>
-          ))}
-        </div>
-
-        <Link
-          href="/products"
-          className="mt-8 inline-flex rounded-[14px] bg-rose px-8 py-3.5 text-[14px] font-bold text-white transition-colors hover:bg-rose-dk"
-        >
-          Alışverişe Devam Et
-        </Link>
-      </div>
-    </div>
-  )
-}
 
 function CartNotReady() {
   return (

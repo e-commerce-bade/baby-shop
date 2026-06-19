@@ -62,7 +62,7 @@ public class IyzicoPaymentGateway implements PaymentGateway {
         request.setBasketId(order.getOrderNumber());
         request.setPaymentGroup(PaymentGroup.PRODUCT.name());
         request.setPaymentSource("BabyShop");
-        request.setCallbackUrl(required(properties.callbackUrl(), "iyzico callback URL must be configured"));
+        request.setCallbackUrl(callbackUrl(properties));
         request.setEnabledInstallments(enabledInstallments(properties));
         request.setForceThreeDS(properties.forceThreeDS() == null ? 0 : properties.forceThreeDS());
         request.setBuyer(buildBuyer(order, properties));
@@ -168,6 +168,15 @@ public class IyzicoPaymentGateway implements PaymentGateway {
             throw new IllegalStateException("iyzico payment properties must be configured");
         }
         return properties;
+    }
+
+    private String callbackUrl(PaymentProperties.Iyzico properties) {
+        String callbackUrl = required(properties.callbackUrl(), "iyzico callback URL must be configured");
+        String lowerCased = callbackUrl.toLowerCase(java.util.Locale.ROOT);
+        if (lowerCased.startsWith("http://") || lowerCased.startsWith("https://")) {
+            return callbackUrl;
+        }
+        return "https://" + callbackUrl;
     }
 
     private String locale() {

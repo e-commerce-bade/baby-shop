@@ -141,13 +141,18 @@ function normalizeMoney(value: number | string) {
   return typeof value === 'string' ? value : value.toFixed(2)
 }
 
+function normalizeSizeLabel(label: string): string {
+  // "Yas" -> "Yaş" (eski kayitlardaki yazimi duzelt)
+  return label.replace(/Yas\b/g, 'Yaş')
+}
+
 function mapVariant(
   variant: BackendProductVariantResponse,
 ): ProductVariant {
   return {
     id: variant.id,
     sku: variant.sku,
-    sizeLabel: variant.sizeLabel,
+    sizeLabel: normalizeSizeLabel(variant.sizeLabel),
     colorName: variant.colorName,
     stockQuantity: variant.stockQuantity,
     price: normalizeMoney(variant.price),

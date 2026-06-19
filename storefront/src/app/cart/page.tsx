@@ -7,7 +7,6 @@ import CartItem from '@/components/cart/CartItem'
 import CartSummary from '@/components/cart/CartSummary'
 import CartFreeShippingBar from '@/components/cart/CartFreeShippingBar'
 import CartTrustStrip from '@/components/cart/CartTrustStrip'
-import CheckoutForm from '@/components/cart/CheckoutForm'
 
 export default function CartPage() {
   const [mounted, setMounted] = useState(false)
@@ -93,8 +92,6 @@ export default function CartPage() {
               </span>
             ))}
           </div>
-
-          <CheckoutForm />
         </div>
       </div>
     </div>

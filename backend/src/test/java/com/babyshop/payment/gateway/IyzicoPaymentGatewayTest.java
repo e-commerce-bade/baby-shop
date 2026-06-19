@@ -64,6 +64,44 @@ class IyzicoPaymentGatewayTest {
     }
 
     @Test
+    void shouldNormalizeSchemelessCallbackUrl() {
+        PaymentProperties properties = new PaymentProperties(
+                new PaymentProperties.Mock("mock-secret"),
+                new PaymentProperties.Iyzico(
+                        "sandbox-api-key",
+                        "sandbox-secret-key",
+                        "https://sandbox-api.iyzipay.com",
+                        "api.shop.local/api/v1/payments/callbacks/IYZICO",
+                        "tr",
+                        List.of(1),
+                        0,
+                        "11111111111",
+                        "127.0.0.1"
+                )
+        );
+        IyzicoPaymentGateway gateway = new IyzicoPaymentGateway(properties, iyzicoClient);
+        CheckoutFormInitialize response = new CheckoutFormInitialize();
+        response.setStatus("success");
+        response.setToken("iyzico-token");
+        response.setPaymentPageUrl("https://sandbox-api.iyzipay.com/checkoutform/iyzico-token");
+
+        given(iyzicoClient.initializeCheckoutForm(any(), any())).willReturn(response);
+
+        gateway.initiatePayment(
+                buildOrder(),
+                "TXN-123",
+                "https://shop.local/payment/success",
+                "https://shop.local/payment/cancel"
+        );
+
+        ArgumentCaptor<CreateCheckoutFormInitializeRequest> requestCaptor =
+                ArgumentCaptor.forClass(CreateCheckoutFormInitializeRequest.class);
+        org.mockito.Mockito.verify(iyzicoClient).initializeCheckoutForm(requestCaptor.capture(), any());
+        assertThat(requestCaptor.getValue().getCallbackUrl())
+                .isEqualTo("https://api.shop.local/api/v1/payments/callbacks/IYZICO");
+    }
+
+    @Test
     void shouldResolveSuccessfulCheckoutFormCallback() {
         IyzicoPaymentGateway gateway = new IyzicoPaymentGateway(properties(), iyzicoClient);
         CheckoutForm response = new CheckoutForm();
