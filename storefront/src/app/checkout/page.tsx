@@ -371,28 +371,6 @@ export default function CheckoutPage() {
               </p>
             </CheckoutSection>
 
-            {/* 4. Ödeme */}
-            <CheckoutSection
-              num={4}
-              title="Ödeme"
-              subtitle="Tüm işlemler güvenli ve şifreli."
-            >
-              <div className="flex flex-col items-center gap-3 rounded-[14px] border border-line bg-cream-3 px-5 py-7 text-center">
-                <div className="grid h-12 w-12 place-items-center rounded-full bg-cream-2 text-muted">
-                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                    <rect x="2" y="5" width="20" height="14" rx="3" />
-                    <path d="M2 10h20" />
-                  </svg>
-                </div>
-                <p className="text-[13.5px] font-semibold text-brown-2">
-                  Ödeme bilgilerinizi bir sonraki adımda girebileceksiniz.
-                </p>
-                <p className="text-[12px] text-muted">
-                  Visa, Mastercard, Amex ve daha fazlası desteklenmektedir.
-                </p>
-              </div>
-            </CheckoutSection>
-
             {/* Sipariş notu */}
             <div className="rounded-[18px] border border-line bg-white p-5">
               <Field label="Sipariş Notu" error={errors.notes?.message}>
@@ -418,7 +396,7 @@ export default function CheckoutPage() {
               disabled={isSubmitting}
               className="w-full rounded-[14px] bg-rose py-4 text-[15px] font-bold text-white transition-colors hover:bg-rose-dk disabled:opacity-60 lg:hidden"
             >
-              {isSubmitting ? 'Sipariş Oluşturuluyor...' : 'Siparişi Tamamla'}
+              {isSubmitting ? 'Hazırlanıyor...' : 'Ödemeye Geç'}
             </button>
           </form>
 
