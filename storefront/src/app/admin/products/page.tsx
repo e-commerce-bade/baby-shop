@@ -92,7 +92,7 @@ const drawerTabs: Array<{ id: ProductDrawerTab; label: string }> = [
 ]
 
 const BABY_SIZE_PRESETS = ['0-3 Ay', '3-6 Ay', '6-9 Ay', '9-12 Ay', '12-18 Ay', '18-24 Ay', '24-36 Ay']
-const KIDS_SIZE_PRESETS = ['2 Yas', '3 Yas', '4 Yas', '5 Yas', '6 Yas', '7 Yas', '8 Yas', '9 Yas', '10 Yas', '11-12 Yas', '13-14 Yas']
+const KIDS_SIZE_PRESETS = ['2 Yaş', '3 Yaş', '4 Yaş', '5 Yaş', '6 Yaş', '7 Yaş', '8 Yaş', '9 Yaş', '10 Yaş', '11-12 Yaş', '13-14 Yaş']
 
 function getSizePresetForCategory(categoryName?: string) {
   const normalized = toSlug(categoryName ?? '')
