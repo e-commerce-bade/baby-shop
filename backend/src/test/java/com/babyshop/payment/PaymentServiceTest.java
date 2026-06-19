@@ -3,7 +3,10 @@ package com.babyshop.payment;
 import com.babyshop.common.exception.InvalidRequestException;
 import com.babyshop.common.exception.ResourceNotFoundException;
 import com.babyshop.order.Order;
+import com.babyshop.order.OrderItem;
 import com.babyshop.order.OrderRepository;
+import com.babyshop.product.ProductVariant;
+import com.babyshop.product.ProductVariantRepository;
 import com.babyshop.payment.dto.PaymentCallbackRequest;
 import com.babyshop.payment.dto.PaymentInitiationRequest;
 import com.babyshop.payment.gateway.MockPaymentGateway;
@@ -20,7 +23,9 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
 class PaymentServiceTest {
@@ -30,6 +35,9 @@ class PaymentServiceTest {
 
     @Mock
     private PaymentRepository paymentRepository;
+
+    @Mock
+    private ProductVariantRepository productVariantRepository;
 
     @InjectMocks
     private PaymentService paymentService;
@@ -57,7 +65,7 @@ class PaymentServiceTest {
             return payment;
         });
 
-        paymentService = new PaymentService(orderRepository, paymentRepository, List.of(mockPaymentGateway));
+        paymentService = new PaymentService(orderRepository, paymentRepository, List.of(mockPaymentGateway), productVariantRepository);
         var response = paymentService.initiatePayment(request);
 
         assertThat(response.provider()).isEqualTo("MOCK");
@@ -70,7 +78,7 @@ class PaymentServiceTest {
         Payment payment = buildPayment(buildOrder("ORD-ABC123DEF456", "PENDING_PAYMENT"));
         given(paymentRepository.findByTransactionId("TXN-123")).willReturn(Optional.of(payment));
 
-        paymentService = new PaymentService(orderRepository, paymentRepository, List.of(mockPaymentGateway));
+        paymentService = new PaymentService(orderRepository, paymentRepository, List.of(mockPaymentGateway), productVariantRepository);
         var response = paymentService.getPaymentByTransactionId("TXN-123");
 
         assertThat(response.transactionId()).isEqualTo("TXN-123");
@@ -89,7 +97,7 @@ class PaymentServiceTest {
 
         given(orderRepository.findByOrderNumber("ORD-ABC123DEF456")).willReturn(Optional.of(order));
 
-        paymentService = new PaymentService(orderRepository, paymentRepository, List.of(mockPaymentGateway));
+        paymentService = new PaymentService(orderRepository, paymentRepository, List.of(mockPaymentGateway), productVariantRepository);
         assertThatThrownBy(() -> paymentService.initiatePayment(request))
                 .isInstanceOf(InvalidRequestException.class)
                 .hasMessage("Unsupported payment provider: PAYTR");
@@ -107,7 +115,7 @@ class PaymentServiceTest {
 
         given(orderRepository.findByOrderNumber("ORD-ABC123DEF456")).willReturn(Optional.of(order));
 
-        paymentService = new PaymentService(orderRepository, paymentRepository, List.of(mockPaymentGateway));
+        paymentService = new PaymentService(orderRepository, paymentRepository, List.of(mockPaymentGateway), productVariantRepository);
         assertThatThrownBy(() -> paymentService.initiatePayment(request))
                 .isInstanceOf(InvalidRequestException.class)
                 .hasMessage("Payment can only be initiated for orders in PENDING_PAYMENT status");
@@ -117,7 +125,7 @@ class PaymentServiceTest {
     void shouldThrowWhenPaymentMissing() {
         given(paymentRepository.findByTransactionId("TXN-MISSING")).willReturn(Optional.empty());
 
-        paymentService = new PaymentService(orderRepository, paymentRepository, List.of(mockPaymentGateway));
+        paymentService = new PaymentService(orderRepository, paymentRepository, List.of(mockPaymentGateway), productVariantRepository);
         assertThatThrownBy(() -> paymentService.getPaymentByTransactionId("TXN-MISSING"))
                 .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessage("Payment not found for transaction id: TXN-MISSING");
@@ -130,12 +138,37 @@ class PaymentServiceTest {
         given(paymentRepository.findByTransactionId("TXN-123")).willReturn(Optional.of(payment));
         given(paymentRepository.save(any(Payment.class))).willAnswer(invocation -> invocation.getArgument(0));
 
-        paymentService = new PaymentService(orderRepository, paymentRepository, List.of(mockPaymentGateway));
+        paymentService = new PaymentService(orderRepository, paymentRepository, List.of(mockPaymentGateway), productVariantRepository);
         var response = paymentService.confirmPayment("TXN-123");
 
         assertThat(response.status()).isEqualTo("SUCCEEDED");
         assertThat(order.getStatus()).isEqualTo("PAID");
         assertThat(payment.getPaidAt()).isNotNull();
+    }
+
+    @Test
+    void shouldDecrementStockWhenPaymentSucceeds() {
+        Order order = buildOrder("ORD-ABC123DEF456", "PENDING_PAYMENT");
+        OrderItem item = new OrderItem();
+        item.setProductVariantId(10L);
+        item.setQuantity(2);
+        order.getItems().add(item);
+        Payment payment = buildPayment(order);
+
+        ProductVariant variant = new ProductVariant();
+        variant.setId(10L);
+        variant.setStockQuantity(5);
+
+        given(paymentRepository.findByTransactionId("TXN-123")).willReturn(Optional.of(payment));
+        given(paymentRepository.save(any(Payment.class))).willAnswer(invocation -> invocation.getArgument(0));
+        given(productVariantRepository.findById(10L)).willReturn(Optional.of(variant));
+
+        paymentService = new PaymentService(orderRepository, paymentRepository, List.of(mockPaymentGateway), productVariantRepository);
+        paymentService.confirmPayment("TXN-123");
+
+        assertThat(variant.getStockQuantity()).isEqualTo(3);
+        assertThat(order.getStatus()).isEqualTo("PAID");
+        verify(productVariantRepository).saveAll(anyList());
     }
 
     @Test
@@ -145,7 +178,7 @@ class PaymentServiceTest {
         payment.setStatus("SUCCEEDED");
         given(paymentRepository.findByTransactionId("TXN-123")).willReturn(Optional.of(payment));
 
-        paymentService = new PaymentService(orderRepository, paymentRepository, List.of(mockPaymentGateway));
+        paymentService = new PaymentService(orderRepository, paymentRepository, List.of(mockPaymentGateway), productVariantRepository);
         var response = paymentService.confirmPayment("TXN-123");
 
         assertThat(response.status()).isEqualTo("SUCCEEDED");
@@ -159,7 +192,7 @@ class PaymentServiceTest {
         given(paymentRepository.findByTransactionId("TXN-123")).willReturn(Optional.of(payment));
         given(paymentRepository.save(any(Payment.class))).willAnswer(invocation -> invocation.getArgument(0));
 
-        paymentService = new PaymentService(orderRepository, paymentRepository, List.of(mockPaymentGateway));
+        paymentService = new PaymentService(orderRepository, paymentRepository, List.of(mockPaymentGateway), productVariantRepository);
         var response = paymentService.failPayment("TXN-123");
 
         assertThat(response.status()).isEqualTo("FAILED");
@@ -173,7 +206,7 @@ class PaymentServiceTest {
         payment.setStatus("FAILED");
         given(paymentRepository.findByTransactionId("TXN-123")).willReturn(Optional.of(payment));
 
-        paymentService = new PaymentService(orderRepository, paymentRepository, List.of(mockPaymentGateway));
+        paymentService = new PaymentService(orderRepository, paymentRepository, List.of(mockPaymentGateway), productVariantRepository);
         assertThatThrownBy(() -> paymentService.confirmPayment("TXN-123"))
                 .isInstanceOf(InvalidRequestException.class)
                 .hasMessage("Failed payment cannot be confirmed for transaction id: TXN-123");
@@ -186,7 +219,7 @@ class PaymentServiceTest {
         given(paymentRepository.findByTransactionId("TXN-123")).willReturn(Optional.of(payment));
         given(paymentRepository.save(any(Payment.class))).willAnswer(invocation -> invocation.getArgument(0));
 
-        paymentService = new PaymentService(orderRepository, paymentRepository, List.of(mockPaymentGateway));
+        paymentService = new PaymentService(orderRepository, paymentRepository, List.of(mockPaymentGateway), productVariantRepository);
         var response = paymentService.processCallback("MOCK", new PaymentCallbackRequest(
                 "TXN-123",
                 null,
@@ -207,7 +240,7 @@ class PaymentServiceTest {
         payment.setStatus("SUCCEEDED");
         given(paymentRepository.findByTransactionId("TXN-123")).willReturn(Optional.of(payment));
 
-        paymentService = new PaymentService(orderRepository, paymentRepository, List.of(mockPaymentGateway));
+        paymentService = new PaymentService(orderRepository, paymentRepository, List.of(mockPaymentGateway), productVariantRepository);
         var response = paymentService.processCallback("MOCK", new PaymentCallbackRequest(
                 "TXN-123",
                 null,
@@ -227,7 +260,7 @@ class PaymentServiceTest {
         given(paymentRepository.findByProviderReference("MOCK-TXN-123")).willReturn(Optional.of(payment));
         given(paymentRepository.save(any(Payment.class))).willAnswer(invocation -> invocation.getArgument(0));
 
-        paymentService = new PaymentService(orderRepository, paymentRepository, List.of(mockPaymentGateway));
+        paymentService = new PaymentService(orderRepository, paymentRepository, List.of(mockPaymentGateway), productVariantRepository);
         var response = paymentService.processCallback("MOCK", new PaymentCallbackRequest(
                 null,
                 "MOCK-TXN-123",
@@ -246,7 +279,7 @@ class PaymentServiceTest {
         Payment payment = buildPayment(order);
         given(paymentRepository.findByTransactionId("TXN-123")).willReturn(Optional.of(payment));
 
-        paymentService = new PaymentService(orderRepository, paymentRepository, List.of(mockPaymentGateway));
+        paymentService = new PaymentService(orderRepository, paymentRepository, List.of(mockPaymentGateway), productVariantRepository);
         assertThatThrownBy(() -> paymentService.processCallback("PAYTR", new PaymentCallbackRequest(
                 "TXN-123",
                 null,
@@ -264,7 +297,7 @@ class PaymentServiceTest {
         Payment payment = buildPayment(order);
         given(paymentRepository.findByTransactionId("TXN-123")).willReturn(Optional.of(payment));
 
-        paymentService = new PaymentService(orderRepository, paymentRepository, List.of(mockPaymentGateway));
+        paymentService = new PaymentService(orderRepository, paymentRepository, List.of(mockPaymentGateway), productVariantRepository);
         assertThatThrownBy(() -> paymentService.processCallback("MOCK", new PaymentCallbackRequest(
                 "TXN-123",
                 null,

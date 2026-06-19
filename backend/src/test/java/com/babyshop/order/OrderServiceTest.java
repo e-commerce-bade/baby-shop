@@ -16,7 +16,6 @@ import com.babyshop.payment.Payment;
 import com.babyshop.payment.PaymentRepository;
 import com.babyshop.product.Product;
 import com.babyshop.product.ProductVariant;
-import com.babyshop.product.ProductVariantRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -35,7 +34,6 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 
@@ -47,9 +45,6 @@ class OrderServiceTest {
 
     @Mock
     private OrderRepository orderRepository;
-
-    @Mock
-    private ProductVariantRepository productVariantRepository;
 
     @Mock
     private UserAccountRepository userAccountRepository;
@@ -222,7 +217,6 @@ class OrderServiceTest {
         );
 
         given(cartRepository.findBySessionId("session-1")).willReturn(Optional.of(cart));
-        given(productVariantRepository.saveAll(anyList())).willAnswer(invocation -> invocation.getArgument(0));
         given(orderRepository.save(any(Order.class))).willAnswer(invocation -> {
             Order order = invocation.getArgument(0);
             order.setId(1L);
@@ -239,9 +233,9 @@ class OrderServiceTest {
         assertThat(response.totalAmount()).isEqualByComparingTo("998.00");
         assertThat(response.createdAt()).isNull();
         assertThat(response.payment()).isNull();
-        assertThat(cart.getStatus()).isEqualTo("CHECKED_OUT");
-        assertThat(variant.getStockQuantity()).isEqualTo(3);
-        verify(productVariantRepository).saveAll(anyList());
+        // Stok ve sepet, siparis aninda degil odeme basariyla tamamlaninca degisir.
+        assertThat(cart.getStatus()).isEqualTo("ACTIVE");
+        assertThat(variant.getStockQuantity()).isEqualTo(5);
     }
 
     @Test
@@ -435,7 +429,6 @@ class OrderServiceTest {
 
         given(cartRepository.findBySessionId("session-1")).willReturn(Optional.of(cart));
         given(userAccountRepository.findByEmailIgnoreCase("customer@babyshop.local")).willReturn(Optional.of(user));
-        given(productVariantRepository.saveAll(anyList())).willAnswer(invocation -> invocation.getArgument(0));
         given(orderRepository.save(any(Order.class))).willAnswer(invocation -> {
             Order order = invocation.getArgument(0);
             order.setId(1L);
@@ -484,7 +477,6 @@ class OrderServiceTest {
         given(userAccountRepository.findByEmailIgnoreCase("customer@babyshop.local")).willReturn(Optional.of(user));
         given(customerAddressRepository.findByIdAndUserEmailIgnoreCase(20L, "customer@babyshop.local"))
                 .willReturn(Optional.of(address));
-        given(productVariantRepository.saveAll(anyList())).willAnswer(invocation -> invocation.getArgument(0));
         given(orderRepository.save(any(Order.class))).willAnswer(invocation -> {
             Order order = invocation.getArgument(0);
             order.setId(1L);

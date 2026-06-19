@@ -20,7 +20,6 @@ import com.babyshop.order.dto.OrderStatusUpdateRequest;
 import com.babyshop.payment.Payment;
 import com.babyshop.payment.PaymentRepository;
 import com.babyshop.product.ProductVariant;
-import com.babyshop.product.ProductVariantRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -33,7 +32,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
@@ -44,11 +42,9 @@ import java.util.UUID;
 public class OrderService {
 
     private static final String CART_STATUS_ACTIVE = "ACTIVE";
-    private static final String CART_STATUS_CHECKED_OUT = "CHECKED_OUT";
 
     private final CartRepository cartRepository;
     private final OrderRepository orderRepository;
-    private final ProductVariantRepository productVariantRepository;
     private final UserAccountRepository userAccountRepository;
     private final CustomerAddressRepository customerAddressRepository;
     private final PaymentRepository paymentRepository;
@@ -188,7 +184,6 @@ public class OrderService {
         order.setShippingAmount(shippingAmount);
         order.setDiscountAmount(discountAmount);
 
-        List<ProductVariant> updatedVariants = new ArrayList<>();
         for (CartItem cartItem : cartItems) {
             ProductVariant variant = cartItem.getProductVariant();
             validateVariantForOrder(variant, cartItem.getQuantity());
@@ -208,17 +203,12 @@ public class OrderService {
             orderItem.setLineTotal(lineTotal);
             orderItem.setCurrency(variant.getCurrency());
             order.getItems().add(orderItem);
-
-            variant.setStockQuantity(variant.getStockQuantity() - cartItem.getQuantity());
-            updatedVariants.add(variant);
         }
 
         order.setSubtotalAmount(subtotalAmount);
         order.setTotalAmount(subtotalAmount.add(shippingAmount).subtract(discountAmount));
 
-        productVariantRepository.saveAll(updatedVariants);
-        cart.setStatus(CART_STATUS_CHECKED_OUT);
-
+        // Stok düşümü ve sepet tüketimi (CHECKED_OUT) ödeme başarıyla tamamlanınca PaymentService'te yapılır.
         return toResponse(orderRepository.save(order));
     }
 

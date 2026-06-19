@@ -3,8 +3,11 @@ package com.babyshop.payment;
 import com.babyshop.common.exception.InvalidRequestException;
 import com.babyshop.common.exception.ResourceNotFoundException;
 import com.babyshop.order.Order;
+import com.babyshop.order.OrderItem;
 import com.babyshop.order.OrderStatusPolicy;
 import com.babyshop.order.OrderRepository;
+import com.babyshop.product.ProductVariant;
+import com.babyshop.product.ProductVariantRepository;
 import com.babyshop.payment.dto.PaymentCallbackRequest;
 import com.babyshop.payment.dto.PaymentCallbackResponse;
 import com.babyshop.payment.dto.PaymentInitiationRequest;
@@ -16,6 +19,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -36,6 +40,7 @@ public class PaymentService {
     private final OrderRepository orderRepository;
     private final PaymentRepository paymentRepository;
     private final List<PaymentGateway> paymentGateways;
+    private final ProductVariantRepository productVariantRepository;
 
     @Transactional
     public PaymentResponse initiatePayment(PaymentInitiationRequest request) {
@@ -212,10 +217,30 @@ public class PaymentService {
 
     private Payment completePaymentAsSucceeded(Payment payment) {
         OrderStatusPolicy.validateTransition(payment.getOrder().getStatus(), OrderStatusPolicy.PAID);
+        decrementStockForOrder(payment.getOrder());
         payment.setStatus(PAYMENT_STATUS_SUCCEEDED);
         payment.setPaidAt(java.time.OffsetDateTime.now());
         payment.getOrder().setStatus(OrderStatusPolicy.PAID);
         return paymentRepository.save(payment);
+    }
+
+    // Stok yalnizca odeme basariyla tamamlaninca dusulur. Es zamanli bir baska siparis
+    // son urunu almis olabilir; bu durumda stogu 0'da tutariz (asiri satis yoneticiye birakilir).
+    private void decrementStockForOrder(Order order) {
+        List<ProductVariant> updatedVariants = new ArrayList<>();
+        for (OrderItem item : order.getItems()) {
+            if (item.getProductVariantId() == null) {
+                continue;
+            }
+            productVariantRepository.findById(item.getProductVariantId()).ifPresent(variant -> {
+                int remaining = variant.getStockQuantity() - item.getQuantity();
+                variant.setStockQuantity(Math.max(remaining, 0));
+                updatedVariants.add(variant);
+            });
+        }
+        if (!updatedVariants.isEmpty()) {
+            productVariantRepository.saveAll(updatedVariants);
+        }
     }
 
     private Payment completePaymentAsFailed(Payment payment) {

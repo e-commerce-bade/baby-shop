@@ -7,12 +7,14 @@ import { useCartStore } from '@/store/cartStore'
 
 export default function PaymentSuccessContent() {
   const searchParams = useSearchParams()
-  const clearCart = useCartStore((state) => state.clearCart)
+  const startNewCart = useCartStore((state) => state.startNewCart)
   const orderNumber = searchParams.get('orderNumber')
 
   useEffect(() => {
-    clearCart()
-  }, [clearCart])
+    // Yeni session ile temiz sepet baslat; aksi halde odenmis (backend'de hala dolu) sepet
+    // bir sonraki hydrate'te geri yuklenir.
+    startNewCart()
+  }, [startNewCart])
 
   return (
     <div className="flex min-h-[60vh] items-center justify-center px-5 py-14">

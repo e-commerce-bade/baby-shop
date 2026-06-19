@@ -182,9 +182,9 @@ export default function CheckoutPage() {
       // Tercih: iyzico Ödeme Formu'nu sayfa icinde modalda goster (musteri sayfadan ayrilmaz).
       const formContent = payment?.checkoutFormContent
       if (formContent && formContent.trim()) {
+        // Sepet kasitli korunur: odeme iptal/basarisiz olursa kullanici ayni sepetle
+        // yeniden deneyebilir. Sepet, ancak odeme basarili olunca /payment/success'te sifirlanir.
         setCheckoutFormContent(formContent)
-        // Backend sepeti siparis aninda tuketti; frontend sepetini sifirla.
-        startNewCart()
         return
       }
 
@@ -193,7 +193,6 @@ export default function CheckoutPage() {
       if (!paymentPageUrl) {
         throw new Error('Ödeme sayfası oluşturulamadı.')
       }
-      startNewCart()
       window.location.href = paymentPageUrl
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : 'Sipariş oluşturulamadı.')
