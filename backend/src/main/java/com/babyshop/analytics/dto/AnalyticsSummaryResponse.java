@@ -1,6 +1,7 @@
 package com.babyshop.analytics.dto;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 
 /**
@@ -17,11 +18,16 @@ public record AnalyticsSummaryResponse(
         long totalCategories,
         String currency,
         List<StatusCount> ordersByStatus,
-        List<TopProduct> topProducts
+        List<TopProduct> topProducts,
+        List<DailySales> dailySales
 ) {
     public record StatusCount(String status, long count) {
     }
 
     public record TopProduct(String productName, long quantity, BigDecimal revenue) {
+    }
+
+    /** Revenue earned on a single day; used to draw the dashboard sales chart. */
+    public record DailySales(LocalDate date, BigDecimal revenue) {
     }
 }

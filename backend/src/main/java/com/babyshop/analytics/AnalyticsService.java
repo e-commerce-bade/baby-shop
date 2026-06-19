@@ -1,6 +1,7 @@
 package com.babyshop.analytics;
 
 import com.babyshop.analytics.dto.AnalyticsSummaryResponse;
+import com.babyshop.analytics.dto.AnalyticsSummaryResponse.DailySales;
 import com.babyshop.analytics.dto.AnalyticsSummaryResponse.StatusCount;
 import com.babyshop.analytics.dto.AnalyticsSummaryResponse.TopProduct;
 import com.babyshop.auth.Role;
@@ -16,6 +17,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -34,6 +37,8 @@ public class AnalyticsService {
     private static final Set<String> REVENUE_STATUSES =
             Set.of("PAID", "PREPARING", "SHIPPED", "DELIVERED");
     private static final int TOP_PRODUCT_LIMIT = 5;
+    private static final int SALES_WINDOW_DAYS = 7;
+    private static final ZoneId STORE_ZONE = ZoneId.of("Europe/Istanbul");
 
     private final OrderRepository orderRepository;
     private final ProductRepository productRepository;
@@ -68,6 +73,7 @@ public class AnalyticsService {
                 .toList();
 
         List<TopProduct> topProducts = computeTopProducts(orders);
+        List<DailySales> dailySales = computeDailySales(revenueOrders);
 
         long totalProducts = productRepository.count();
         long activeProducts = productRepository.findAllByActiveTrueOrderByCreatedAtDesc().size();
@@ -89,7 +95,36 @@ public class AnalyticsService {
                 totalCategories,
                 "TRY",
                 ordersByStatus,
-                topProducts);
+                topProducts,
+                dailySales);
+    }
+
+    /**
+     * Builds a revenue series for the last {@value #SALES_WINDOW_DAYS} days (inclusive of today),
+     * with a zero-filled entry for every day so the chart always has a full window.
+     */
+    private List<DailySales> computeDailySales(List<Order> revenueOrders) {
+        LocalDate today = LocalDate.now(STORE_ZONE);
+        LocalDate windowStart = today.minusDays(SALES_WINDOW_DAYS - 1L);
+
+        Map<LocalDate, BigDecimal> revenueByDay = new LinkedHashMap<>();
+        for (int i = 0; i < SALES_WINDOW_DAYS; i++) {
+            revenueByDay.put(windowStart.plusDays(i), BigDecimal.ZERO);
+        }
+
+        for (Order order : revenueOrders) {
+            if (order.getCreatedAt() == null) {
+                continue;
+            }
+            LocalDate day = order.getCreatedAt().atZoneSameInstant(STORE_ZONE).toLocalDate();
+            if (revenueByDay.containsKey(day)) {
+                revenueByDay.merge(day, order.getTotalAmount(), BigDecimal::add);
+            }
+        }
+
+        return revenueByDay.entrySet().stream()
+                .map(entry -> new DailySales(entry.getKey(), entry.getValue()))
+                .toList();
     }
 
     private List<TopProduct> computeTopProducts(List<Order> orders) {

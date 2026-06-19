@@ -20,10 +20,21 @@ interface CategoryResponse {
   active: boolean
 }
 
+interface ProductVariantResponse {
+  id: number
+  sku: string | null
+  sizeLabel: string
+  colorName: string
+  stockQuantity: number
+  active: boolean
+}
+
 interface ProductResponse {
   id: number
   name: string
   active: boolean
+  primaryImageUrl?: string | null
+  variants?: ProductVariantResponse[]
 }
 
 interface OrderResponse {
@@ -42,10 +53,21 @@ interface PageResponse<T> {
   totalElements: number
 }
 
+interface DailySales {
+  date: string
+  revenue: number | string
+}
+
+interface AnalyticsSummary {
+  currency: string
+  dailySales: DailySales[]
+}
+
 interface DashboardData {
   categories: CategoryResponse[]
   products: ProductResponse[]
   orders: PageResponse<OrderResponse>
+  analytics: AnalyticsSummary | null
 }
 
 const STATUS_MAP: Record<string, { label: string; bg: string; color: string }> = {
@@ -62,6 +84,36 @@ function statusLabel(status: string) {
   const s = STATUS_MAP[status.toUpperCase()]
   if (!s) return { label: status, bg: '#F4EEE6', color: '#5B4839' }
   return s
+}
+
+const LOW_STOCK_LIMIT = 5
+const LOW_STOCK_DISPLAY_COUNT = 5
+
+interface LowStockItem {
+  key: string
+  name: string
+  sku: string
+  left: number
+  imageUrl: string | null
+}
+
+/** Flattens active product variants, keeps the low-stock ones, and surfaces the scarcest first. */
+function computeLowStock(products: ProductResponse[]): LowStockItem[] {
+  return products
+    .filter((product) => product.active)
+    .flatMap((product) =>
+      (product.variants ?? [])
+        .filter((variant) => variant.active && variant.stockQuantity <= LOW_STOCK_LIMIT)
+        .map((variant) => ({
+          key: `${product.id}-${variant.id}`,
+          name: product.name,
+          sku: variant.sku ?? `${variant.sizeLabel} / ${variant.colorName}`,
+          left: variant.stockQuantity,
+          imageUrl: product.primaryImageUrl ?? null,
+        })),
+    )
+    .sort((a, b) => a.left - b.left)
+    .slice(0, LOW_STOCK_DISPLAY_COUNT)
 }
 
 function formatDate(iso: string | null) {
@@ -107,39 +159,92 @@ function MetricCard({
   )
 }
 
-function SalesChart() {
-  const days = ['May 12', 'May 13', 'May 14', 'May 15', 'May 16', 'May 17', 'May 18']
+/** Rounds up to a "nice" axis maximum (1/2/5 × 10ⁿ) so the gridline labels stay readable. */
+function niceCeil(value: number) {
+  if (value <= 0) return 100
+  const magnitude = Math.pow(10, Math.floor(Math.log10(value)))
+  const normalized = value / magnitude
+  const nice = normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 5 ? 5 : 10
+  return nice * magnitude
+}
+
+function formatAxis(value: number, currency: string) {
+  if (value >= 1000) {
+    const k = value / 1000
+    return `₺${Number.isInteger(k) ? k : k.toFixed(1)}K`
+  }
+  return formatPrice(value, currency)
+}
+
+const SALES_VIEWBOX = { w: 400, h: 100, top: 12, bottom: 8 }
+
+function SalesChart({ data, currency }: { data: DailySales[]; currency: string }) {
+  const points = data.map((d) => ({ date: d.date, revenue: Number(d.revenue) || 0 }))
+
+  if (points.length === 0) {
+    return (
+      <div className="flex h-[130px] items-center justify-center text-[12px] text-[#C4B5A5]">
+        Henüz satış verisi yok.
+      </div>
+    )
+  }
+
+  const { w, h, top, bottom } = SALES_VIEWBOX
+  const axisMax = niceCeil(Math.max(...points.map((p) => p.revenue)))
+  const plotHeight = h - top - bottom
+
+  const coords = points.map((p, i) => {
+    const x = points.length === 1 ? w / 2 : (i / (points.length - 1)) * w
+    const y = top + (1 - p.revenue / axisMax) * plotHeight
+    return { ...p, x, y }
+  })
+
+  const linePath = coords.map((c, i) => `${i === 0 ? 'M' : 'L'}${c.x.toFixed(1)},${c.y.toFixed(1)}`).join(' ')
+  const areaPath = `${linePath} L${w},${h} L0,${h} Z`
+
+  const peak = coords.reduce((best, c) => (c.revenue > best.revenue ? c : best), coords[0])
+  const peakLabel = new Date(peak.date).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' })
+  const peakLeftPct = (peak.x / w) * 100
+
   return (
     <div className="relative">
+      <div className="mb-1 flex justify-between text-[10px] text-[#C4B5A5]">
+        <span>{formatAxis(axisMax, currency)}</span>
+        <span>{formatAxis(axisMax / 2, currency)}</span>
+        <span>₺0</span>
+      </div>
       <div className="relative h-[130px] overflow-hidden">
-        <svg viewBox="0 0 400 100" className="absolute inset-0 h-full w-full" preserveAspectRatio="none">
+        <svg viewBox={`0 0 ${w} ${h}`} className="absolute inset-0 h-full w-full" preserveAspectRatio="none">
           <defs>
             <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="#C07B5A" stopOpacity="0.18" />
               <stop offset="100%" stopColor="#C07B5A" stopOpacity="0" />
             </linearGradient>
           </defs>
-          <path
-            d="M0,85 C30,78 50,68 75,62 C100,56 110,72 135,68 C160,64 165,42 190,35 C215,28 225,44 250,42 C275,40 280,50 305,46 C330,42 340,28 360,22 C375,18 390,20 400,17 L400,100 L0,100 Z"
-            fill="url(#chartGrad)"
-          />
-          <path
-            d="M0,85 C30,78 50,68 75,62 C100,56 110,72 135,68 C160,64 165,42 190,35 C215,28 225,44 250,42 C275,40 280,50 305,46 C330,42 340,28 360,22 C375,18 390,20 400,17"
-            fill="none"
-            stroke="#C07B5A"
-            strokeWidth="1.8"
-          />
-          <circle cx="190" cy="35" r="3.5" fill="#C07B5A" />
-          <circle cx="190" cy="35" r="7" fill="#C07B5A" fillOpacity="0.18" />
+          <path d={areaPath} fill="url(#chartGrad)" />
+          <path d={linePath} fill="none" stroke="#C07B5A" strokeWidth="1.8" vectorEffect="non-scaling-stroke" />
+          {peak.revenue > 0 ? (
+            <>
+              <circle cx={peak.x} cy={peak.y} r="3.5" fill="#C07B5A" />
+              <circle cx={peak.x} cy={peak.y} r="7" fill="#C07B5A" fillOpacity="0.18" />
+            </>
+          ) : null}
         </svg>
-        <div className="absolute right-[calc(50%-50px)] top-2 rounded-[8px] bg-white px-2.5 py-1.5 shadow-sm border border-[#ECE3D6]">
-          <p className="text-[9.5px] font-bold text-[#C4B5A5]">May 15</p>
-          <p className="text-[12px] font-extrabold text-[#3D2B1F]">₺6.842</p>
-        </div>
+        {peak.revenue > 0 ? (
+          <div
+            className="absolute top-2 -translate-x-1/2 rounded-[8px] border border-[#ECE3D6] bg-white px-2.5 py-1.5 shadow-sm"
+            style={{ left: `${Math.min(Math.max(peakLeftPct, 12), 88)}%` }}
+          >
+            <p className="text-[9.5px] font-bold text-[#C4B5A5]">{peakLabel}</p>
+            <p className="text-[12px] font-extrabold text-[#3D2B1F]">{formatPrice(peak.revenue, currency)}</p>
+          </div>
+        ) : null}
       </div>
       <div className="mt-2 flex justify-between">
-        {days.map((d) => (
-          <span key={d} className="text-[10px] text-[#C4B5A5]">{d.split(' ')[1]}</span>
+        {points.map((p) => (
+          <span key={p.date} className="text-[10px] text-[#C4B5A5]">
+            {new Date(p.date).getDate()}
+          </span>
         ))}
       </div>
     </div>
@@ -207,10 +312,11 @@ export default function AdminDashboardPage() {
           return
         }
 
-        const [catRes, prodRes, ordRes] = await Promise.all([
+        const [catRes, prodRes, ordRes, analyticsRes] = await Promise.all([
           fetch('/api/admin/categories', { cache: 'no-store', headers: { Accept: 'application/json' } }),
           fetch('/api/admin/products', { cache: 'no-store', headers: { Accept: 'application/json' } }),
           fetch('/api/admin/orders?page=0&size=5', { cache: 'no-store', headers: { Accept: 'application/json' } }),
+          fetch('/api/admin/analytics/summary', { cache: 'no-store', headers: { Accept: 'application/json' } }),
         ])
 
         if (!catRes.ok || !prodRes.ok || !ordRes.ok) {
@@ -224,6 +330,7 @@ export default function AdminDashboardPage() {
           categories: (await catRes.json()) as CategoryResponse[],
           products: (await prodRes.json()) as ProductResponse[],
           orders: (await ordRes.json()) as PageResponse<OrderResponse>,
+          analytics: analyticsRes.ok ? ((await analyticsRes.json()) as AnalyticsSummary) : null,
         })
       } catch (e) {
         if (!active) return
@@ -285,6 +392,7 @@ export default function AdminDashboardPage() {
   const products = data?.products ?? []
   const orders = data?.orders.content ?? []
   const activeProducts = products.filter((p) => p.active).length
+  const lowStockItems = computeLowStock(products)
 
   return (
     <AdminShell displayName={displayName}>
@@ -361,10 +469,10 @@ export default function AdminDashboardPage() {
               Son 7 Gün
             </span>
           </div>
-          <div className="mb-1 flex justify-between text-[10px] text-[#C4B5A5]">
-            <span>₺10K</span><span>₺5K</span><span>₺0</span>
-          </div>
-          <SalesChart />
+          <SalesChart
+            data={data?.analytics?.dailySales ?? []}
+            currency={data?.analytics?.currency ?? 'TRY'}
+          />
         </div>
 
         <div className="rounded-[16px] border border-[#ECE3D6] bg-white p-5">
@@ -374,23 +482,31 @@ export default function AdminDashboardPage() {
               Tümünü Gör
             </Link>
           </div>
-          <div className="space-y-3">
-            {[
-              { name: 'Bebek Tulum – Krem', sku: 'BT-KR-01', left: 4 },
-              { name: 'Fırfırlı Elbise – Gül', sku: 'FE-GU-02', left: 7 },
-              { name: 'Organik Patik – Bej', sku: 'OP-BJ-03', left: 3 },
-              { name: 'Örgü Hırka – Bej', sku: 'OH-BJ-04', left: 6 },
-            ].map((item) => (
-              <div key={item.sku} className="flex items-center gap-3">
-                <div className="h-10 w-10 shrink-0 rounded-[10px] bg-[#F4EEE6]" />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-[13px] font-semibold text-[#3D2B1F]">{item.name}</p>
-                  <p className="text-[11.5px] text-[#C4B5A5]">{item.sku}</p>
+          {lowStockItems.length > 0 ? (
+            <div className="space-y-3">
+              {lowStockItems.map((item) => (
+                <div key={item.key} className="flex items-center gap-3">
+                  {item.imageUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={item.imageUrl} alt={item.name} className="h-10 w-10 shrink-0 rounded-[10px] object-cover" />
+                  ) : (
+                    <div className="h-10 w-10 shrink-0 rounded-[10px] bg-[#F4EEE6]" />
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[13px] font-semibold text-[#3D2B1F]">{item.name}</p>
+                    <p className="text-[11.5px] text-[#C4B5A5]">{item.sku}</p>
+                  </div>
+                  <span className={`text-[13px] font-extrabold ${item.left === 0 ? 'text-[#8A1A1A]' : 'text-[#C07B5A]'}`}>
+                    {item.left}
+                  </span>
                 </div>
-                <span className="text-[13px] font-extrabold text-[#C07B5A]">{item.left}</span>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-[12px] border border-dashed border-[#D5C9BA] bg-[#FAF6F1] px-5 py-8 text-center">
+              <p className="text-[13px] text-[#B5A090]">Düşük stoklu ürün bulunmuyor.</p>
+            </div>
+          )}
         </div>
       </div>
 
