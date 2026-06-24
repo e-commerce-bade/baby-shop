@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { useAuth } from '@/components/auth/AuthProvider'
 
 const registerSchema = z
   .object({
@@ -40,6 +41,7 @@ export default function AccountRegisterPage() {
 function RegisterLayout() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const { refresh } = useAuth()
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [showPassword, setShowPassword] = useState(false)
   const nextPath = searchParams.get('next') || '/account'
@@ -80,6 +82,7 @@ function RegisterLayout() {
         throw new Error(payload?.message ?? 'Hesap oluşturulamadı.')
       }
 
+      await refresh()
       router.replace(nextPath.startsWith('/') ? nextPath : '/account')
       router.refresh()
     } catch (error) {

@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { useAuth } from '@/components/auth/AuthProvider'
 
 declare global {
   interface Window {
@@ -54,6 +55,7 @@ export default function AccountLoginPage() {
 function LoginLayout() {
   const router      = useRouter()
   const searchParams = useSearchParams()
+  const { refresh } = useAuth()
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [showPassword, setShowPassword] = useState(false)
   const nextPath = searchParams.get('next') || '/account'
@@ -75,6 +77,7 @@ function LoginLayout() {
       })
       const payload = await res.json().catch(() => null)
       if (!res.ok) throw new Error(payload?.message ?? 'Giriş yapılamadı.')
+      await refresh()
       if (payload?.role === 'ADMIN') {
         router.replace('/admin')
       } else {
@@ -101,6 +104,7 @@ function LoginLayout() {
         })
         const payload = await res.json().catch(() => null)
         if (!res.ok) throw new Error(payload?.message ?? 'Google ile giriş yapılamadı.')
+        await refresh()
         if (payload?.role === 'ADMIN') {
           router.replace('/admin')
         } else {
@@ -140,7 +144,7 @@ function LoginLayout() {
     script.defer = true
     script.onload = init
     document.body.appendChild(script)
-  }, [router, nextPath])
+  }, [router, nextPath, refresh])
 
   return (
     <div className="min-h-[70vh] bg-cream-3 px-[38px] py-12 max-[680px]:px-4 max-[680px]:py-8">

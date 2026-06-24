@@ -2,69 +2,33 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { usePathname, useRouter } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { useCartStore } from '@/store/cartStore'
 import { favoriteCount, useFavoriteStore } from '@/store/favoriteStore'
+import { useAuth } from '@/components/auth/AuthProvider'
 import CartBadge from '@/components/cart/CartBadge'
 import CartDrawer from '@/components/cart/CartDrawer'
-
-interface CustomerProfile {
-  email: string
-  firstName: string | null
-  lastName: string | null
-  roles?: string[]
-}
 
 export default function Header() {
   const openDrawer = useCartStore((state) => state.openDrawer)
   const favoritesCount = useFavoriteStore(favoriteCount)
   const clearFavorites = useFavoriteStore((state) => state.clearFavorites)
+  const { status, profile, reset } = useAuth()
   const router     = useRouter()
-  const pathname = usePathname()
   const [query, setQuery] = useState('')
-  const [profile, setProfile] = useState<CustomerProfile | null>(null)
-  const [authChecked, setAuthChecked] = useState(false)
   const [accountMenuOpen, setAccountMenuOpen] = useState(false)
+  const authChecked = status !== 'loading'
 
+  // Oturum durumuna gore favorileri yukle/temizle (badge icin).
   useEffect(() => {
-    let active = true
-
-    async function loadProfile() {
-      try {
-        const response = await fetch('/api/account/me', {
-          cache: 'no-store',
-          credentials: 'same-origin',
-          headers: { Accept: 'application/json' },
-        })
-
-        if (!active) return
-
-        if (response.ok) {
-          setProfile(await response.json())
-          // Badge icin favorileri yukle (oturum basina bir kez).
-          if (!useFavoriteStore.getState().hasLoaded) {
-            void useFavoriteStore.getState().loadFavorites()
-          }
-          return
-        }
-
-        setProfile(null)
-        if (response.status === 401) {
-          clearFavorites()
-        }
-      } catch {
-        if (active) setProfile(null)
-      } finally {
-        if (active) setAuthChecked(true)
+    if (status === 'authenticated') {
+      if (!useFavoriteStore.getState().hasLoaded) {
+        void useFavoriteStore.getState().loadFavorites()
       }
+    } else if (status === 'unauthenticated') {
+      clearFavorites()
     }
-
-    void loadProfile()
-
-    return () => {
-      active = false
-    }
-  }, [clearFavorites, pathname])
+  }, [status, clearFavorites])
 
   useEffect(() => {
     if (!accountMenuOpen) return
@@ -86,7 +50,7 @@ export default function Header() {
 
   async function handleLogout() {
     await fetch('/api/auth/logout', { method: 'POST' })
-    setProfile(null)
+    reset()
     clearFavorites()
     setAccountMenuOpen(false)
     router.push('/')
