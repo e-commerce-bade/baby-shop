@@ -20,6 +20,7 @@ import com.babyshop.order.dto.OrderStatusUpdateRequest;
 import com.babyshop.payment.Payment;
 import com.babyshop.payment.PaymentRepository;
 import com.babyshop.product.ProductVariant;
+import com.babyshop.settings.StoreSettingService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -48,6 +49,7 @@ public class OrderService {
     private final UserAccountRepository userAccountRepository;
     private final CustomerAddressRepository customerAddressRepository;
     private final PaymentRepository paymentRepository;
+    private final StoreSettingService storeSettingService;
 
     public List<OrderResponse> getAllOrders() {
         return orderRepository.findAllByOrderByCreatedAtDesc().stream()
@@ -185,7 +187,6 @@ public class OrderService {
 
         List<CartItem> cartItems = cart.getItems();
         String currency = validateCartCurrencies(cartItems);
-        BigDecimal shippingAmount = BigDecimal.ZERO;
         BigDecimal discountAmount = BigDecimal.ZERO;
         BigDecimal subtotalAmount = BigDecimal.ZERO;
 
@@ -206,7 +207,6 @@ public class OrderService {
         order.setShippingCountry(shippingDetails.address().country());
         order.setNotes(normalize(request.notes()));
         order.setCurrency(currency);
-        order.setShippingAmount(shippingAmount);
         order.setDiscountAmount(discountAmount);
 
         for (CartItem cartItem : cartItems) {
@@ -230,6 +230,9 @@ public class OrderService {
             order.getItems().add(orderItem);
         }
 
+        // Kargo ücreti ara toplam belli olduktan sonra hesaplanır (eşik üstü ücretsiz).
+        BigDecimal shippingAmount = storeSettingService.calculateShipping(subtotalAmount);
+        order.setShippingAmount(shippingAmount);
         order.setSubtotalAmount(subtotalAmount);
         order.setTotalAmount(subtotalAmount.add(shippingAmount).subtract(discountAmount));
 

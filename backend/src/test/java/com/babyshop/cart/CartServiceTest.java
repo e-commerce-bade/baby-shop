@@ -9,6 +9,8 @@ import com.babyshop.customer.CustomerAddressRepository;
 import com.babyshop.product.Product;
 import com.babyshop.product.ProductVariant;
 import com.babyshop.product.ProductVariantRepository;
+import com.babyshop.settings.StoreSettingService;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -23,6 +25,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
@@ -43,8 +46,27 @@ class CartServiceTest {
     @Mock
     private CustomerAddressRepository customerAddressRepository;
 
+    @Mock
+    private StoreSettingService storeSettingService;
+
     @InjectMocks
     private CartService cartService;
+
+    private static final BigDecimal FREE_SHIPPING_THRESHOLD = new BigDecimal("1500.00");
+    private static final BigDecimal SHIPPING_FEE = new BigDecimal("49.90");
+
+    @BeforeEach
+    void stubStoreSettings() {
+        // Gerçek StoreSettingService davranışını yansıt: eşik üstü/boş sepet ücretsiz, aksi halde sabit ücret.
+        lenient().when(storeSettingService.getFreeShippingThreshold()).thenReturn(FREE_SHIPPING_THRESHOLD);
+        lenient().when(storeSettingService.calculateShipping(any())).thenAnswer(invocation -> {
+            BigDecimal subtotal = invocation.getArgument(0);
+            if (subtotal == null || subtotal.signum() <= 0) {
+                return BigDecimal.ZERO;
+            }
+            return subtotal.compareTo(FREE_SHIPPING_THRESHOLD) >= 0 ? BigDecimal.ZERO : SHIPPING_FEE;
+        });
+    }
 
     @Test
     void shouldCreateEmptyCartWhenMissing() {
@@ -79,7 +101,9 @@ class CartServiceTest {
         var response = cartService.getCheckoutSummary("session-1");
 
         assertThat(response.readyForCheckout()).isTrue();
-        assertThat(response.totalAmount()).isEqualByComparingTo("998.00");
+        // 998.00 ara toplam + 49.90 kargo (eşik altı) = 1047.90
+        assertThat(response.shippingAmount()).isEqualByComparingTo("49.90");
+        assertThat(response.totalAmount()).isEqualByComparingTo("1047.90");
         assertThat(response.itemCount()).isEqualTo(1);
         assertThat(response.freeShippingThreshold()).isEqualByComparingTo("1500.00");
         assertThat(response.remainingAmountForFreeShipping()).isEqualByComparingTo("502.00");

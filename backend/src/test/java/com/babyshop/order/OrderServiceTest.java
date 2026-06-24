@@ -16,6 +16,8 @@ import com.babyshop.payment.Payment;
 import com.babyshop.payment.PaymentRepository;
 import com.babyshop.product.Product;
 import com.babyshop.product.ProductVariant;
+import com.babyshop.settings.StoreSettingService;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -35,6 +37,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
@@ -55,8 +58,26 @@ class OrderServiceTest {
     @Mock
     private PaymentRepository paymentRepository;
 
+    @Mock
+    private StoreSettingService storeSettingService;
+
     @InjectMocks
     private OrderService orderService;
+
+    private static final BigDecimal FREE_SHIPPING_THRESHOLD = new BigDecimal("1500.00");
+    private static final BigDecimal SHIPPING_FEE = new BigDecimal("49.90");
+
+    @BeforeEach
+    void stubStoreSettings() {
+        // Gerçek davranış: eşik üstü/boş sepet ücretsiz, aksi halde sabit kargo ücreti.
+        lenient().when(storeSettingService.calculateShipping(any())).thenAnswer(invocation -> {
+            BigDecimal subtotal = invocation.getArgument(0);
+            if (subtotal == null || subtotal.signum() <= 0) {
+                return BigDecimal.ZERO;
+            }
+            return subtotal.compareTo(FREE_SHIPPING_THRESHOLD) >= 0 ? BigDecimal.ZERO : SHIPPING_FEE;
+        });
+    }
 
     @Test
     void shouldReturnAllOrders() {
@@ -271,7 +292,9 @@ class OrderServiceTest {
         var response = orderService.createOrder(request, null);
 
         assertThat(response.status()).isEqualTo("PENDING_PAYMENT");
-        assertThat(response.totalAmount()).isEqualByComparingTo("998.00");
+        // 998.00 ara toplam + 49.90 kargo (eşik altı) = 1047.90
+        assertThat(response.shippingAmount()).isEqualByComparingTo("49.90");
+        assertThat(response.totalAmount()).isEqualByComparingTo("1047.90");
         assertThat(response.createdAt()).isNull();
         assertThat(response.payment()).isNull();
         // Stok ve sepet, siparis aninda degil odeme basariyla tamamlaninca degisir.

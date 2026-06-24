@@ -7,6 +7,7 @@ import FeaturesPanel from '@/components/product/detail/FeaturesPanel'
 import RelatedProducts from '@/components/product/detail/RelatedProducts'
 import MobileStickyBar from '@/components/product/detail/MobileStickyBar'
 import { fetchProductBySlug, fetchProducts } from '@/lib/api/catalog'
+import { formatFreeShippingThreshold } from '@/lib/shipping'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -85,7 +86,7 @@ export default async function ProductDetailPage({
       id: 'shipping',
       title: 'Kargo ve İade',
       content:
-        '750 TL üzeri siparişlerde ücretsiz kargo · 1-2 iş günü içinde kargoya verilir · 30 gün içinde ücretsiz iade · Orijinal etiketleri sökülmemiş olmalıdır',
+        `${formatFreeShippingThreshold()} üzeri siparişlerde ücretsiz kargo · 1-2 iş günü içinde kargoya verilir · 30 gün içinde ücretsiz iade · Orijinal etiketleri sökülmemiş olmalıdır`,
     },
   ]
 

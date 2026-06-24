@@ -1,14 +1,18 @@
-const ITEMS = [
-  {
-    icon: (
-      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
-        <rect x="1" y="3" width="15" height="13" rx="2" />
-        <path d="M16 8h4l3 4v4h-7V8z" />
-        <circle cx="5.5" cy="18.5" r="2.5" /><circle cx="18.5" cy="18.5" r="2.5" />
-      </svg>
-    ),
-    label: '₺1.500 üzeri ücretsiz kargo',
-  },
+'use client'
+
+import { useCartStore } from '@/store/cartStore'
+import { formatPrice } from '@/lib/utils'
+import { FREE_SHIPPING_THRESHOLD } from '@/lib/shipping'
+
+const SHIPPING_ICON = (
+  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+    <rect x="1" y="3" width="15" height="13" rx="2" />
+    <path d="M16 8h4l3 4v4h-7V8z" />
+    <circle cx="5.5" cy="18.5" r="2.5" /><circle cx="18.5" cy="18.5" r="2.5" />
+  </svg>
+)
+
+const STATIC_ITEMS = [
   {
     icon: (
       <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
@@ -35,10 +39,22 @@ interface Props {
 }
 
 export default function CartTrustStrip({ variant = 'strip' }: Props) {
+  // Eşik backend'den (cart özeti) gelir; yoksa yerel varsayılana düş.
+  const summary = useCartStore((s) => s.checkoutSummary)
+  const threshold = summary?.freeShippingThreshold != null
+    ? Number(summary.freeShippingThreshold)
+    : FREE_SHIPPING_THRESHOLD
+  const currency = summary?.currency ?? 'TRY'
+
+  const items = [
+    { icon: SHIPPING_ICON, label: `${formatPrice(threshold, currency)} üzeri ücretsiz kargo` },
+    ...STATIC_ITEMS,
+  ]
+
   if (variant === 'row') {
     return (
       <div className="flex justify-around pt-3 border-t border-line">
-        {ITEMS.map((item) => (
+        {items.map((item) => (
           <div key={item.label} className="flex flex-col items-center gap-1 text-center">
             <span className="text-muted">{item.icon}</span>
             <span className="text-[10px] font-semibold leading-tight text-muted max-w-[64px]">
@@ -52,7 +68,7 @@ export default function CartTrustStrip({ variant = 'strip' }: Props) {
 
   return (
     <div className="grid grid-cols-3 divide-x divide-line rounded-panel border border-line bg-cream-3">
-      {ITEMS.map((item) => (
+      {items.map((item) => (
         <div
           key={item.label}
           className="flex flex-col items-center gap-1.5 px-3 py-3.5 text-center"

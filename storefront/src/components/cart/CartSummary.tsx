@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useCartStore, cartSubtotal } from '@/store/cartStore'
 import { formatPrice } from '@/lib/utils'
+import { FREE_SHIPPING_THRESHOLD, DEFAULT_SHIPPING_FEE } from '@/lib/shipping'
 
 function toNum(v: number | string | null | undefined): number {
   if (v == null) return 0
@@ -29,7 +30,9 @@ export default function CartSummary({ onCheckout }: Props) {
   // Backend verisi hazırsa öncelikli, yoksa yerel hesap (yükleniyor sırasında fallback)
   const sub      = summary ? toNum(summary.subtotal)      : localSub
   const cur      = summary?.currency ?? currency
-  const shipping = summary ? toNum(summary.shippingAmount) : (localSub >= 1500 ? 0 : 99)
+  const shipping = summary
+    ? toNum(summary.shippingAmount)
+    : (localSub === 0 || localSub >= FREE_SHIPPING_THRESHOLD ? 0 : DEFAULT_SHIPPING_FEE)
   const discount = summary ? toNum(summary.discountAmount) : 0
   const total    = summary ? toNum(summary.totalAmount)   : sub + shipping - discount
   const isFree   = shipping === 0

@@ -51,6 +51,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/v1/categories/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/products/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/filter-settings").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/store-settings").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/campaigns").permitAll()
                         .requestMatchers("/api/v1/carts/**").permitAll()
                         // Misafir checkout: siparis olusturma anonim olabilir, ancak siparis detayini

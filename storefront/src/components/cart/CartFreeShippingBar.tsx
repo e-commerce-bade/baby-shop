@@ -2,6 +2,7 @@
 
 import { useCartStore, cartSubtotal } from '@/store/cartStore'
 import { formatPrice } from '@/lib/utils'
+import { FREE_SHIPPING_THRESHOLD } from '@/lib/shipping'
 
 function toNum(v: number | string | null | undefined): number {
   if (v == null) return 0
@@ -18,7 +19,7 @@ export default function CartFreeShippingBar({ variant = 'bar' }: Props) {
   const localSub  = useCartStore(cartSubtotal)
 
   // Backend verisi hazırsa ondan, değilse yerel subtotal'dan hesapla (geçici fallback)
-  const LOCAL_THRESHOLD = 1500
+  const LOCAL_THRESHOLD = FREE_SHIPPING_THRESHOLD
   const isFree      = summary ? summary.eligibleForFreeShipping : localSub >= LOCAL_THRESHOLD
   const threshold   = summary ? toNum(summary.freeShippingThreshold)           : LOCAL_THRESHOLD
   const remaining   = summary ? toNum(summary.remainingAmountForFreeShipping)  : Math.max(0, LOCAL_THRESHOLD - localSub)

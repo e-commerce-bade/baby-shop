@@ -22,6 +22,13 @@ interface AdminUser {
   createdAt: string | null
 }
 
+interface StoreSettings {
+  freeShippingThreshold: number | string
+  shippingFee: number | string
+  currency: string
+  updatedAt: string | null
+}
+
 const emptyForm = { email: '', password: '', firstName: '', lastName: '', phoneNumber: '' }
 
 async function readApiError(res: Response, fallback: string) {
@@ -47,6 +54,58 @@ export default function AdminSettingsPage() {
   const [creating, setCreating] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
   const [createOk, setCreateOk] = useState(false)
+
+  const [shippingThreshold, setShippingThreshold] = useState('')
+  const [shippingFee, setShippingFee] = useState('')
+  const [shippingSaving, setShippingSaving] = useState(false)
+  const [shippingError, setShippingError] = useState<string | null>(null)
+  const [shippingOk, setShippingOk] = useState(false)
+
+  async function loadShippingSettings() {
+    const res = await fetch('/api/admin/store-settings', {
+      cache: 'no-store',
+      headers: { Accept: 'application/json' },
+    })
+    if (!res.ok) throw new Error(await readApiError(res, 'Kargo ayarları yüklenemedi.'))
+    const data = (await res.json()) as StoreSettings
+    setShippingThreshold(String(data.freeShippingThreshold))
+    setShippingFee(String(data.shippingFee))
+  }
+
+  async function saveShippingSettings(e: React.FormEvent) {
+    e.preventDefault()
+    setShippingError(null)
+    setShippingOk(false)
+
+    const threshold = Number(shippingThreshold.replace(',', '.'))
+    const fee = Number(shippingFee.replace(',', '.'))
+    if (!Number.isFinite(threshold) || threshold < 0) {
+      setShippingError('Ücretsiz kargo eşiği sıfır veya daha büyük bir sayı olmalı.')
+      return
+    }
+    if (!Number.isFinite(fee) || fee < 0) {
+      setShippingError('Kargo ücreti sıfır veya daha büyük bir sayı olmalı.')
+      return
+    }
+
+    setShippingSaving(true)
+    try {
+      const res = await fetch('/api/admin/store-settings', {
+        method: 'PUT',
+        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ freeShippingThreshold: threshold, shippingFee: fee }),
+      })
+      if (!res.ok) throw new Error(await readApiError(res, 'Kargo ayarları kaydedilemedi.'))
+      const data = (await res.json()) as StoreSettings
+      setShippingThreshold(String(data.freeShippingThreshold))
+      setShippingFee(String(data.shippingFee))
+      setShippingOk(true)
+    } catch (err) {
+      setShippingError(err instanceof Error ? err.message : 'Kargo ayarları kaydedilirken hata oluştu.')
+    } finally {
+      setShippingSaving(false)
+    }
+  }
 
   async function loadUsers() {
     const res = await fetch('/api/admin/users', {
@@ -83,7 +142,7 @@ export default function AdminSettingsPage() {
         }
         if (!active) return
         setProfile(nextProfile)
-        await loadUsers()
+        await Promise.all([loadUsers(), loadShippingSettings()])
       } catch (e) {
         if (!active) return
         setError(e instanceof Error ? e.message : 'Ayarlar yüklenirken hata oluştu.')
@@ -190,6 +249,59 @@ export default function AdminSettingsPage() {
       {error ? (
         <div className="mb-4 rounded-[10px] bg-[#FEEAEA] px-4 py-3 text-[13px] text-[#8A1A1A]">{error}</div>
       ) : null}
+
+      {/* Kargo ayarları */}
+      <div className="mb-4 rounded-[16px] border border-[#ECE3D6] bg-white p-5">
+        <h2 className="text-[15px] font-bold text-[#3D2B1F]">Kargo Ayarları</h2>
+        <p className="mt-0.5 mb-4 text-[12px] text-[#B5A090]">
+          Ücretsiz kargo eşiği ve eşik altı sabit kargo ücreti. Sepet ve siparişlerde bu değerler kullanılır.
+        </p>
+
+        <form onSubmit={(e) => void saveShippingSettings(e)} className="flex flex-wrap items-end gap-4">
+          <label className="block">
+            <span className="mb-1.5 block text-[12px] font-bold text-[#5B4839]">Ücretsiz Kargo Eşiği (₺)</span>
+            <input
+              type="number"
+              min={0}
+              step="0.01"
+              required
+              value={shippingThreshold}
+              onChange={(e) => setShippingThreshold(e.target.value)}
+              className={`${inputCls} w-44`}
+            />
+          </label>
+          <label className="block">
+            <span className="mb-1.5 block text-[12px] font-bold text-[#5B4839]">Kargo Ücreti (₺)</span>
+            <input
+              type="number"
+              min={0}
+              step="0.01"
+              required
+              value={shippingFee}
+              onChange={(e) => setShippingFee(e.target.value)}
+              className={`${inputCls} w-44`}
+            />
+          </label>
+          <button
+            type="submit"
+            disabled={shippingSaving}
+            className="rounded-[10px] bg-[#5B4839] px-5 py-2.5 text-[13px] font-bold text-white transition-colors hover:bg-[#4A3A2E] disabled:opacity-60"
+          >
+            {shippingSaving ? 'Kaydediliyor...' : 'Kaydet'}
+          </button>
+        </form>
+
+        <p className="mt-2.5 text-[11.5px] text-[#B5A090]">
+          Eşik ve üzeri siparişlerde kargo ücretsizdir; altında {shippingFee ? `₺${shippingFee}` : 'sabit ücret'} uygulanır.
+        </p>
+
+        {shippingError ? (
+          <p className="mt-3 rounded-[8px] bg-[#FEEAEA] px-3 py-2 text-[12px] text-[#8A1A1A]">{shippingError}</p>
+        ) : null}
+        {shippingOk ? (
+          <p className="mt-3 rounded-[8px] bg-[#EDF7F1] px-3 py-2 text-[12px] text-[#1A6640]">Kargo ayarları güncellendi.</p>
+        ) : null}
+      </div>
 
       <div className="grid grid-cols-[1.4fr_1fr] gap-4 max-[860px]:grid-cols-1">
         {/* Admin users list */}

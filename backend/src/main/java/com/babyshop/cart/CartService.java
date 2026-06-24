@@ -14,6 +14,7 @@ import com.babyshop.product.Product;
 import com.babyshop.product.ProductImage;
 import com.babyshop.product.ProductVariant;
 import com.babyshop.product.ProductVariantRepository;
+import com.babyshop.settings.StoreSettingService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,7 +30,6 @@ import java.util.Optional;
 public class CartService {
 
     private static final String ACTIVE_STATUS = "ACTIVE";
-    private static final BigDecimal FREE_SHIPPING_THRESHOLD = new BigDecimal("1500.00");
     private static final String CART_EMPTY_REASON = "CART_EMPTY";
 
     private final CartRepository cartRepository;
@@ -37,6 +37,7 @@ public class CartService {
     private final ProductVariantRepository productVariantRepository;
     private final UserAccountRepository userAccountRepository;
     private final CustomerAddressRepository customerAddressRepository;
+    private final StoreSettingService storeSettingService;
 
     public CartResponse getCart(String sessionId) {
         return getCart(sessionId, null);
@@ -365,12 +366,13 @@ public class CartService {
             boolean readyForCheckout,
             String checkoutBlockedReason
     ) {
-        BigDecimal shippingAmount = BigDecimal.ZERO;
+        BigDecimal freeShippingThreshold = storeSettingService.getFreeShippingThreshold();
+        BigDecimal shippingAmount = storeSettingService.calculateShipping(cartResponse.subtotal());
         BigDecimal discountAmount = BigDecimal.ZERO;
         BigDecimal totalAmount = cartResponse.subtotal()
                 .add(shippingAmount)
                 .subtract(discountAmount);
-        BigDecimal remainingAmountForFreeShipping = FREE_SHIPPING_THRESHOLD
+        BigDecimal remainingAmountForFreeShipping = freeShippingThreshold
                 .subtract(cartResponse.subtotal())
                 .max(BigDecimal.ZERO);
         boolean eligibleForFreeShipping = remainingAmountForFreeShipping.compareTo(BigDecimal.ZERO) == 0;
@@ -386,7 +388,7 @@ public class CartService {
                 discountAmount,
                 totalAmount,
                 cartResponse.currency(),
-                FREE_SHIPPING_THRESHOLD,
+                freeShippingThreshold,
                 remainingAmountForFreeShipping,
                 eligibleForFreeShipping,
                 readyForCheckout,
