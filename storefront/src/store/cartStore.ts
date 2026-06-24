@@ -6,6 +6,10 @@ import type { CartLineItem, CartState, CheckoutSummary } from '@/types/cart'
 
 let latestCartRequestToken = 0
 
+// Adet degisikliklerinde ardisik +/- tiklamalarini urun basina tek PATCH'te birlestirmek icin.
+const quantitySyncTimers = new Map<string, ReturnType<typeof setTimeout>>()
+const QUANTITY_SYNC_DELAY_MS = 400
+
 function newSessionId() {
   // sessionId, anonim sepeti adresleyen bir tasiyici (bearer) yetkidir; yuksek entropi sart.
   if (typeof crypto !== 'undefined') {
@@ -197,30 +201,52 @@ export const useCartStore = create<CartState>()(
         }
       },
 
-      updateQuantity: async (id, quantity) => {
-        const requestToken = beginCartRequest()
-        set({ isSyncing: true })
+      updateQuantity: (id, quantity) => {
+        const nextQuantity = Math.max(1, Math.round(quantity))
 
-        try {
-          const cart = await requestCart(`/api/cart/${get().sessionId}/items/${id}`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ quantity }),
-          })
-          if (!isLatestCartRequest(requestToken)) return
+        // 1) Optimistik: UI'i (adet + satir/ara toplam) aninda guncelle, satiri kilitleme.
+        //    Token'i hemen artir; boylece halen ucan eski bir yanit optimistik durumu ezmez.
+        beginCartRequest()
+        set((state) => ({
+          items: state.items.map((item) =>
+            item.id === id ? { ...item, quantity: nextQuantity } : item,
+          ),
+        }))
 
-          set({ items: cart.items.map(mapCartItem) })
+        // 2) Debounce: ayni urun icin hizli tiklamalari tek PATCH'te birlestir.
+        const pending = quantitySyncTimers.get(id)
+        if (pending) clearTimeout(pending)
 
-          const summary = await fetchCheckoutSummary(get().sessionId)
-          if (!isLatestCartRequest(requestToken)) return
+        quantitySyncTimers.set(
+          id,
+          setTimeout(() => {
+            quantitySyncTimers.delete(id)
+            const targetQuantity = get().items.find((item) => item.id === id)?.quantity ?? nextQuantity
+            const requestToken = beginCartRequest()
 
-          set({ checkoutSummary: summary })
-        } catch (err) {
-          console.error('Failed to update cart quantity', err)
-        } finally {
-          if (!isLatestCartRequest(requestToken)) return
-          set({ isSyncing: false })
-        }
+            void (async () => {
+              try {
+                const cart = await requestCart(`/api/cart/${get().sessionId}/items/${id}`, {
+                  method: 'PATCH',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ quantity: targetQuantity }),
+                })
+                if (!isLatestCartRequest(requestToken)) return
+
+                set({ items: cart.items.map(mapCartItem) })
+
+                const summary = await fetchCheckoutSummary(get().sessionId)
+                if (!isLatestCartRequest(requestToken)) return
+
+                set({ checkoutSummary: summary })
+              } catch (err) {
+                console.error('Failed to update cart quantity', err)
+                // Sunucu reddederse (orn. stok yetersiz) optimistik degisikligi gercege geri al.
+                void get().hydrateCart()
+              }
+            })()
+          }, QUANTITY_SYNC_DELAY_MS),
+        )
       },
 
       clearCart: () => set({ items: [], checkoutSummary: null }),

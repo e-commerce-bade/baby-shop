@@ -9,7 +9,9 @@ export function formatPrice(
   amount: string | number,
   currency = 'TRY',
 ): string {
-  const num = typeof amount === 'string' ? parseFloat(amount) : amount
+  const parsed = typeof amount === 'string' ? parseFloat(amount) : amount
+  // Gecersiz/eksik fiyatlarda "₺NaN" gostermek yerine 0'a dus.
+  const num = Number.isFinite(parsed) ? parsed : 0
   return new Intl.NumberFormat('tr-TR', {
     style: 'currency',
     currency,

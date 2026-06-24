@@ -60,7 +60,8 @@ export interface CartState {
   refreshCheckoutSummary: () => Promise<void>
   addItem: (item: Omit<CartLineItem, 'id' | 'cartItemId'> & { quantity?: number }) => Promise<void>
   removeItem: (id: string) => Promise<void>
-  updateQuantity: (id: string, quantity: number) => Promise<void>
+  // Optimistik + debounce: UI hemen guncellenir, sunucu senkronu geciktirilir.
+  updateQuantity: (id: string, quantity: number) => void
   clearCart: () => void
   startNewCart: () => void
   openDrawer: () => void
