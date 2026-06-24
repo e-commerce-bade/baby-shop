@@ -49,6 +49,38 @@ interface BackendProductImageResponse {
   primary: boolean
 }
 
+interface BackendPageResponse<T> {
+  content: T[]
+  page: number
+  size: number
+  totalElements: number
+  totalPages: number
+  hasNext: boolean
+  hasPrevious: boolean
+}
+
+export interface ProductPage {
+  items: ProductSummary[]
+  page: number
+  size: number
+  totalElements: number
+  totalPages: number
+  hasNext: boolean
+  hasPrevious: boolean
+}
+
+export interface ProductSearchParams {
+  categorySlug?: string
+  q?: string
+  productTypes?: string
+  colors?: string
+  sizes?: string
+  price?: string
+  sort?: string
+  page?: number
+  size?: number
+}
+
 interface BackendProductSummaryResponse {
   id: number
   name: string
@@ -300,6 +332,46 @@ export async function fetchProducts(categorySlug?: string): Promise<ProductSumma
   } catch (error) {
     console.error('Failed to fetch products', error)
     return []
+  }
+}
+
+export async function fetchProductsPage(params: ProductSearchParams): Promise<ProductPage> {
+  const query = new URLSearchParams()
+  if (params.categorySlug) query.set('categorySlug', params.categorySlug)
+  if (params.q) query.set('q', params.q)
+  if (params.productTypes) query.set('productTypes', params.productTypes)
+  if (params.colors) query.set('colors', params.colors)
+  if (params.sizes) query.set('sizes', params.sizes)
+  if (params.price) query.set('price', params.price)
+  if (params.sort) query.set('sort', params.sort)
+  query.set('page', String(params.page ?? 0))
+  if (params.size) query.set('size', String(params.size))
+
+  try {
+    const result = await backendFetch<BackendPageResponse<BackendProductSummaryResponse>>(
+      `/api/v1/products/search?${query.toString()}`,
+      { cache: 'no-store' },
+    )
+    return {
+      items: result.content.map(mapSummary),
+      page: result.page,
+      size: result.size,
+      totalElements: result.totalElements,
+      totalPages: result.totalPages,
+      hasNext: result.hasNext,
+      hasPrevious: result.hasPrevious,
+    }
+  } catch (error) {
+    console.error('Failed to fetch products page', error)
+    return {
+      items: [],
+      page: params.page ?? 0,
+      size: params.size ?? 0,
+      totalElements: 0,
+      totalPages: 0,
+      hasNext: false,
+      hasPrevious: false,
+    }
   }
 }
 

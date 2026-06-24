@@ -38,6 +38,8 @@ export function useProductFilter() {
           params.set(key, value)
         }
       }
+      // Filtre degisince ilk sayfaya don (eski sayfa numarasi yeni sonuc kumesinde bos olabilir).
+      params.delete('page')
       const qs = params.toString()
       router.push(qs ? `${pathname}?${qs}` : pathname)
     },

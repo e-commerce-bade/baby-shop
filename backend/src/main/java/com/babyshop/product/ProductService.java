@@ -4,6 +4,7 @@ import com.babyshop.category.Category;
 import com.babyshop.category.CategoryRepository;
 import com.babyshop.cart.CartItemRepository;
 import com.babyshop.common.exception.DuplicateResourceException;
+import com.babyshop.common.response.PageResponse;
 import com.babyshop.product.dto.ProductDetailResponse;
 import com.babyshop.product.dto.ProductAdminRequest;
 import com.babyshop.product.dto.ProductImageResponse;
@@ -11,10 +12,15 @@ import com.babyshop.product.dto.ProductSummaryResponse;
 import com.babyshop.product.dto.ProductVariantResponse;
 import com.babyshop.common.exception.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 
@@ -34,6 +40,59 @@ public class ProductService {
 
         return products.stream()
                 .map(this::toSummaryResponse)
+                .toList();
+    }
+
+    private static final int MAX_PAGE_SIZE = 60;
+    private static final int DEFAULT_PAGE_SIZE = 12;
+
+    public PageResponse<ProductSummaryResponse> searchActiveProducts(
+            String categorySlug,
+            String query,
+            String productTypes,
+            String colors,
+            String sizes,
+            String price,
+            String sort,
+            int page,
+            int size
+    ) {
+        int safePage = Math.max(page, 0);
+        int safeSize = size <= 0 ? DEFAULT_PAGE_SIZE : Math.min(size, MAX_PAGE_SIZE);
+
+        ProductSpecifications.Criteria criteria = new ProductSpecifications.Criteria(
+                categorySlug,
+                query,
+                splitCsv(productTypes),
+                splitCsv(colors),
+                splitCsv(sizes),
+                price,
+                sort
+        );
+
+        Pageable pageable = PageRequest.of(safePage, safeSize);
+        Page<ProductSummaryResponse> result = productRepository
+                .findAll(ProductSpecifications.matching(criteria), pageable)
+                .map(this::toSummaryResponse);
+
+        return new PageResponse<>(
+                result.getContent(),
+                result.getNumber(),
+                result.getSize(),
+                result.getTotalElements(),
+                result.getTotalPages(),
+                result.hasNext(),
+                result.hasPrevious()
+        );
+    }
+
+    private List<String> splitCsv(String value) {
+        if (!hasText(value)) {
+            return List.of();
+        }
+        return Arrays.stream(value.split(","))
+                .map(String::trim)
+                .filter(part -> !part.isEmpty())
                 .toList();
     }
 

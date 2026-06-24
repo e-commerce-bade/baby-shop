@@ -5,9 +5,8 @@ import CampaignPlacement from '@/components/campaign/CampaignPlacement'
 import FilterSidebar from '@/components/product/filter/FilterSidebar'
 import FilterSidebarSkeleton from '@/components/product/filter/FilterSidebarSkeleton'
 import ProductGrid from '@/components/product/ProductGrid'
-import { fetchProducts } from '@/lib/api/catalog'
-import { filterProductsByFacets } from '@/lib/productFilters'
-import type { ProductSummary } from '@/types/product'
+import Pagination from '@/components/product/Pagination'
+import { fetchProductsPage } from '@/lib/api/catalog'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -23,35 +22,7 @@ interface SearchParams {
   sizes?: string
   price?: string
   sort?: string
-}
-
-function applyFilters(
-  products: ProductSummary[],
-  params: SearchParams,
-): ProductSummary[] {
-  let result = products
-
-  if (params.q) {
-    const q = params.q.toLowerCase()
-    result = result.filter(
-      (p) =>
-        p.name.toLowerCase().includes(q) ||
-        (p.brand?.toLowerCase().includes(q) ?? false) ||
-        (p.categoryName?.toLowerCase().includes(q) ?? false),
-    )
-  }
-
-  result = filterProductsByFacets(result, params)
-
-  if (params.sort === 'price-asc' || params.sort === 'price-desc') {
-    const direction = params.sort === 'price-asc' ? 1 : -1
-    // Girdi diziyi mutasyona ugratmamak icin kopya uzerinde sirala.
-    result = [...result].sort(
-      (a, b) => direction * (parseFloat(a.lowestPrice) - parseFloat(b.lowestPrice)),
-    )
-  }
-
-  return result
+  page?: string
 }
 
 export default async function ProductsPage({
@@ -61,7 +32,31 @@ export default async function ProductsPage({
 }) {
   const params = await searchParams
   const categorySlug = params.categorySlug ?? params.category
-  const products = applyFilters(await fetchProducts(categorySlug), params)
+  const pageIndex = Math.max(0, (parseInt(params.page ?? '1', 10) || 1) - 1)
+
+  // Filtre + siralama + sayfalama sunucuda yapilir (bkz. /api/v1/products/search).
+  const result = await fetchProductsPage({
+    categorySlug,
+    q: params.q,
+    productTypes: params.productTypes,
+    colors: params.colors,
+    sizes: params.sizes,
+    price: params.price,
+    sort: params.sort,
+    page: pageIndex,
+  })
+  const products = result.items
+
+  // Sayfalama link'lerinde korunacak filtre/siralama parametreleri (page haric).
+  const baseParams: Record<string, string | undefined> = {
+    q: params.q,
+    categorySlug,
+    productTypes: params.productTypes,
+    colors: params.colors,
+    sizes: params.sizes,
+    price: params.price,
+    sort: params.sort,
+  }
 
   const activeCount =
     (categorySlug ? 1 : 0) +
@@ -86,7 +81,7 @@ export default async function ProductsPage({
             {params.q ? `"${params.q}" için sonuçlar` : 'Tüm Ürünler'}
           </h1>
           <p className="mt-1 text-sm text-muted">
-            {products.length} ürün
+            {result.totalElements} ürün
             {activeCount > 0 && ` · ${activeCount} filtre aktif`}
           </p>
         </div>
@@ -101,7 +96,14 @@ export default async function ProductsPage({
         </Suspense>
 
         {products.length > 0 ? (
-          <ProductGrid products={products} />
+          <div>
+            <ProductGrid products={products} />
+            <Pagination
+              page={result.page}
+              totalPages={result.totalPages}
+              baseParams={baseParams}
+            />
+          </div>
         ) : (
           <div className="flex flex-col items-center justify-center py-20 text-center">
             <p className="font-serif text-xl text-brown">Ürün bulunamadı</p>

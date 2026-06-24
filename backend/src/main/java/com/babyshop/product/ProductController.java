@@ -1,5 +1,6 @@
 package com.babyshop.product;
 
+import com.babyshop.common.response.PageResponse;
 import com.babyshop.product.dto.ProductDetailResponse;
 import com.babyshop.product.dto.ProductSummaryResponse;
 import lombok.RequiredArgsConstructor;
@@ -24,6 +25,22 @@ public class ProductController {
             @RequestParam(required = false) String categorySlug
     ) {
         return ResponseEntity.ok(productService.getActiveProducts(categorySlug));
+    }
+
+    @GetMapping("/search")
+    public ResponseEntity<PageResponse<ProductSummaryResponse>> searchProducts(
+            @RequestParam(required = false) String categorySlug,
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) String productTypes,
+            @RequestParam(required = false) String colors,
+            @RequestParam(required = false) String sizes,
+            @RequestParam(required = false) String price,
+            @RequestParam(required = false) String sort,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "12") int size
+    ) {
+        return ResponseEntity.ok(productService.searchActiveProducts(
+                categorySlug, q, productTypes, colors, sizes, price, sort, page, size));
     }
 
     @GetMapping("/{slug}")
