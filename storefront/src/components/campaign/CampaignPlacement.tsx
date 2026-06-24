@@ -1,11 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import {
-  getCampaignsFromStorage,
-  type Campaign,
-  type CampaignPlacement as CampaignPlacementKey,
-} from '@/lib/mock/campaigns'
+import type { Campaign, CampaignPlacement as CampaignPlacementKey } from '@/lib/mock/campaigns'
 
 function isVisibleCampaign(campaign: Campaign, placement: CampaignPlacementKey) {
   return campaign.status === 'active' && campaign.placements.includes(placement)
@@ -19,16 +15,18 @@ export default function CampaignPlacement({
   const [campaigns, setCampaigns] = useState<Campaign[]>([])
 
   useEffect(() => {
-    setCampaigns(getCampaignsFromStorage())
-
-    function syncCampaigns(event: StorageEvent) {
-      if (event.key === 'baby-shop-admin-campaigns') {
-        setCampaigns(getCampaignsFromStorage())
-      }
+    let active = true
+    fetch('/api/campaigns', { cache: 'no-store', headers: { Accept: 'application/json' } })
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data) => {
+        if (active) setCampaigns(Array.isArray(data) ? (data as Campaign[]) : [])
+      })
+      .catch(() => {
+        if (active) setCampaigns([])
+      })
+    return () => {
+      active = false
     }
-
-    window.addEventListener('storage', syncCampaigns)
-    return () => window.removeEventListener('storage', syncCampaigns)
   }, [])
 
   const visibleCampaign = useMemo(

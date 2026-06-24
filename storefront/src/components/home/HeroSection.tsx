@@ -3,12 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
-import {
-  getCampaignsFromStorage,
-  type Campaign,
-  type HeroButtonTone,
-  type HeroTextTone,
-} from '@/lib/mock/campaigns'
+import type { Campaign, HeroButtonTone, HeroTextTone } from '@/lib/mock/campaigns'
 
 const heroTextToneClasses: Record<HeroTextTone, { title: string; body: string; eyebrow: string }> = {
   dark: { title: 'text-brown', body: 'text-brown-2', eyebrow: 'text-muted' },
@@ -151,16 +146,18 @@ export default function HeroSection() {
   const count = slides.length
 
   useEffect(() => {
-    setCampaigns(getCampaignsFromStorage())
-
-    function syncCampaigns(event: StorageEvent) {
-      if (event.key === 'baby-shop-admin-campaigns') {
-        setCampaigns(getCampaignsFromStorage())
-      }
+    let active = true
+    fetch('/api/campaigns', { cache: 'no-store', headers: { Accept: 'application/json' } })
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data) => {
+        if (active) setCampaigns(Array.isArray(data) ? (data as Campaign[]) : [])
+      })
+      .catch(() => {
+        if (active) setCampaigns([])
+      })
+    return () => {
+      active = false
     }
-
-    window.addEventListener('storage', syncCampaigns)
-    return () => window.removeEventListener('storage', syncCampaigns)
   }, [])
 
   /* 5 saniyede bir ilerle; current değişince timer sıfırlanır */

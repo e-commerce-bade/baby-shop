@@ -4,10 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import AdminShell from '@/components/admin/AdminShell'
 import {
-  getCampaignsFromStorage,
-  initialCampaigns,
   placementLabels,
-  saveCampaignsToStorage,
   type Campaign,
   type CampaignPlacement,
   type HeroBackgroundType,
@@ -16,6 +13,15 @@ import {
   type CampaignStatus,
   type CampaignType,
 } from '@/lib/mock/campaigns'
+
+// id'siz kampanya govdesi (POST/PUT icin backend CampaignAdminRequest ile eslesir).
+type CampaignPayload = Omit<Campaign, 'id'>
+
+function toPayload(campaign: Campaign | CampaignPayload): CampaignPayload {
+  const { name, code, type, value, status, audience, startsAt, endsAt, usage, limit, revenue, channels, placements, hero } =
+    campaign as Campaign
+  return { name, code, type, value, status, audience, startsAt, endsAt, usage, limit, revenue, channels, placements, hero }
+}
 
 interface AdminProfile {
   email: string
@@ -101,7 +107,7 @@ export default function AdminCampaignsPage() {
   const [profile, setProfile] = useState<AdminProfile | null>(null)
   const [loading, setLoading] = useState(true)
   const [forbidden, setForbidden] = useState(false)
-  const [campaigns, setCampaigns] = useState<Campaign[]>(initialCampaigns)
+  const [campaigns, setCampaigns] = useState<Campaign[]>([])
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | CampaignStatus>('all')
   const [drawerOpen, setDrawerOpen] = useState(false)
@@ -147,7 +153,14 @@ export default function AdminCampaignsPage() {
         }
         if (active) {
           setProfile(loadedProfile)
-          setCampaigns(getCampaignsFromStorage())
+          const campaignsRes = await fetch('/api/admin/campaigns', {
+            cache: 'no-store',
+            credentials: 'same-origin',
+            headers: { Accept: 'application/json' },
+          })
+          if (campaignsRes.ok && active) {
+            setCampaigns((await campaignsRes.json()) as Campaign[])
+          }
         }
       } finally {
         if (active) setLoading(false)
@@ -203,9 +216,20 @@ export default function AdminCampaignsPage() {
     setDraftHeroButtonTone('brand')
   }
 
-  function updateCampaigns(nextCampaigns: Campaign[]) {
-    setCampaigns(nextCampaigns)
-    saveCampaignsToStorage(nextCampaigns)
+  // Bir kampanyayi sunucuda guncelle (PUT) ve basariliysa yerel listeyi yanitla degistir.
+  async function persistCampaignUpdate(id: number, updated: Campaign) {
+    const res = await fetch(`/api/admin/campaigns/${id}`, {
+      method: 'PUT',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify(toPayload(updated)),
+    })
+    if (!res.ok) {
+      setNotice('Kampanya guncellenemedi. Lutfen tekrar deneyin.')
+      return
+    }
+    const saved = (await res.json()) as Campaign
+    setCampaigns((current) => current.map((campaign) => (campaign.id === id ? saved : campaign)))
   }
 
   function toggleDraftPlacement(placement: CampaignPlacement) {
@@ -216,14 +240,13 @@ export default function AdminCampaignsPage() {
     )
   }
 
-  function createCampaign() {
+  async function createCampaign() {
     if (!draftName.trim() || !draftValue.trim()) {
       setNotice('Kampanya adi ve indirim degeri zorunlu.')
       return
     }
 
-    const nextCampaign: Campaign = {
-      id: Date.now(),
+    const payload: CampaignPayload = {
       name: draftName.trim(),
       code: draftCode.trim().toUpperCase(),
       type: draftType,
@@ -246,37 +269,43 @@ export default function AdminCampaignsPage() {
       },
     }
 
-    updateCampaigns([nextCampaign, ...campaigns])
+    const res = await fetch('/api/admin/campaigns', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify(payload),
+    })
+    if (!res.ok) {
+      setNotice('Kampanya olusturulamadi. Lutfen tekrar deneyin.')
+      return
+    }
+
+    const created = (await res.json()) as Campaign
+    setCampaigns((current) => [created, ...current])
     setNotice('Kampanya taslagi olusturuldu. Secilen yayin alanlarinda aktif edilince musterilere gorunecek.')
     setDrawerOpen(false)
     resetDraft()
   }
 
   function toggleCampaignStatus(id: number) {
-    updateCampaigns(
-      campaigns.map((campaign) => {
-        if (campaign.id !== id) return campaign
-        return {
-          ...campaign,
-          status: campaign.status === 'active' ? 'paused' : 'active',
-        }
-      }),
-    )
+    const campaign = campaigns.find((item) => item.id === id)
+    if (!campaign) return
+    void persistCampaignUpdate(id, {
+      ...campaign,
+      status: campaign.status === 'active' ? 'paused' : 'active',
+    })
   }
 
   function toggleCampaignPlacement(id: number, placement: CampaignPlacement) {
-    updateCampaigns(
-      campaigns.map((campaign) => {
-        if (campaign.id !== id) return campaign
-        const hasPlacement = campaign.placements.includes(placement)
-        return {
-          ...campaign,
-          placements: hasPlacement
-            ? campaign.placements.filter((item) => item !== placement)
-            : [...campaign.placements, placement],
-        }
-      }),
-    )
+    const campaign = campaigns.find((item) => item.id === id)
+    if (!campaign) return
+    const hasPlacement = campaign.placements.includes(placement)
+    void persistCampaignUpdate(id, {
+      ...campaign,
+      placements: hasPlacement
+        ? campaign.placements.filter((item) => item !== placement)
+        : [...campaign.placements, placement],
+    })
   }
 
   function handleHeroImageUpload(file: File | null) {
