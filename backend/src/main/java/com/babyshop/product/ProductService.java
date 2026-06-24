@@ -102,6 +102,23 @@ public class ProductService {
                 .toList();
     }
 
+    // Verilen id sirasini koruyarak aktif urunlerin ozetlerini dondurur (favoriler vb. icin).
+    public List<ProductSummaryResponse> getActiveProductSummariesByIds(List<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return List.of();
+        }
+
+        java.util.Map<Long, Product> activeById = productRepository.findAllById(ids).stream()
+                .filter(Product::isActive)
+                .collect(java.util.stream.Collectors.toMap(Product::getId, product -> product));
+
+        return ids.stream()
+                .map(activeById::get)
+                .filter(java.util.Objects::nonNull)
+                .map(this::toSummaryResponse)
+                .toList();
+    }
+
     public ProductDetailResponse getActiveProductBySlug(String slug) {
         Product product = productRepository.findBySlugAndActiveTrue(slug)
                 .orElseThrow(() -> new ResourceNotFoundException("Product not found for slug: " + slug));

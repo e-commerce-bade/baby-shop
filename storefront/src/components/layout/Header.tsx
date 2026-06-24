@@ -41,6 +41,10 @@ export default function Header() {
 
         if (response.ok) {
           setProfile(await response.json())
+          // Badge icin favorileri yukle (oturum basina bir kez).
+          if (!useFavoriteStore.getState().hasLoaded) {
+            void useFavoriteStore.getState().loadFavorites()
+          }
           return
         }
 

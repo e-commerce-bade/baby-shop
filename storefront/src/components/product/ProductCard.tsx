@@ -38,24 +38,12 @@ export default function ProductCard({ product, badge }: Props) {
   const [gradFrom, gradTo] = PALETTES[product.id % PALETTES.length]
   const isFavorite = useFavoriteStore((state) => state.isFavorite(product.id))
   const toggleFavorite = useFavoriteStore((state) => state.toggleFavorite)
-  const clearFavorites = useFavoriteStore((state) => state.clearFavorites)
 
   async function handleFavoriteToggle() {
-    const response = await fetch('/api/account/me', {
-      cache: 'no-store',
-      credentials: 'same-origin',
-      headers: { Accept: 'application/json' },
-    })
-
-    if (response.status === 401) {
-      clearFavorites()
+    const result = await toggleFavorite(product)
+    if (result === 'unauthorized') {
       router.push(`/account/login?next=${encodeURIComponent(pathname)}`)
-      return
     }
-
-    if (!response.ok) return
-
-    toggleFavorite(product)
   }
 
   return (

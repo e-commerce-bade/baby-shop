@@ -1,52 +1,23 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import Link from 'next/link'
 import ProductGrid from '@/components/product/ProductGrid'
 import { useFavoriteStore } from '@/store/favoriteStore'
 
 export default function FavoritesPage() {
   const items = useFavoriteStore((state) => state.items)
-  const clearFavorites = useFavoriteStore((state) => state.clearFavorites)
-  const [authChecked, setAuthChecked] = useState(false)
-  const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const hasLoaded = useFavoriteStore((state) => state.hasLoaded)
+  const isAuthenticated = useFavoriteStore((state) => state.isAuthenticated)
+  const loadFavorites = useFavoriteStore((state) => state.loadFavorites)
+  const removeAllFavorites = useFavoriteStore((state) => state.removeAllFavorites)
 
+  // Favoriler sunucudan (hesaba bagli) yuklenir.
   useEffect(() => {
-    let active = true
+    void loadFavorites()
+  }, [loadFavorites])
 
-    async function checkAuth() {
-      try {
-        const response = await fetch('/api/account/me', {
-          cache: 'no-store',
-          credentials: 'same-origin',
-          headers: { Accept: 'application/json' },
-        })
-
-        if (!active) return
-
-        if (response.ok) {
-          setIsAuthenticated(true)
-          return
-        }
-
-        if (response.status === 401) {
-          clearFavorites()
-        }
-        setIsAuthenticated(false)
-      } catch {
-        if (!active) return
-        setIsAuthenticated(false)
-      } finally {
-        if (active) setAuthChecked(true)
-      }
-    }
-
-    void checkAuth()
-
-    return () => {
-      active = false
-    }
-  }, [clearFavorites])
+  const authChecked = hasLoaded
 
   return (
     <div className="min-h-[70vh] bg-cream-3 px-[38px] py-8 max-[680px]:px-5">
@@ -72,10 +43,10 @@ export default function FavoritesPage() {
             </p>
           </div>
 
-          {items.length > 0 ? (
+          {isAuthenticated && items.length > 0 ? (
             <button
               type="button"
-              onClick={clearFavorites}
+              onClick={() => void removeAllFavorites()}
               className="rounded-[12px] border border-line bg-white px-5 py-2.5 text-[13px] font-bold text-brown-2 transition-colors hover:border-rose-soft hover:bg-rose-tint hover:text-rose-dk"
             >
               Tümünü Temizle
