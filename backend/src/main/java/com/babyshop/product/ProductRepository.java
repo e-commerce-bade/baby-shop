@@ -18,6 +18,8 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
 
     boolean existsBySlugAndIdNot(String slug, Long id);
 
+    long countByActiveTrue();
+
     @EntityGraph(attributePaths = {"category", "variants"})
     List<Product> findAllByActiveTrueAndCategorySlugOrderByCreatedAtDesc(String categorySlug);
 
