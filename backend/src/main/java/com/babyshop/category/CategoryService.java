@@ -5,6 +5,7 @@ import com.babyshop.category.dto.CategoryResponse;
 import com.babyshop.common.exception.DuplicateResourceException;
 import com.babyshop.common.exception.InvalidRequestException;
 import com.babyshop.common.exception.ResourceNotFoundException;
+import com.babyshop.product.ProductRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,6 +18,7 @@ import java.util.List;
 public class CategoryService {
 
     private final CategoryRepository categoryRepository;
+    private final ProductRepository productRepository;
 
     public List<CategoryResponse> getActiveCategories() {
         return categoryRepository.findAllByActiveTrueOrderBySortOrderAscNameAsc()
@@ -120,6 +122,7 @@ public class CategoryService {
 
     private CategoryResponse toResponse(Category category) {
         Long parentId = category.getParent() != null ? category.getParent().getId() : null;
+        long productCount = productRepository.countByCategoryId(category.getId());
 
         return new CategoryResponse(
                 category.getId(),
@@ -128,7 +131,9 @@ public class CategoryService {
                 category.getSlug(),
                 category.getDescription(),
                 category.isActive(),
-                category.getSortOrder()
+                category.getSortOrder(),
+                productCount,
+                category.getUpdatedAt()
         );
     }
 }

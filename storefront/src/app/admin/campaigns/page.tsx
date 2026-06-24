@@ -246,11 +246,24 @@ export default function AdminCampaignsPage() {
       return
     }
 
+    // Tarih araligi: iki tarih de doluysa bitis baslangictan once olamaz.
+    // date input 'YYYY-MM-DD' verir; sozluksel karsilastirma kronolojik siralamayla ayni.
+    if (draftStartsAt && draftEndsAt && draftEndsAt < draftStartsAt) {
+      setNotice('Bitis tarihi baslangic tarihinden once olamaz.')
+      return
+    }
+
+    // Yuzde indirimde sade sayi girildiyse ("20") gosterimi "%20" olarak normalize et.
+    let normalizedValue = draftValue.trim()
+    if (draftType === 'percentage' && /^\d+([.,]\d+)?$/.test(normalizedValue)) {
+      normalizedValue = `%${normalizedValue}`
+    }
+
     const payload: CampaignPayload = {
       name: draftName.trim(),
       code: draftCode.trim().toUpperCase(),
       type: draftType,
-      value: draftValue.trim(),
+      value: normalizedValue,
       status: draftStartsAt ? 'scheduled' : 'paused',
       audience: draftAudience.trim() || 'Tum musteriler',
       startsAt: draftStartsAt || '-',

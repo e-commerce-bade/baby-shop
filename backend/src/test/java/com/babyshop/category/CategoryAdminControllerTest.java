@@ -46,8 +46,8 @@ class CategoryAdminControllerTest {
     @Test
     void shouldReturnAllCategoriesForAdmin() throws Exception {
         given(categoryService.getAllCategoriesForAdmin()).willReturn(List.of(
-                new CategoryResponse(1L, null, "Newborn", "newborn", "Newborn clothing", true, 1),
-                new CategoryResponse(2L, 1L, "Dresses", "dresses", "Baby girl dresses", false, 2)
+                new CategoryResponse(1L, null, "Newborn", "newborn", "Newborn clothing", true, 1, 0L, null),
+                new CategoryResponse(2L, 1L, "Dresses", "dresses", "Baby girl dresses", false, 2, 0L, null)
         ));
 
         mockMvc.perform(get("/api/v1/admin/categories"))
@@ -59,7 +59,7 @@ class CategoryAdminControllerTest {
     void shouldCreateCategory() throws Exception {
         CategoryAdminRequest request = new CategoryAdminRequest(null, "Outerwear", "outerwear", "Outerwear", true, 3);
         given(categoryService.createCategory(any(CategoryAdminRequest.class)))
-                .willReturn(new CategoryResponse(3L, null, "Outerwear", "outerwear", "Outerwear", true, 3));
+                .willReturn(new CategoryResponse(3L, null, "Outerwear", "outerwear", "Outerwear", true, 3, 0L, null));
 
         mockMvc.perform(post("/api/v1/admin/categories")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -73,7 +73,7 @@ class CategoryAdminControllerTest {
     void shouldUpdateCategory() throws Exception {
         CategoryAdminRequest request = new CategoryAdminRequest(1L, "Party Dresses", "party-dresses", "Updated", true, 4);
         given(categoryService.updateCategory(any(Long.class), any(CategoryAdminRequest.class)))
-                .willReturn(new CategoryResponse(2L, 1L, "Party Dresses", "party-dresses", "Updated", true, 4));
+                .willReturn(new CategoryResponse(2L, 1L, "Party Dresses", "party-dresses", "Updated", true, 4, 0L, null));
 
         mockMvc.perform(put("/api/v1/admin/categories/2")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -85,7 +85,7 @@ class CategoryAdminControllerTest {
     @Test
     void shouldUpdateCategoryActiveStatus() throws Exception {
         given(categoryService.updateCategoryActiveStatus(2L, false))
-                .willReturn(new CategoryResponse(2L, 1L, "Dresses", "dresses", "Baby girl dresses", false, 2));
+                .willReturn(new CategoryResponse(2L, 1L, "Dresses", "dresses", "Baby girl dresses", false, 2, 0L, null));
 
         mockMvc.perform(patch("/api/v1/admin/categories/2/active")
                         .contentType(MediaType.APPLICATION_JSON)

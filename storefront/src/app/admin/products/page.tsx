@@ -638,8 +638,31 @@ function WorkingAddProductDrawer({
     }
   }
 
+  function validateDetailsStep() {
+    if (!name.trim()) {
+      setFormError('Urun adi zorunlu.')
+      return false
+    }
+    if (!Number(categoryId)) {
+      setFormError('Kategori secimi zorunlu.')
+      return false
+    }
+    if (!productType.trim()) {
+      setFormError('Urun tipi zorunlu.')
+      return false
+    }
+    return true
+  }
+
   function handlePrimaryAction() {
+    setFormError(null)
     if (currentTabIndex < drawerTabs.length - 1) {
+      // Adim atlamadan once o adimin zorunlu alanlarini dogrula.
+      if (tab === 'details' && !validateDetailsStep()) return
+      if (tab === 'variant' && variants.length === 0) {
+        setFormError('Once varyantlari olusturun.')
+        return
+      }
       setTab(drawerTabs[currentTabIndex + 1].id)
       return
     }

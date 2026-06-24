@@ -21,6 +21,8 @@ public interface ProductRepository extends JpaRepository<Product, Long>, JpaSpec
 
     long countByActiveTrue();
 
+    long countByCategoryId(Long categoryId);
+
     @EntityGraph(attributePaths = {"category", "variants"})
     List<Product> findAllByActiveTrueAndCategorySlugOrderByCreatedAtDesc(String categorySlug);
 

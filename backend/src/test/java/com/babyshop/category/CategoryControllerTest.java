@@ -33,8 +33,8 @@ class CategoryControllerTest {
     @Test
     void shouldReturnActiveCategories() throws Exception {
         given(categoryService.getActiveCategories()).willReturn(List.of(
-                new CategoryResponse(1L, null, "Newborn", "newborn", "Newborn clothing", true, 1),
-                new CategoryResponse(2L, 1L, "Dresses", "dresses", "Baby girl dresses", true, 2)
+                new CategoryResponse(1L, null, "Newborn", "newborn", "Newborn clothing", true, 1, 0L, null),
+                new CategoryResponse(2L, 1L, "Dresses", "dresses", "Baby girl dresses", true, 2, 0L, null)
         ));
 
         mockMvc.perform(get("/api/v1/categories").accept(APPLICATION_JSON))
@@ -46,7 +46,7 @@ class CategoryControllerTest {
     @Test
     void shouldReturnCategoryBySlug() throws Exception {
         given(categoryService.getActiveCategoryBySlug("newborn"))
-                .willReturn(new CategoryResponse(1L, null, "Newborn", "newborn", "Newborn clothing", true, 1));
+                .willReturn(new CategoryResponse(1L, null, "Newborn", "newborn", "Newborn clothing", true, 1, 0L, null));
 
         mockMvc.perform(get("/api/v1/categories/newborn").accept(APPLICATION_JSON))
                 .andExpect(status().isOk())
