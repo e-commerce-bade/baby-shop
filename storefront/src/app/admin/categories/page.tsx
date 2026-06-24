@@ -441,7 +441,7 @@ export default function AdminCategoriesPage() {
       const res = await fetch(`/api/admin/categories/${cat.id}/active`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(!cat.active),
+        body: JSON.stringify({ active: !cat.active }),
       })
       if (!res.ok) return
       await loadCategories()

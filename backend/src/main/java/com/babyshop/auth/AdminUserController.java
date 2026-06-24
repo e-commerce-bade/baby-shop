@@ -3,6 +3,7 @@ package com.babyshop.auth;
 import com.babyshop.auth.dto.AdminUserRequest;
 import com.babyshop.auth.dto.AdminUserResponse;
 import com.babyshop.auth.dto.AdminUserUpdateRequest;
+import com.babyshop.common.request.ActiveStatusRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -52,9 +53,9 @@ public class AdminUserController {
     @PatchMapping("/{userId}/active")
     public ResponseEntity<AdminUserResponse> updateUserActiveStatus(
             @PathVariable Long userId,
-            @RequestBody boolean active
+            @Valid @RequestBody ActiveStatusRequest request
     ) {
-        return ResponseEntity.ok(adminUserService.updateUserActiveStatus(userId, active));
+        return ResponseEntity.ok(adminUserService.updateUserActiveStatus(userId, request.active()));
     }
 
     @DeleteMapping("/{userId}")

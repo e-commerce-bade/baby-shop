@@ -1,5 +1,6 @@
 package com.babyshop.product;
 
+import com.babyshop.common.request.ActiveStatusRequest;
 import com.babyshop.product.dto.ProductAdminRequest;
 import com.babyshop.product.dto.ProductDetailResponse;
 import com.babyshop.product.dto.ProductSummaryResponse;
@@ -49,9 +50,9 @@ public class ProductAdminController {
     @PatchMapping("/{id}/active")
     public ResponseEntity<ProductDetailResponse> updateProductActiveStatus(
             @PathVariable Long id,
-            @RequestBody boolean active
+            @Valid @RequestBody ActiveStatusRequest request
     ) {
-        return ResponseEntity.ok(productService.updateProductActiveStatus(id, active));
+        return ResponseEntity.ok(productService.updateProductActiveStatus(id, request.active()));
     }
 
     @DeleteMapping("/{id}")

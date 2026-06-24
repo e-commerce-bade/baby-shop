@@ -2,6 +2,7 @@ package com.babyshop.category;
 
 import com.babyshop.category.dto.CategoryAdminRequest;
 import com.babyshop.category.dto.CategoryResponse;
+import com.babyshop.common.request.ActiveStatusRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -48,9 +49,9 @@ public class CategoryAdminController {
     @PatchMapping("/{id}/active")
     public ResponseEntity<CategoryResponse> updateCategoryActiveStatus(
             @PathVariable Long id,
-            @RequestBody boolean active
+            @Valid @RequestBody ActiveStatusRequest request
     ) {
-        return ResponseEntity.ok(categoryService.updateCategoryActiveStatus(id, active));
+        return ResponseEntity.ok(categoryService.updateCategoryActiveStatus(id, request.active()));
     }
 
     @DeleteMapping("/{id}")

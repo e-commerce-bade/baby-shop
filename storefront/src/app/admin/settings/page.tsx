@@ -105,7 +105,7 @@ export default function AdminSettingsPage() {
       const res = await fetch(`/api/admin/users/${user.id}/active`, {
         method: 'PATCH',
         headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
-        body: JSON.stringify(!user.active),
+        body: JSON.stringify({ active: !user.active }),
       })
       if (!res.ok) throw new Error(await readApiError(res, 'Durum güncellenemedi.'))
       const updated = (await res.json()) as AdminUser

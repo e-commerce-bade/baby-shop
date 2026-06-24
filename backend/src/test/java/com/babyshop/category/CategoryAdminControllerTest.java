@@ -89,7 +89,7 @@ class CategoryAdminControllerTest {
 
         mockMvc.perform(patch("/api/v1/admin/categories/2/active")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("false"))
+                        .content("{\"active\":false}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.active").value(false));
     }

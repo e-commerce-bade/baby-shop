@@ -110,7 +110,7 @@ class ProductAdminControllerTest {
 
         mockMvc.perform(patch("/api/v1/admin/products/1/active")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("false"))
+                        .content("{\"active\":false}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.active").value(false));
     }

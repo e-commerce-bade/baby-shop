@@ -154,7 +154,7 @@ public class AuthService {
                 securityProperties.jwt().accessTokenTtlMinutes() * 60,
                 expiresAt,
                 user.getEmail(),
-                roles.stream().min(Comparator.naturalOrder()).orElse("ADMIN")
+                roles.stream().min(Comparator.naturalOrder()).orElse(CUSTOMER_ROLE)
         );
     }
 

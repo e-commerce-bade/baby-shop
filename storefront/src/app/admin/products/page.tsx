@@ -1573,7 +1573,7 @@ export default function AdminProductsPage() {
           Accept: 'application/json',
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(nextActive),
+        body: JSON.stringify({ active: nextActive }),
       })
 
       if (!res.ok) throw new Error(await readApiError(res, 'Urun durumu guncellenemedi.'))
