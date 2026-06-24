@@ -49,26 +49,11 @@ export default function Footer() {
             Küçükler için zamansız parçalar, sevgi ve özenle hazırlandı.
           </p>
           <div className="flex gap-3">
-            <SocialLink href="#" label="Instagram">
+            <SocialLink href="https://www.instagram.com/badebebeadana/" label="Instagram">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
                 <rect x="3" y="3" width="18" height="18" rx="5" />
                 <circle cx="12" cy="12" r="4" />
                 <circle cx="17.5" cy="6.5" r="1" fill="currentColor" />
-              </svg>
-            </SocialLink>
-            <SocialLink href="#" label="Facebook">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M14 9h3V6h-3c-2 0-3 1.3-3 3.2V11H9v3h2v6h3v-6h2.5l.5-3H14V9.5c0-.4.2-.5.6-.5z" />
-              </svg>
-            </SocialLink>
-            <SocialLink href="#" label="Pinterest">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12 3a9 9 0 00-3.3 17.4c-.1-.8-.1-2 .1-2.8l1-4.4s-.3-.5-.3-1.3c0-1.2.7-2.1 1.6-2.1.7 0 1.1.6 1.1 1.2 0 .8-.5 1.9-.7 3-.2.8.4 1.5 1.3 1.5 1.5 0 2.6-1.6 2.6-3.9 0-2-1.4-3.4-3.5-3.4a3.6 3.6 0 00-3.8 3.6c0 .7.3 1.5.6 1.9l-.3 1c0 .2-.2.2-.4.1-1-.5-1.6-2-1.6-3.2 0-2.6 1.9-4.9 5.4-4.9 2.9 0 5.1 2 5.1 4.8 0 2.9-1.8 5.2-4.3 5.2-.8 0-1.6-.5-1.9-1l-.5 2c-.2.7-.7 1.6-1 2.2A9 9 0 1012 3z" />
-              </svg>
-            </SocialLink>
-            <SocialLink href="#" label="TikTok">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M16 4c.3 1.8 1.4 3.2 3.2 3.5V10c-1.2 0-2.3-.4-3.2-1v5.6c0 2.9-2.3 5.2-5.2 5.2S5.6 17.5 5.6 14.6 7.9 9.4 10.8 9.4c.3 0 .5 0 .8.1v2.6c-.3-.1-.5-.1-.8-.1-1.4 0-2.5 1.1-2.5 2.6S9.4 17 10.8 17s2.5-1.1 2.5-2.6V4z" />
               </svg>
             </SocialLink>
           </div>
@@ -93,6 +78,9 @@ export default function Footer() {
               </span>
             ))}
           </div>
+          <p className="mt-3 text-[12px] leading-relaxed text-brown-2">
+            iyzico ile güvenle ödemenizi yapabilirsiniz.
+          </p>
         </div>
       </div>
 
@@ -149,6 +137,8 @@ function SocialLink({
     <a
       href={href}
       aria-label={label}
+      target="_blank"
+      rel="noopener noreferrer"
       className="grid h-[34px] w-[34px] place-items-center rounded-full border border-line bg-white text-brown-2 transition-all hover:-translate-y-[3px] hover:border-rose hover:bg-rose hover:text-white"
     >
       {children}
