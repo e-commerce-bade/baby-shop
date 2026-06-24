@@ -30,7 +30,7 @@ server:
 app:
   payment:
     mock:
-      callback-secret: ${MOCK_PAYMENT_CALLBACK_SECRET:mock-callback-secret-change-me}
+      callback-secret: ${MOCK_PAYMENT_CALLBACK_SECRET:}
     iyzico:
       api-key: ${IYZICO_API_KEY:}
       secret-key: ${IYZICO_SECRET_KEY:}
@@ -42,14 +42,16 @@ app:
       default-buyer-identity-number: ${IYZICO_DEFAULT_BUYER_IDENTITY_NUMBER:11111111111}
       default-buyer-ip: ${IYZICO_DEFAULT_BUYER_IP:127.0.0.1}
   security:
+    # Asagidaki degerlerin commit'li bir varsayilani YOKTUR; ortam degiskeniyle saglanmalidir.
+    # JWT secret en az 32 bayt olmali (SecurityConfig dogrular) ve verilmezse uygulama baslamaz.
     google:
-      client-id: ${GOOGLE_CLIENT_ID:708355217675-6c6mv60vqi8kuj4mui3c65kevgpshf2j.apps.googleusercontent.com}
+      client-id: ${GOOGLE_CLIENT_ID:}
     admin:
-      email: ${ADMIN_EMAIL:admin@babyshop.local}
-      password: ${ADMIN_PASSWORD:change-me}
+      email: ${ADMIN_EMAIL:}
+      password: ${ADMIN_PASSWORD:}
       role: ${ADMIN_ROLE:ADMIN}
-      bootstrap-enabled: ${ADMIN_BOOTSTRAP_ENABLED:true}
+      bootstrap-enabled: ${ADMIN_BOOTSTRAP_ENABLED:false}
     jwt:
-      secret: ${JWT_SECRET:change-this-jwt-secret-for-local-dev-12345}
+      secret: ${JWT_SECRET:}
       access-token-ttl-minutes: ${JWT_ACCESS_TOKEN_TTL_MINUTES:120}
       issuer: ${JWT_ISSUER:baby-shop-backend}

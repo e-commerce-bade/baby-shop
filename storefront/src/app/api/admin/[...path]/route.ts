@@ -2,6 +2,7 @@ import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 import { buildBackendUrl } from '@/lib/api/backend'
 import { AUTH_COOKIE_NAME } from '@/lib/api/auth-cookie'
+import { isAdminToken } from '@/lib/api/jwt'
 
 type RouteContext = {
   params: Promise<{ path: string[] }>
@@ -14,6 +15,10 @@ async function proxyAdminRequest(request: Request, context: RouteContext) {
 
   if (!token) {
     return NextResponse.json({ message: 'Authentication required' }, { status: 401 })
+  }
+
+  if (!isAdminToken(token)) {
+    return NextResponse.json({ message: 'Admin privileges required' }, { status: 403 })
   }
 
   const { path } = await context.params

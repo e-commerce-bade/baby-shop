@@ -3,6 +3,7 @@ import path from 'node:path'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 import { AUTH_COOKIE_NAME } from '@/lib/api/auth-cookie'
+import { isAdminToken } from '@/lib/api/jwt'
 import { getProductUploadDir, getProductUploadUrl, safeFilePart } from '@/lib/server/product-uploads'
 
 const MAX_UPLOAD_SIZE = 5 * 1024 * 1024
@@ -17,6 +18,10 @@ export async function POST(request: Request) {
 
   if (!token) {
     return NextResponse.json({ message: 'Authentication required' }, { status: 401 })
+  }
+
+  if (!isAdminToken(token)) {
+    return NextResponse.json({ message: 'Admin privileges required' }, { status: 403 })
   }
 
   const formData = await request.formData()
