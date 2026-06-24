@@ -22,16 +22,6 @@ const aboutLinks = [
   { label: 'Blog', href: '#' },
 ]
 
-const paymentMethods = [
-  { label: 'VISA', color: '#1a3a8f' },
-  { label: 'MC', color: '#c8472a' },
-  { label: 'AMEX', color: '#1d6fc0' },
-  { label: 'PayPal', color: '#264a8b' },
-  { label: '⌘ Pay', color: '#222' },
-  { label: 'shop', color: '#5a31f4' },
-  { label: 'GPay', color: '#3a7d44' },
-]
-
 export default function Footer() {
   return (
     <footer className="mt-[34px] border-t border-line bg-cream-3 px-[38px] pb-6 pt-[42px] max-[980px]:px-6 max-[680px]:px-5">
@@ -67,18 +57,7 @@ export default function Footer() {
           <h4 className="mb-3.5 text-[13px] font-extrabold text-brown">
             Kabul edilen ödemeler
           </h4>
-          <div className="flex flex-wrap gap-2">
-            {paymentMethods.map((method) => (
-              <span
-                key={method.label}
-                className="grid h-[30px] place-items-center rounded-[7px] border border-line bg-white px-[11px] text-[10px] font-extrabold tracking-[0.3px]"
-                style={{ color: method.color }}
-              >
-                {method.label}
-              </span>
-            ))}
-          </div>
-          <p className="mt-3 text-[12px] leading-relaxed text-brown-2">
+          <p className="text-[12px] leading-relaxed text-brown-2">
             iyzico ile güvenle ödemenizi yapabilirsiniz.
           </p>
         </div>
