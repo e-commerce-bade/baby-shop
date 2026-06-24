@@ -97,7 +97,7 @@ export default function CartDrawer() {
             {/* Alt panel */}
             <div className="shrink-0 border-t border-line px-6 pb-5 pt-4">
               {/* Özet + CTA */}
-              <CartSummary onCheckout={closeDrawer} showPromo />
+              <CartSummary onCheckout={closeDrawer} />
 
               {/* Sepeti görüntüle (ikincil) */}
               <Link

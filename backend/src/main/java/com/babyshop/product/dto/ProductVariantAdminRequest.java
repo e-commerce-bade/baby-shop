@@ -23,6 +23,8 @@ public record ProductVariantAdminRequest(
         @NotNull(message = "Product variant price is required")
         @DecimalMin(value = "0.00", inclusive = true, message = "Product variant price must be zero or greater")
         BigDecimal price,
+        @DecimalMin(value = "0.00", inclusive = true, message = "Product variant compare-at price must be zero or greater")
+        BigDecimal compareAtPrice,
         @NotBlank(message = "Product variant currency is required")
         @Size(min = 3, max = 3, message = "Product variant currency must be exactly 3 characters")
         String currency,

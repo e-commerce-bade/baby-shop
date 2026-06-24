@@ -48,7 +48,7 @@ class ProductVariantAdminControllerTest {
     @Test
     void shouldReturnProductVariants() throws Exception {
         given(productVariantService.getProductVariants(1L)).willReturn(List.of(
-                new ProductVariantResponse(10L, "SKU-1", "6-9 months", "Pink", 12, new BigDecimal("499.00"), "TRY", true)
+                new ProductVariantResponse(10L, "SKU-1", "6-9 months", "Pink", 12, new BigDecimal("499.00"), null, "TRY", true)
         ));
 
         mockMvc.perform(get("/api/v1/admin/products/1/variants"))
@@ -58,9 +58,9 @@ class ProductVariantAdminControllerTest {
 
     @Test
     void shouldCreateProductVariant() throws Exception {
-        ProductVariantAdminRequest request = new ProductVariantAdminRequest("SKU-1", "6-9 months", "Pink", 12, new BigDecimal("499.00"), "TRY", true);
+        ProductVariantAdminRequest request = new ProductVariantAdminRequest("SKU-1", "6-9 months", "Pink", 12, new BigDecimal("499.00"), null, "TRY", true);
         given(productVariantService.createProductVariant(anyLong(), any(ProductVariantAdminRequest.class)))
-                .willReturn(new ProductVariantResponse(10L, "SKU-1", "6-9 months", "Pink", 12, new BigDecimal("499.00"), "TRY", true));
+                .willReturn(new ProductVariantResponse(10L, "SKU-1", "6-9 months", "Pink", 12, new BigDecimal("499.00"), null, "TRY", true));
 
         mockMvc.perform(post("/api/v1/admin/products/1/variants")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -71,9 +71,9 @@ class ProductVariantAdminControllerTest {
 
     @Test
     void shouldUpdateProductVariant() throws Exception {
-        ProductVariantAdminRequest request = new ProductVariantAdminRequest("SKU-1", "9-12 months", "Pink", 7, new BigDecimal("529.00"), "TRY", true);
+        ProductVariantAdminRequest request = new ProductVariantAdminRequest("SKU-1", "9-12 months", "Pink", 7, new BigDecimal("529.00"), null, "TRY", true);
         given(productVariantService.updateProductVariant(anyLong(), anyLong(), any(ProductVariantAdminRequest.class)))
-                .willReturn(new ProductVariantResponse(10L, "SKU-1", "9-12 months", "Pink", 7, new BigDecimal("529.00"), "TRY", true));
+                .willReturn(new ProductVariantResponse(10L, "SKU-1", "9-12 months", "Pink", 7, new BigDecimal("529.00"), null, "TRY", true));
 
         mockMvc.perform(put("/api/v1/admin/products/1/variants/10")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -94,7 +94,7 @@ class ProductVariantAdminControllerTest {
     void shouldUpdateProductVariantStock() throws Exception {
         ProductVariantStockUpdateRequest request = new ProductVariantStockUpdateRequest(4);
         given(productVariantService.updateProductVariantStock(1L, 10L, 4))
-                .willReturn(new ProductVariantResponse(10L, "SKU-1", "6-9 months", "Pink", 4, new BigDecimal("499.00"), "TRY", true));
+                .willReturn(new ProductVariantResponse(10L, "SKU-1", "6-9 months", "Pink", 4, new BigDecimal("499.00"), null, "TRY", true));
 
         mockMvc.perform(patch("/api/v1/admin/products/1/variants/10/stock")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -105,7 +105,7 @@ class ProductVariantAdminControllerTest {
 
     @Test
     void shouldReturnConflictForDuplicateVariant() throws Exception {
-        ProductVariantAdminRequest request = new ProductVariantAdminRequest("SKU-1", "6-9 months", "Pink", 12, new BigDecimal("499.00"), "TRY", true);
+        ProductVariantAdminRequest request = new ProductVariantAdminRequest("SKU-1", "6-9 months", "Pink", 12, new BigDecimal("499.00"), null, "TRY", true);
         given(productVariantService.createProductVariant(anyLong(), any(ProductVariantAdminRequest.class)))
                 .willThrow(new DuplicateResourceException("Product variant already exists for size/color combination"));
 
@@ -118,7 +118,7 @@ class ProductVariantAdminControllerTest {
 
     @Test
     void shouldReturnNotFoundForMissingVariant() throws Exception {
-        ProductVariantAdminRequest request = new ProductVariantAdminRequest("SKU-1", "6-9 months", "Pink", 12, new BigDecimal("499.00"), "TRY", true);
+        ProductVariantAdminRequest request = new ProductVariantAdminRequest("SKU-1", "6-9 months", "Pink", 12, new BigDecimal("499.00"), null, "TRY", true);
         given(productVariantService.updateProductVariant(anyLong(), anyLong(), any(ProductVariantAdminRequest.class)))
                 .willThrow(new ResourceNotFoundException("Product variant not found for product id: 1 and variant id: 10"));
 
@@ -131,7 +131,7 @@ class ProductVariantAdminControllerTest {
 
     @Test
     void shouldReturnValidationErrorForInvalidVariantRequest() throws Exception {
-        ProductVariantAdminRequest request = new ProductVariantAdminRequest("", "", "", -1, new BigDecimal("-1.00"), "", null);
+        ProductVariantAdminRequest request = new ProductVariantAdminRequest("", "", "", -1, new BigDecimal("-1.00"), null, "", null);
 
         mockMvc.perform(post("/api/v1/admin/products/1/variants")
                         .contentType(MediaType.APPLICATION_JSON)

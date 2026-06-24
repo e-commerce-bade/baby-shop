@@ -14,6 +14,7 @@ export interface ProductVariant {
   colorName: string
   stockQuantity: number
   price: string
+  compareAtPrice: string | null
   currency: string
   isActive: boolean
 }

@@ -204,6 +204,7 @@ public class ProductService {
                 variant.getColorName(),
                 variant.getStockQuantity(),
                 variant.getPrice(),
+                variant.getCompareAtPrice(),
                 variant.getCurrency(),
                 variant.isActive()
         );

@@ -3,7 +3,6 @@
 import Link from 'next/link'
 import { useCartStore, cartSubtotal } from '@/store/cartStore'
 import { formatPrice } from '@/lib/utils'
-import CartPromoCode from './CartPromoCode'
 
 function toNum(v: number | string | null | undefined): number {
   if (v == null) return 0
@@ -20,11 +19,9 @@ const BLOCKED_MESSAGES: Record<string, string> = {
 interface Props {
   /** Drawer modunda onCheckout verilirse button, verilmezse /checkout'a Link olur. */
   onCheckout?: () => void
-  /** Promosyon kodu alanını göster */
-  showPromo?: boolean
 }
 
-export default function CartSummary({ onCheckout, showPromo = false }: Props) {
+export default function CartSummary({ onCheckout }: Props) {
   const summary   = useCartStore((s) => s.checkoutSummary)
   const localSub  = useCartStore(cartSubtotal)
   const currency  = useCartStore((s) => s.items[0]?.currency ?? 'TRY')
@@ -72,9 +69,6 @@ export default function CartSummary({ onCheckout, showPromo = false }: Props) {
           <span className="font-serif text-[17px]">{formatPrice(total, cur)}</span>
         </div>
       </div>
-
-      {/* Promosyon kodu */}
-      {showPromo && <CartPromoCode />}
 
       {/* Kayıtlı teslimat adresi — varsa ince ipucu */}
       {address && (

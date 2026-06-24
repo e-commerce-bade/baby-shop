@@ -46,6 +46,10 @@ public class ProductVariant {
     @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal price;
 
+    // Indirimsiz (eski) fiyat; NULL ise indirim yok. price'tan buyukse indirim olarak gosterilir.
+    @Column(name = "compare_at_price", precision = 12, scale = 2)
+    private BigDecimal compareAtPrice;
+
     @Column(nullable = false, length = 3)
     private String currency;
 

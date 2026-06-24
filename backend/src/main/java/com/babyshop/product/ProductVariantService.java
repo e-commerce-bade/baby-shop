@@ -70,6 +70,7 @@ public class ProductVariantService {
         variant.setColorName(request.colorName().trim());
         variant.setStockQuantity(request.stockQuantity());
         variant.setPrice(request.price());
+        variant.setCompareAtPrice(request.compareAtPrice());
         variant.setCurrency(request.currency().trim().toUpperCase());
         variant.setActive(request.active());
     }
@@ -143,6 +144,7 @@ public class ProductVariantService {
                 variant.getColorName(),
                 variant.getStockQuantity(),
                 variant.getPrice(),
+                variant.getCompareAtPrice(),
                 variant.getCurrency(),
                 variant.isActive()
         );

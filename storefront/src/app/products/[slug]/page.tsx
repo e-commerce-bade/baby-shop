@@ -20,8 +20,6 @@ const PALETTES = [
   ['#F3DEDB', '#E3B9B440'],
 ] as const
 
-const DISCOUNT_RATE = 0.2
-
 export async function generateMetadata({
   params,
 }: {
@@ -44,7 +42,16 @@ export default async function ProductDetailPage({
 
   const [gradFrom, gradTo] = PALETTES[product.id % PALETTES.length]
   const currentPrice = parseFloat(product.lowestPrice)
-  const originalPrice = Math.round(currentPrice / (1 - DISCOUNT_RATE))
+  // En dusuk fiyatli varyantin gercek karsilastirma fiyatindan indirimi turet (yoksa null).
+  const cheapestVariant = product.variants
+    .filter((variant) => variant.isActive)
+    .sort((a, b) => parseFloat(a.price) - parseFloat(b.price))[0]
+  const cheapestCompareAt = cheapestVariant?.compareAtPrice != null
+    ? parseFloat(cheapestVariant.compareAtPrice)
+    : null
+  const originalPrice = cheapestCompareAt != null && cheapestCompareAt > currentPrice
+    ? cheapestCompareAt
+    : null
 
   const related = (await fetchProducts(product.categorySlug))
     .filter((candidate) => candidate.id !== product.id)

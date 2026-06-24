@@ -10,8 +10,6 @@ import { useCartStore } from '@/store/cartStore'
 import { useFavoriteStore } from '@/store/favoriteStore'
 import type { ProductDetail } from '@/types/product'
 
-const DISCOUNT_RATE = 0.2
-
 // Beden etiketindeki ilk sayiya gore sirala ("3 Yas" < "10 Yas", "0-3 Ay" < "3-6 Ay")
 function sizeSortKey(label: string): number {
   const match = label.match(/\d+/)
@@ -66,7 +64,14 @@ export default function ProductInfoPanel({ product, selectedColor: selectedColor
 
   const inStock = currentVariant ? currentVariant.stockQuantity > 0 : true
   const currentPrice = parseFloat(currentVariant?.price ?? product.lowestPrice)
-  const originalPrice = Math.round(currentPrice / (1 - DISCOUNT_RATE))
+  const compareAtPrice = currentVariant?.compareAtPrice != null
+    ? parseFloat(currentVariant.compareAtPrice)
+    : null
+  // Indirimi yalnizca gercek bir karsilastirma fiyati (price'tan buyuk) varsa goster.
+  const hasDiscount = compareAtPrice != null && compareAtPrice > currentPrice
+  const discountPercent = hasDiscount
+    ? Math.round(((compareAtPrice - currentPrice) / compareAtPrice) * 100)
+    : 0
   const canAddToCart = selectedSize !== null && inStock
 
   async function handleAddToCart() {
@@ -123,12 +128,16 @@ export default function ProductInfoPanel({ product, selectedColor: selectedColor
         <span className="font-serif text-[36px] font-semibold leading-none text-brown">
           {formatPrice(currentPrice, product.currency)}
         </span>
-        <span className="text-lg font-semibold text-muted line-through">
-          {formatPrice(originalPrice, product.currency)}
-        </span>
-        <span className="rounded-[20px] bg-rose px-2.5 py-1 text-[11px] font-extrabold uppercase tracking-[0.3px] text-white">
-          %{Math.round(DISCOUNT_RATE * 100)} İNDİRİM
-        </span>
+        {hasDiscount && compareAtPrice != null ? (
+          <>
+            <span className="text-lg font-semibold text-muted line-through">
+              {formatPrice(compareAtPrice, product.currency)}
+            </span>
+            <span className="rounded-[20px] bg-rose px-2.5 py-1 text-[11px] font-extrabold uppercase tracking-[0.3px] text-white">
+              %{discountPercent} İNDİRİM
+            </span>
+          </>
+        ) : null}
       </div>
 
       <div className="h-px bg-line" />

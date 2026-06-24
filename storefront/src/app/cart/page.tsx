@@ -80,7 +80,7 @@ export default function CartPage() {
             Siparis Ozeti
           </h2>
 
-          <CartSummary showPromo />
+          <CartSummary />
 
           <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
             {['VISA', 'MC', 'AMEX', 'PayPal', 'ApplePay'].map((brand) => (

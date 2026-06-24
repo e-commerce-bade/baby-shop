@@ -171,7 +171,7 @@ class ProductAdminControllerTest {
                 new BigDecimal("499.00"),
                 "TRY",
                 List.of(new ProductImageResponse(100L, "https://cdn.example.com/dress.jpg", "Dress", 1, true)),
-                List.of(new ProductVariantResponse(10L, "SKU-1", "6-9 months", "Pink", 12, new BigDecimal("499.00"), "TRY", true))
+                List.of(new ProductVariantResponse(10L, "SKU-1", "6-9 months", "Pink", 12, new BigDecimal("499.00"), null, "TRY", true))
         );
     }
 

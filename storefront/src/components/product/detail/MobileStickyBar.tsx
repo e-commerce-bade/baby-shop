@@ -5,7 +5,7 @@ import { formatPrice } from '@/lib/utils'
 interface Props {
   price: string
   currency: string
-  originalPrice: number
+  originalPrice: number | null
 }
 
 export default function MobileStickyBar({ price, currency, originalPrice }: Props) {
@@ -21,9 +21,11 @@ export default function MobileStickyBar({ price, currency, originalPrice }: Prop
         <span className="font-serif text-[22px] font-semibold leading-none text-brown">
           {formatPrice(price, currency)}
         </span>
-        <span className="mt-0.5 text-xs text-muted line-through">
-          {formatPrice(originalPrice, currency)}
-        </span>
+        {originalPrice != null ? (
+          <span className="mt-0.5 text-xs text-muted line-through">
+            {formatPrice(originalPrice, currency)}
+          </span>
+        ) : null}
       </div>
       <button
         type="button"

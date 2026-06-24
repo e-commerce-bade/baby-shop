@@ -62,6 +62,7 @@ class ProductVariantServiceTest {
                 "Pink",
                 12,
                 new BigDecimal("499.00"),
+                null,
                 "try",
                 true
         );
@@ -89,6 +90,7 @@ class ProductVariantServiceTest {
                 "Pink",
                 12,
                 new BigDecimal("499.00"),
+                null,
                 "TRY",
                 true
         );

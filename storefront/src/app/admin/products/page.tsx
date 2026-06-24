@@ -76,6 +76,7 @@ interface ProductVariantDraft {
   colorName: string
   stockQuantity: string
   price: string
+  compareAtPrice: string
   active: boolean
 }
 
@@ -496,6 +497,7 @@ function WorkingAddProductDrawer({
           colorName,
           stockQuantity: baseStock,
           price: basePrice,
+          compareAtPrice: '',
           active: true,
         }
       })
@@ -607,6 +609,7 @@ function WorkingAddProductDrawer({
           colorName: variant.colorName.trim(),
           stockQuantity: Number(variant.stockQuantity),
           price: Number(variant.price),
+          compareAtPrice: variant.compareAtPrice.trim() ? Number(variant.compareAtPrice) : null,
           currency: currency.trim().toUpperCase(),
           active: variant.active,
         }, 'Urun varyanti olusturulamadi.')
@@ -934,19 +937,12 @@ function WorkingAddProductDrawer({
                             Sil
                           </button>
                         </div>
-                        <div className="grid grid-cols-3 gap-2">
+                        <div className="grid grid-cols-2 gap-2">
                           <input
                             type="text"
                             value={variant.sku}
+                            placeholder="SKU"
                             onChange={(e) => updateVariant(variant.key, { sku: e.target.value })}
-                            className="rounded-[8px] border border-[#ECE3D6] px-2.5 py-2 text-[12px] text-[#3D2B1F] focus:border-[#A89070] focus:outline-none"
-                          />
-                          <input
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            value={variant.price}
-                            onChange={(e) => updateVariant(variant.key, { price: e.target.value })}
                             className="rounded-[8px] border border-[#ECE3D6] px-2.5 py-2 text-[12px] text-[#3D2B1F] focus:border-[#A89070] focus:outline-none"
                           />
                           <input
@@ -954,7 +950,26 @@ function WorkingAddProductDrawer({
                             min="0"
                             step="1"
                             value={variant.stockQuantity}
+                            placeholder="Stok"
                             onChange={(e) => updateVariant(variant.key, { stockQuantity: e.target.value })}
+                            className="rounded-[8px] border border-[#ECE3D6] px-2.5 py-2 text-[12px] text-[#3D2B1F] focus:border-[#A89070] focus:outline-none"
+                          />
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={variant.price}
+                            placeholder="Fiyat"
+                            onChange={(e) => updateVariant(variant.key, { price: e.target.value })}
+                            className="rounded-[8px] border border-[#ECE3D6] px-2.5 py-2 text-[12px] text-[#3D2B1F] focus:border-[#A89070] focus:outline-none"
+                          />
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={variant.compareAtPrice}
+                            placeholder="İndirimsiz fiyat (ops.)"
+                            onChange={(e) => updateVariant(variant.key, { compareAtPrice: e.target.value })}
                             className="rounded-[8px] border border-[#ECE3D6] px-2.5 py-2 text-[12px] text-[#3D2B1F] focus:border-[#A89070] focus:outline-none"
                           />
                         </div>

@@ -9,6 +9,7 @@ public record ProductVariantResponse(
         String colorName,
         int stockQuantity,
         BigDecimal price,
+        BigDecimal compareAtPrice,
         String currency,
         boolean active
 ) {

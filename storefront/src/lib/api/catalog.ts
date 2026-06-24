@@ -19,6 +19,7 @@ interface BackendProductVariantResponse {
   colorName: string
   stockQuantity: number
   price: number | string
+  compareAtPrice: number | string | null
   currency: string
   active: boolean
 }
@@ -156,6 +157,7 @@ function mapVariant(
     colorName: variant.colorName,
     stockQuantity: variant.stockQuantity,
     price: normalizeMoney(variant.price),
+    compareAtPrice: variant.compareAtPrice != null ? normalizeMoney(variant.compareAtPrice) : null,
     currency: variant.currency,
     isActive: variant.active,
   }
