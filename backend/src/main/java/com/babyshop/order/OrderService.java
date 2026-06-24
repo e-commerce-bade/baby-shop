@@ -85,15 +85,39 @@ public class OrderService {
         );
     }
 
+    // Admin/dahili kullanim: sahiplik kontrolu yapmaz (cagrildigi yer ADMIN rolu ile korunur).
     public OrderResponse getOrderByOrderNumber(String orderNumber) {
+        return toResponse(findOrderByOrderNumber(orderNumber));
+    }
+
+    // Musteri-yonlu: siparis detayini yalnizca siparisi olusturan kullanici gorebilir.
+    public OrderResponse getOrderByOrderNumber(String orderNumber, String authenticatedEmail) {
+        Order order = findOrderByOrderNumber(orderNumber);
+
+        // Sahibi olmayan/anonim siparislerde varlik bilgisini sizdirmamak icin 404 donuyoruz.
+        if (!isOrderOwnedBy(order, authenticatedEmail)) {
+            throw new ResourceNotFoundException("Order not found for order number: " + orderNumber);
+        }
+
+        return toResponse(order);
+    }
+
+    private Order findOrderByOrderNumber(String orderNumber) {
         if (orderNumber == null || orderNumber.trim().isEmpty()) {
             throw new InvalidRequestException("Order number is required");
         }
 
-        Order order = orderRepository.findByOrderNumber(orderNumber.trim())
+        return orderRepository.findByOrderNumber(orderNumber.trim())
                 .orElseThrow(() -> new ResourceNotFoundException("Order not found for order number: " + orderNumber));
+    }
 
-        return toResponse(order);
+    private boolean isOrderOwnedBy(Order order, String authenticatedEmail) {
+        String normalizedEmail = normalizeOptionalEmail(authenticatedEmail);
+        if (normalizedEmail == null || order.getUser() == null) {
+            return false;
+        }
+
+        return normalizedEmail.equalsIgnoreCase(order.getUser().getEmail());
     }
 
     public List<OrderResponse> getOrdersByUserEmail(String email) {

@@ -22,6 +22,7 @@ import java.time.OffsetDateTime;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -43,7 +44,7 @@ class OrderControllerTest {
 
     @Test
     void shouldReturnOrderByOrderNumber() throws Exception {
-        given(orderService.getOrderByOrderNumber("ORD-ABC123DEF456")).willReturn(sampleOrderResponse());
+        given(orderService.getOrderByOrderNumber(eq("ORD-ABC123DEF456"), any())).willReturn(sampleOrderResponse());
 
         mockMvc.perform(get("/api/v1/orders/ORD-ABC123DEF456"))
                 .andExpect(status().isOk())
@@ -110,7 +111,7 @@ class OrderControllerTest {
 
     @Test
     void shouldReturnNotFoundForMissingOrder() throws Exception {
-        given(orderService.getOrderByOrderNumber("ORD-MISSING"))
+        given(orderService.getOrderByOrderNumber(eq("ORD-MISSING"), any()))
                 .willThrow(new com.babyshop.common.exception.ResourceNotFoundException("Order not found for order number: ORD-MISSING"));
 
         mockMvc.perform(get("/api/v1/orders/ORD-MISSING"))

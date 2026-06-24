@@ -89,36 +89,6 @@ public class PaymentService {
     }
 
     @Transactional
-    public PaymentResponse confirmPayment(String transactionId) {
-        Payment payment = findPaymentByTransactionId(transactionId);
-
-        if (PAYMENT_STATUS_SUCCEEDED.equalsIgnoreCase(payment.getStatus())) {
-            return toResponse(payment, null);
-        }
-
-        if (PAYMENT_STATUS_FAILED.equalsIgnoreCase(payment.getStatus())) {
-            throw new InvalidRequestException("Failed payment cannot be confirmed for transaction id: " + payment.getTransactionId());
-        }
-
-        return toResponse(completePaymentAsSucceeded(payment), null);
-    }
-
-    @Transactional
-    public PaymentResponse failPayment(String transactionId) {
-        Payment payment = findPaymentByTransactionId(transactionId);
-
-        if (PAYMENT_STATUS_FAILED.equalsIgnoreCase(payment.getStatus())) {
-            return toResponse(payment, null);
-        }
-
-        if (PAYMENT_STATUS_SUCCEEDED.equalsIgnoreCase(payment.getStatus())) {
-            throw new InvalidRequestException("Successful payment cannot be marked as failed for transaction id: " + payment.getTransactionId());
-        }
-
-        return toResponse(completePaymentAsFailed(payment), null);
-    }
-
-    @Transactional
     public PaymentCallbackResponse processCallback(String provider, PaymentCallbackRequest request) {
         String normalizedProvider = normalizeRequiredProvider(provider);
         Payment payment = findPaymentByTransactionOrReference(request.transactionId(), request.providerReference());

@@ -132,21 +132,6 @@ class PaymentServiceTest {
     }
 
     @Test
-    void shouldConfirmPaymentAndMarkOrderPaid() {
-        Order order = buildOrder("ORD-ABC123DEF456", "PENDING_PAYMENT");
-        Payment payment = buildPayment(order);
-        given(paymentRepository.findByTransactionId("TXN-123")).willReturn(Optional.of(payment));
-        given(paymentRepository.save(any(Payment.class))).willAnswer(invocation -> invocation.getArgument(0));
-
-        paymentService = new PaymentService(orderRepository, paymentRepository, List.of(mockPaymentGateway), productVariantRepository);
-        var response = paymentService.confirmPayment("TXN-123");
-
-        assertThat(response.status()).isEqualTo("SUCCEEDED");
-        assertThat(order.getStatus()).isEqualTo("PAID");
-        assertThat(payment.getPaidAt()).isNotNull();
-    }
-
-    @Test
     void shouldDecrementStockWhenPaymentSucceeds() {
         Order order = buildOrder("ORD-ABC123DEF456", "PENDING_PAYMENT");
         OrderItem item = new OrderItem();
@@ -164,52 +149,17 @@ class PaymentServiceTest {
         given(productVariantRepository.findById(10L)).willReturn(Optional.of(variant));
 
         paymentService = new PaymentService(orderRepository, paymentRepository, List.of(mockPaymentGateway), productVariantRepository);
-        paymentService.confirmPayment("TXN-123");
+        paymentService.processCallback("MOCK", new PaymentCallbackRequest(
+                "TXN-123",
+                null,
+                "SUCCEEDED",
+                mockPaymentGateway.generateSignature("TXN-123", "MOCK-TXN-123", "SUCCEEDED"),
+                null
+        ));
 
         assertThat(variant.getStockQuantity()).isEqualTo(3);
         assertThat(order.getStatus()).isEqualTo("PAID");
         verify(productVariantRepository).saveAll(anyList());
-    }
-
-    @Test
-    void shouldTreatDuplicateConfirmAsIdempotent() {
-        Order order = buildOrder("ORD-ABC123DEF456", "PAID");
-        Payment payment = buildPayment(order);
-        payment.setStatus("SUCCEEDED");
-        given(paymentRepository.findByTransactionId("TXN-123")).willReturn(Optional.of(payment));
-
-        paymentService = new PaymentService(orderRepository, paymentRepository, List.of(mockPaymentGateway), productVariantRepository);
-        var response = paymentService.confirmPayment("TXN-123");
-
-        assertThat(response.status()).isEqualTo("SUCCEEDED");
-        assertThat(order.getStatus()).isEqualTo("PAID");
-    }
-
-    @Test
-    void shouldFailPaymentAndCancelOrder() {
-        Order order = buildOrder("ORD-ABC123DEF456", "PENDING_PAYMENT");
-        Payment payment = buildPayment(order);
-        given(paymentRepository.findByTransactionId("TXN-123")).willReturn(Optional.of(payment));
-        given(paymentRepository.save(any(Payment.class))).willAnswer(invocation -> invocation.getArgument(0));
-
-        paymentService = new PaymentService(orderRepository, paymentRepository, List.of(mockPaymentGateway), productVariantRepository);
-        var response = paymentService.failPayment("TXN-123");
-
-        assertThat(response.status()).isEqualTo("FAILED");
-        assertThat(order.getStatus()).isEqualTo("CANCELLED");
-    }
-
-    @Test
-    void shouldRejectConfirmingFailedPayment() {
-        Order order = buildOrder("ORD-ABC123DEF456", "CANCELLED");
-        Payment payment = buildPayment(order);
-        payment.setStatus("FAILED");
-        given(paymentRepository.findByTransactionId("TXN-123")).willReturn(Optional.of(payment));
-
-        paymentService = new PaymentService(orderRepository, paymentRepository, List.of(mockPaymentGateway), productVariantRepository);
-        assertThatThrownBy(() -> paymentService.confirmPayment("TXN-123"))
-                .isInstanceOf(InvalidRequestException.class)
-                .hasMessage("Failed payment cannot be confirmed for transaction id: TXN-123");
     }
 
     @Test

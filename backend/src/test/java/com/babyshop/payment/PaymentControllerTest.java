@@ -23,7 +23,6 @@ import java.math.BigDecimal;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -68,26 +67,6 @@ class PaymentControllerTest {
         mockMvc.perform(get("/api/v1/payments/TXN-123"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.transactionId").value("TXN-123"));
-    }
-
-    @Test
-    void shouldConfirmPayment() throws Exception {
-        given(paymentService.confirmPayment("TXN-123"))
-                .willReturn(samplePaymentResponseWithStatus("SUCCEEDED"));
-
-        mockMvc.perform(patch("/api/v1/payments/TXN-123/confirm"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("SUCCEEDED"));
-    }
-
-    @Test
-    void shouldFailPayment() throws Exception {
-        given(paymentService.failPayment("TXN-123"))
-                .willReturn(samplePaymentResponseWithStatus("FAILED"));
-
-        mockMvc.perform(patch("/api/v1/payments/TXN-123/fail"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("FAILED"));
     }
 
     @Test
@@ -149,16 +128,6 @@ class PaymentControllerTest {
         mockMvc.perform(get("/api/v1/payments/TXN-MISSING"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.message").value("Payment not found for transaction id: TXN-MISSING"));
-    }
-
-    @Test
-    void shouldReturnBadRequestWhenConfirmingFailedPayment() throws Exception {
-        given(paymentService.confirmPayment("TXN-FAILED"))
-                .willThrow(new InvalidRequestException("Failed payment cannot be confirmed for transaction id: TXN-FAILED"));
-
-        mockMvc.perform(patch("/api/v1/payments/TXN-FAILED/confirm"))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message").value("Failed payment cannot be confirmed for transaction id: TXN-FAILED"));
     }
 
     @Test

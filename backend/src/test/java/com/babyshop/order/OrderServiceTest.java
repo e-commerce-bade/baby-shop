@@ -136,6 +136,47 @@ class OrderServiceTest {
     }
 
     @Test
+    void shouldReturnOrderByOrderNumberWhenRequestedByOwner() {
+        Order order = buildOrder("ORD-ABC123DEF456");
+        UserAccount owner = new UserAccount();
+        owner.setEmail("owner@example.com");
+        order.setUser(owner);
+
+        given(orderRepository.findByOrderNumber("ORD-ABC123DEF456")).willReturn(Optional.of(order));
+        given(paymentRepository.findAllByOrderOrderNumberOrderByCreatedAtDesc("ORD-ABC123DEF456"))
+                .willReturn(List.of());
+
+        var response = orderService.getOrderByOrderNumber("ORD-ABC123DEF456", "Owner@Example.com");
+
+        assertThat(response.orderNumber()).isEqualTo("ORD-ABC123DEF456");
+    }
+
+    @Test
+    void shouldRejectOrderAccessForNonOwner() {
+        Order order = buildOrder("ORD-ABC123DEF456");
+        UserAccount owner = new UserAccount();
+        owner.setEmail("owner@example.com");
+        order.setUser(owner);
+
+        given(orderRepository.findByOrderNumber("ORD-ABC123DEF456")).willReturn(Optional.of(order));
+
+        assertThatThrownBy(() -> orderService.getOrderByOrderNumber("ORD-ABC123DEF456", "intruder@example.com"))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessage("Order not found for order number: ORD-ABC123DEF456");
+    }
+
+    @Test
+    void shouldRejectAnonymousAccessToGuestOrder() {
+        Order order = buildOrder("ORD-ABC123DEF456");
+
+        given(orderRepository.findByOrderNumber("ORD-ABC123DEF456")).willReturn(Optional.of(order));
+
+        assertThatThrownBy(() -> orderService.getOrderByOrderNumber("ORD-ABC123DEF456", null))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessage("Order not found for order number: ORD-ABC123DEF456");
+    }
+
+    @Test
     void shouldReturnPagedOrdersByUserEmail() {
         Order order = buildOrder("ORD-ABC123DEF456");
         given(orderRepository.findAll(

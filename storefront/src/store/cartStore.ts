@@ -7,9 +7,18 @@ import type { CartLineItem, CartState, CheckoutSummary } from '@/types/cart'
 let latestCartRequestToken = 0
 
 function newSessionId() {
-  return typeof crypto !== 'undefined'
-    ? crypto.randomUUID()
-    : Math.random().toString(36).slice(2)
+  // sessionId, anonim sepeti adresleyen bir tasiyici (bearer) yetkidir; yuksek entropi sart.
+  if (typeof crypto !== 'undefined') {
+    if (typeof crypto.randomUUID === 'function') {
+      return crypto.randomUUID()
+    }
+    if (typeof crypto.getRandomValues === 'function') {
+      const bytes = crypto.getRandomValues(new Uint8Array(16))
+      return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('')
+    }
+  }
+  // Son care: kriptografik API yoksa iki Math.random'i birlestir (zayif ama nadir bir yol).
+  return `${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}`
 }
 
 function beginCartRequest() {

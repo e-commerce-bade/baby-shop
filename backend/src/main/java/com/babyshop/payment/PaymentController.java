@@ -11,7 +11,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -36,16 +35,6 @@ public class PaymentController {
     @GetMapping("/{transactionId}")
     public ResponseEntity<PaymentResponse> getPaymentByTransactionId(@PathVariable String transactionId) {
         return ResponseEntity.ok(paymentService.getPaymentByTransactionId(transactionId));
-    }
-
-    @PatchMapping("/{transactionId}/confirm")
-    public ResponseEntity<PaymentResponse> confirmPayment(@PathVariable String transactionId) {
-        return ResponseEntity.ok(paymentService.confirmPayment(transactionId));
-    }
-
-    @PatchMapping("/{transactionId}/fail")
-    public ResponseEntity<PaymentResponse> failPayment(@PathVariable String transactionId) {
-        return ResponseEntity.ok(paymentService.failPayment(transactionId));
     }
 
     @PostMapping(

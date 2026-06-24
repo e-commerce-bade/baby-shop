@@ -22,8 +22,14 @@ public class OrderController {
     private final OrderService orderService;
 
     @GetMapping("/{orderNumber}")
-    public ResponseEntity<OrderResponse> getOrderByOrderNumber(@PathVariable String orderNumber) {
-        return ResponseEntity.ok(orderService.getOrderByOrderNumber(orderNumber));
+    public ResponseEntity<OrderResponse> getOrderByOrderNumber(
+            @PathVariable String orderNumber,
+            Authentication authentication
+    ) {
+        return ResponseEntity.ok(orderService.getOrderByOrderNumber(
+                orderNumber,
+                authentication != null ? authentication.getName() : null
+        ));
     }
 
     @PostMapping
