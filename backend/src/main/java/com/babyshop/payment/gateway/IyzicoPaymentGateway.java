@@ -108,7 +108,28 @@ public class IyzicoPaymentGateway implements PaymentGateway {
                 ? PAYMENT_STATUS_SUCCEEDED
                 : PAYMENT_STATUS_FAILED;
 
+        // Basari durumunda odenen tutarin ve sepet (siparis) referansinin stored payment ile
+        // eslestigini dogrula; baska bir siparise ait gecerli bir token'in bu odemeyi
+        // "basarili" gostermesini ve tutar tahrifatini engeller.
+        if (PAYMENT_STATUS_SUCCEEDED.equals(status)) {
+            verifyAmountMatches(checkoutForm.getPaidPrice(), payment.getAmount());
+            verifyBasketMatches(checkoutForm.getBasketId(), payment.getOrder());
+        }
+
         return new PaymentGatewayCallbackResult(status);
+    }
+
+    private void verifyAmountMatches(BigDecimal paidPrice, BigDecimal expectedAmount) {
+        if (paidPrice == null || expectedAmount == null || paidPrice.compareTo(expectedAmount) != 0) {
+            throw new InvalidRequestException("iyzico callback paid amount does not match the order amount");
+        }
+    }
+
+    private void verifyBasketMatches(String basketId, Order order) {
+        String expectedOrderNumber = order == null ? null : order.getOrderNumber();
+        if (basketId == null || expectedOrderNumber == null || !basketId.equals(expectedOrderNumber)) {
+            throw new InvalidRequestException("iyzico callback basket id does not match the order");
+        }
     }
 
     private Buyer buildBuyer(Order order, PaymentProperties.Iyzico properties) {

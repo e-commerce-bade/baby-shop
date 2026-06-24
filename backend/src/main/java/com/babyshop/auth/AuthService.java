@@ -31,6 +31,9 @@ public class AuthService {
 
     private static final String CUSTOMER_ROLE = "CUSTOMER";
 
+    // Kullanici yoksa zamanlama esitlemesi icin tek seferlik hesaplanan sabit hash.
+    private volatile String dummyPasswordHash;
+
     private final UserAccountRepository userAccountRepository;
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
@@ -40,13 +43,29 @@ public class AuthService {
 
     public AuthTokenResponse login(AuthLoginRequest request) {
         UserAccount user = userAccountRepository.findByEmailIgnoreCase(normalizeEmail(request.email()))
-                .orElseThrow(() -> new BadCredentialsException("Invalid email or password"));
+                .orElse(null);
 
-        if (!user.isActive() || !passwordEncoder.matches(request.password(), user.getPasswordHash())) {
+        // Kullanici bulunamasa bile sabit bir hash'e karsi bcrypt calistirilir; boylece
+        // "kullanici var/yok" zamanlama yan-kanali ortadan kalkar (user enumeration).
+        boolean passwordMatches = verifyPasswordOrDummy(user, request.password());
+
+        if (user == null || !user.isActive() || !passwordMatches) {
             throw new BadCredentialsException("Invalid email or password");
         }
 
         return issueToken(user);
+    }
+
+    private boolean verifyPasswordOrDummy(UserAccount user, String rawPassword) {
+        if (user != null) {
+            return passwordEncoder.matches(rawPassword, user.getPasswordHash());
+        }
+
+        if (dummyPasswordHash == null) {
+            dummyPasswordHash = passwordEncoder.encode("invalid-user-placeholder-password");
+        }
+        passwordEncoder.matches(rawPassword, dummyPasswordHash);
+        return false;
     }
 
     @Transactional

@@ -16,6 +16,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
+import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
@@ -65,7 +66,10 @@ public class SecurityConfig {
 
     @Bean
     public JwtDecoder jwtDecoder(SecurityProperties securityProperties) {
-        return NimbusJwtDecoder.withSecretKey(jwtSecretKey(securityProperties)).build();
+        NimbusJwtDecoder decoder = NimbusJwtDecoder.withSecretKey(jwtSecretKey(securityProperties)).build();
+        // Imza + suresi yaninda issuer'i da dogrula (token yalnizca bu backend tarafindan uretilmis olmali).
+        decoder.setJwtValidator(JwtValidators.createDefaultWithIssuer(securityProperties.jwt().issuer()));
+        return decoder;
     }
 
     @Bean

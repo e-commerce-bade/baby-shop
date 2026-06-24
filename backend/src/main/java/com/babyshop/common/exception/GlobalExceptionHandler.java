@@ -1,8 +1,10 @@
 package com.babyshop.common.exception;
 
+import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
@@ -76,9 +78,17 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(ConstraintViolationException.class)
     public ResponseEntity<ErrorResponse> handleConstraintViolation(ConstraintViolationException exception) {
+        // Yalnizca kisitlama mesajlarini don; ic property path / deger sizmasin.
+        String message = exception.getConstraintViolations().stream()
+                .map(ConstraintViolation::getMessage)
+                .collect(Collectors.joining(", "));
+        if (message.isBlank()) {
+            message = "Invalid request";
+        }
+
         return ResponseEntity.badRequest()
                 .body(new ErrorResponse(
-                        exception.getMessage(),
+                        message,
                         HttpStatus.BAD_REQUEST.value(),
                         OffsetDateTime.now()
                 ));
@@ -86,9 +96,14 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(AuthenticationException.class)
     public ResponseEntity<ErrorResponse> handleAuthentication(AuthenticationException exception) {
+        // Kontrollu kimlik-bilgisi mesajlari disinda cerceve ici detaylari sizdirma.
+        String message = exception instanceof BadCredentialsException
+                ? exception.getMessage()
+                : "Authentication failed";
+
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                 .body(new ErrorResponse(
-                        exception.getMessage(),
+                        message,
                         HttpStatus.UNAUTHORIZED.value(),
                         OffsetDateTime.now()
                 ));

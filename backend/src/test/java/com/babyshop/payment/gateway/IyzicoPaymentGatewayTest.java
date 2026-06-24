@@ -110,6 +110,8 @@ class IyzicoPaymentGatewayTest {
         response.setStatus("success");
         response.setPaymentStatus("SUCCESS");
         response.setToken("iyzico-token");
+        response.setPaidPrice(new BigDecimal("998.00"));
+        response.setBasketId("ORD-123");
 
         given(iyzicoClient.retrieveCheckoutForm(any(), any())).willReturn(response);
 
@@ -211,12 +213,53 @@ class IyzicoPaymentGatewayTest {
         return order;
     }
 
+    @Test
+    void shouldRejectSuccessfulCallbackWhenPaidAmountMismatch() {
+        IyzicoPaymentGateway gateway = new IyzicoPaymentGateway(properties(), iyzicoClient);
+        CheckoutForm response = new CheckoutForm();
+        response.setStatus("success");
+        response.setPaymentStatus("SUCCESS");
+        response.setToken("iyzico-token");
+        response.setPaidPrice(new BigDecimal("1.00"));
+        response.setBasketId("ORD-123");
+
+        given(iyzicoClient.retrieveCheckoutForm(any(), any())).willReturn(response);
+
+        assertThatThrownBy(() -> gateway.verifyCallback(
+                new PaymentCallbackRequest(null, "iyzico-token", null, null, null),
+                buildPayment()
+        ))
+                .isInstanceOf(InvalidRequestException.class)
+                .hasMessage("iyzico callback paid amount does not match the order amount");
+    }
+
+    @Test
+    void shouldRejectSuccessfulCallbackWhenBasketIdMismatch() {
+        IyzicoPaymentGateway gateway = new IyzicoPaymentGateway(properties(), iyzicoClient);
+        CheckoutForm response = new CheckoutForm();
+        response.setStatus("success");
+        response.setPaymentStatus("SUCCESS");
+        response.setToken("iyzico-token");
+        response.setPaidPrice(new BigDecimal("998.00"));
+        response.setBasketId("ORD-OTHER");
+
+        given(iyzicoClient.retrieveCheckoutForm(any(), any())).willReturn(response);
+
+        assertThatThrownBy(() -> gateway.verifyCallback(
+                new PaymentCallbackRequest(null, "iyzico-token", null, null, null),
+                buildPayment()
+        ))
+                .isInstanceOf(InvalidRequestException.class)
+                .hasMessage("iyzico callback basket id does not match the order");
+    }
+
     private Payment buildPayment() {
         Payment payment = new Payment();
         payment.setOrder(buildOrder());
         payment.setProvider("IYZICO");
         payment.setTransactionId("TXN-123");
         payment.setProviderReference("iyzico-token");
+        payment.setAmount(new BigDecimal("998.00"));
         return payment;
     }
 }
