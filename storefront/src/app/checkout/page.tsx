@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
@@ -96,6 +96,8 @@ export default function CheckoutPage() {
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [shipping, setShipping]       = useState('standard')
   const [checkoutFormContent, setCheckoutFormContent] = useState<string | null>(null)
+  // iyzico script'inin enjekte edilecegi React-yonetimli kapsayici (document.body yerine).
+  const iyzicoContainerRef = useRef<HTMLDivElement>(null)
 
   const sessionId              = useCartStore((s) => s.sessionId)
   const hasHydrated            = useCartStore((s) => s.hasHydrated)
@@ -122,26 +124,31 @@ export default function CheckoutPage() {
     void refreshCheckoutSummary()
   }, [hasHydrated, mounted, refreshCheckoutSummary])
 
-  // iyzico Ödeme Formu icerigini (script) modal icindeki kapsayiciya enjekte et.
+  // iyzico Ödeme Formu icerigini (script), document.body yerine React-yonetimli modal
+  // kapsayicisina enjekte et: boylece kapanista React dugumleri kaldirir, body kirlenmez ve
+  // form ust pencerede render olur (3DS / callback yonlendirmesi etkilenmez).
   // innerHTML script calistirmaz; createContextualFragment calistirilabilir script dugumleri uretir.
   useEffect(() => {
     if (!checkoutFormContent) return
+    const target = iyzicoContainerRef.current
+    if (!target) return
     // Modal viewport'a gore ortalanir; onceki scroll konumu kalintisi kalmasin diye basa al.
     window.scrollTo({ top: 0, left: 0 })
-    const container = document.getElementById('iyzipay-checkout-form')
-    if (!container) return
 
-    // Onceki acilistan kalan iyzico artiklarini temizle, sonra taze enjekte et.
+    // iyzico'nun dis kaynakli script'leri ve global state'inden kalan artiklari temizle.
     cleanupIyzico()
 
     const range = document.createRange()
-    range.selectNode(document.body)
+    range.selectNode(target)
     const fragment = range.createContextualFragment(checkoutFormContent)
-    // Bizim ekledigimiz scriptleri isaretle ki kapanista/yeniden acilista kaldirabilelim.
+    // Script, #iyzipay-checkout-form'un kardesi olarak eklenir; iyzico render edince
+    // yalnizca o div'in icerigini gunceller, script dugumu yerinde kalir.
     fragment.querySelectorAll('script').forEach((s) => s.setAttribute('data-iyzico', 'true'))
-    document.body.appendChild(fragment)
+    target.appendChild(fragment)
 
     return () => {
+      // React kapsayiciyi (ve bizim script'imizi) zaten kaldirir; iyzico'nun dis
+      // script/global artiklarini burada temizleriz.
       cleanupIyzico()
     }
   }, [checkoutFormContent])
@@ -248,7 +255,9 @@ export default function CheckoutPage() {
             <p className="mb-4 text-[12.5px] leading-relaxed text-muted">
               Kart bilgileriniz iyzico&apos;nun güvenli altyapısında işlenir. Ödeme tamamlanınca otomatik yönlendirileceksiniz.
             </p>
-            <div id="iyzipay-checkout-form" className="responsive" />
+            <div ref={iyzicoContainerRef}>
+              <div id="iyzipay-checkout-form" className="responsive" />
+            </div>
           </div>
         </div>
       </div>
