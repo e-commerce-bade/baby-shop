@@ -6,7 +6,9 @@ import TrustBand from '@/components/home/TrustBand'
 import NewsletterBand from '@/components/home/NewsletterBand'
 import CampaignPlacement from '@/components/campaign/CampaignPlacement'
 import FilterSidebar from '@/components/product/filter/FilterSidebar'
+import FilterSidebarSkeleton from '@/components/product/filter/FilterSidebarSkeleton'
 import { fetchCategoryStripItems, fetchProducts } from '@/lib/api/catalog'
+import { filterProductsByFacets } from '@/lib/productFilters'
 import type { ProductSummary } from '@/types/product'
 
 export const dynamic = 'force-dynamic'
@@ -22,43 +24,12 @@ interface SearchParams {
 }
 
 function applyFilters(products: ProductSummary[], params: SearchParams) {
-  let result = [...products]
-
   const categorySlug = params.categorySlug ?? params.category
-  if (categorySlug) {
-    result = result.filter((product) => product.categorySlug === categorySlug)
-  }
+  const scoped = categorySlug
+    ? products.filter((product) => product.categorySlug === categorySlug)
+    : products
 
-  if (params.productTypes) {
-    const selected = params.productTypes.split(',').filter(Boolean)
-    result = result.filter((product) => product.productType !== null && selected.includes(product.productType))
-  }
-
-  if (params.colors) {
-    const selected = params.colors.split(',').filter(Boolean)
-    result = result.filter((product) =>
-      product.variants.some((variant) => selected.includes(variant.colorName)),
-    )
-  }
-
-  if (params.sizes) {
-    const selected = params.sizes.split(',').filter(Boolean)
-    result = result.filter((product) =>
-      product.variants.some((variant) => selected.includes(variant.sizeLabel)),
-    )
-  }
-
-  if (params.price) {
-    result = result.filter((product) => {
-      const price = parseFloat(product.lowestPrice)
-      if (params.price === 'under-500') return price < 500
-      if (params.price === '500-700') return price >= 500 && price <= 700
-      if (params.price === 'over-700') return price > 700
-      return true
-    })
-  }
-
-  return result
+  return filterProductsByFacets(scoped, params)
 }
 
 export default async function HomePage({
@@ -115,24 +86,6 @@ export default async function HomePage({
       </div>
 
       <TrustBand />
-    </div>
-  )
-}
-
-function FilterSidebarSkeleton() {
-  return (
-    <div className="rounded-panel border border-line bg-cream-3 px-5 py-[22px]">
-      <div className="mb-4 h-6 w-24 animate-pulse rounded bg-line" />
-      {[1, 2, 3, 4].map((i) => (
-        <div key={i} className="border-t border-line py-4 first:border-t-0">
-          <div className="h-4 w-20 animate-pulse rounded bg-line" />
-          <div className="mt-3 space-y-2">
-            {[1, 2, 3].map((j) => (
-              <div key={j} className="h-4 w-full animate-pulse rounded bg-line" />
-            ))}
-          </div>
-        </div>
-      ))}
     </div>
   )
 }

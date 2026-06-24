@@ -23,6 +23,83 @@ interface Props {
   size?: 'compact' | 'full'
 }
 
+/* ─── Thumbnail ─────────────────────────────────────────────── */
+function Thumb({
+  item,
+  gradFrom,
+  gradTo,
+  className,
+}: {
+  item: CartLineItem
+  gradFrom: string
+  gradTo: string
+  className: string
+}) {
+  return (
+    <Link
+      href={`/products/${item.slug}`}
+      tabIndex={-1}
+      className={`shrink-0 overflow-hidden rounded-card border border-line-2 ${className}`}
+      style={{
+        background: item.primaryImageUrl
+          ? undefined
+          : `linear-gradient(160deg, ${gradFrom}, ${gradTo})`,
+      }}
+    >
+      {item.primaryImageUrl && (
+        <img
+          src={item.primaryImageUrl}
+          alt={item.productName}
+          className="h-full w-full object-cover"
+        />
+      )}
+    </Link>
+  )
+}
+
+/* ─── Quantity stepper ───────────────────────────────────────── */
+function QtyControl({
+  item,
+  updateQuantity,
+  isSyncing,
+  compact = false,
+}: {
+  item: CartLineItem
+  updateQuantity: (id: string, quantity: number) => void
+  isSyncing: boolean
+  compact?: boolean
+}) {
+  const h = compact ? 'h-8 w-8' : 'h-9 w-9'
+  const mid = compact ? 'min-w-[30px] text-[12.5px]' : 'min-w-[38px] text-[13px]'
+  return (
+    <div className="inline-flex overflow-hidden rounded-[8px] border border-line">
+      <button
+        type="button"
+        aria-label="Adedi azalt"
+        disabled={item.quantity <= 1}
+        onClick={() => updateQuantity(item.id, item.quantity - 1)}
+        className={`grid ${h} place-items-center text-base text-brown-2 transition-colors hover:bg-cream-2 disabled:opacity-40`}
+      >
+        −
+      </button>
+      <span
+        className={`grid ${mid} place-items-center border-x border-line font-bold text-brown`}
+      >
+        {item.quantity}
+      </span>
+      <button
+        type="button"
+        aria-label="Adedi artır"
+        disabled={isSyncing}
+        onClick={() => updateQuantity(item.id, item.quantity + 1)}
+        className={`grid ${h} place-items-center text-base text-brown-2 transition-colors hover:bg-cream-2 disabled:opacity-40`}
+      >
+        +
+      </button>
+    </div>
+  )
+}
+
 export default function CartItem({ item, size = 'compact' }: Props) {
   const removeItem     = useCartStore((s) => s.removeItem)
   const updateQuantity = useCartStore((s) => s.updateQuantity)
@@ -32,70 +109,11 @@ export default function CartItem({ item, size = 'compact' }: Props) {
   const unitPrice = parseFloat(item.price)
   const lineTotal = unitPrice * item.quantity
 
-  /* ─── Thumbnail ─────────────────────────────────────────────── */
-  function Thumb({ className }: { className: string }) {
-    return (
-      <Link
-        href={`/products/${item.slug}`}
-        tabIndex={-1}
-        className={`shrink-0 overflow-hidden rounded-card border border-line-2 ${className}`}
-        style={{
-          background: item.primaryImageUrl
-            ? undefined
-            : `linear-gradient(160deg, ${gradFrom}, ${gradTo})`,
-        }}
-      >
-        {item.primaryImageUrl && (
-          <img
-            src={item.primaryImageUrl}
-            alt={item.productName}
-            className="h-full w-full object-cover"
-          />
-        )}
-      </Link>
-    )
-  }
-
-  /* ─── Quantity stepper ───────────────────────────────────────── */
-  function QtyControl({ compact = false }: { compact?: boolean }) {
-    const h = compact ? 'h-8 w-8' : 'h-9 w-9'
-    const mid = compact ? 'min-w-[30px] text-[12.5px]' : 'min-w-[38px] text-[13px]'
-    return (
-      <div
-        className={`inline-flex overflow-hidden rounded-[8px] border border-line ${isSyncing ? 'opacity-50' : ''}`}
-      >
-        <button
-          type="button"
-          aria-label="Adedi azalt"
-          disabled={item.quantity <= 1 || isSyncing}
-          onClick={() => void updateQuantity(item.id, item.quantity - 1)}
-          className={`grid ${h} place-items-center text-base text-brown-2 transition-colors hover:bg-cream-2 disabled:opacity-40`}
-        >
-          −
-        </button>
-        <span
-          className={`grid ${mid} place-items-center border-x border-line font-bold text-brown`}
-        >
-          {item.quantity}
-        </span>
-        <button
-          type="button"
-          aria-label="Adedi artır"
-          disabled={isSyncing}
-          onClick={() => void updateQuantity(item.id, item.quantity + 1)}
-          className={`grid ${h} place-items-center text-base text-brown-2 transition-colors hover:bg-cream-2 disabled:opacity-40`}
-        >
-          +
-        </button>
-      </div>
-    )
-  }
-
   /* ─── COMPACT (drawer) ───────────────────────────────────────── */
   if (size === 'compact') {
     return (
       <div className={`flex gap-3.5 py-4 ${isSyncing ? 'opacity-60' : ''}`}>
-        <Thumb className="h-[90px] w-[76px]" />
+        <Thumb item={item} gradFrom={gradFrom} gradTo={gradTo} className="h-[90px] w-[76px]" />
 
         <div className="flex flex-1 flex-col justify-between">
           <div className="flex items-start justify-between gap-2">
@@ -127,7 +145,7 @@ export default function CartItem({ item, size = 'compact' }: Props) {
           </div>
 
           <div className="flex items-center justify-between">
-            <QtyControl compact />
+            <QtyControl item={item} updateQuantity={updateQuantity} isSyncing={isSyncing} compact />
             <span className="text-[13.5px] font-extrabold text-brown">
               {formatPrice(lineTotal, item.currency)}
             </span>
@@ -144,7 +162,7 @@ export default function CartItem({ item, size = 'compact' }: Props) {
       <div className="hidden items-center gap-4 px-5 py-4 md:grid md:grid-cols-[1fr_88px_136px_88px_36px]">
         {/* Ürün */}
         <div className="flex items-center gap-3.5">
-          <Thumb className="h-[76px] w-[64px]" />
+          <Thumb item={item} gradFrom={gradFrom} gradTo={gradTo} className="h-[76px] w-[64px]" />
           <div>
             <Link
               href={`/products/${item.slug}`}
@@ -163,7 +181,7 @@ export default function CartItem({ item, size = 'compact' }: Props) {
 
         {/* Adet */}
         <div className="flex justify-center">
-          <QtyControl />
+          <QtyControl item={item} updateQuantity={updateQuantity} isSyncing={isSyncing} />
         </div>
 
         {/* Satır toplamı */}
@@ -189,7 +207,7 @@ export default function CartItem({ item, size = 'compact' }: Props) {
 
       {/* Mobile: kart */}
       <div className="flex gap-3.5 px-5 py-4 md:hidden">
-        <Thumb className="h-[88px] w-[74px]" />
+        <Thumb item={item} gradFrom={gradFrom} gradTo={gradTo} className="h-[88px] w-[74px]" />
 
         <div className="flex flex-1 flex-col justify-between">
           <div className="flex items-start justify-between gap-2">
@@ -219,7 +237,7 @@ export default function CartItem({ item, size = 'compact' }: Props) {
           </div>
 
           <div className="flex items-center justify-between">
-            <QtyControl compact />
+            <QtyControl item={item} updateQuantity={updateQuantity} isSyncing={isSyncing} compact />
             <span className="text-[13.5px] font-extrabold text-brown">
               {formatPrice(lineTotal, item.currency)}
             </span>

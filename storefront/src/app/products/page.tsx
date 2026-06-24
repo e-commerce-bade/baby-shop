@@ -3,8 +3,10 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import CampaignPlacement from '@/components/campaign/CampaignPlacement'
 import FilterSidebar from '@/components/product/filter/FilterSidebar'
+import FilterSidebarSkeleton from '@/components/product/filter/FilterSidebarSkeleton'
 import ProductGrid from '@/components/product/ProductGrid'
 import { fetchProducts } from '@/lib/api/catalog'
+import { filterProductsByFacets } from '@/lib/productFilters'
 import type { ProductSummary } from '@/types/product'
 
 export const dynamic = 'force-dynamic'
@@ -27,7 +29,7 @@ function applyFilters(
   products: ProductSummary[],
   params: SearchParams,
 ): ProductSummary[] {
-  let result = [...products]
+  let result = products
 
   if (params.q) {
     const q = params.q.toLowerCase()
@@ -39,41 +41,14 @@ function applyFilters(
     )
   }
 
-  if (params.colors) {
-    const selected = params.colors.split(',').filter(Boolean)
-    result = result.filter((product) =>
-      product.variants.some((variant) => selected.includes(variant.colorName)),
+  result = filterProductsByFacets(result, params)
+
+  if (params.sort === 'price-asc' || params.sort === 'price-desc') {
+    const direction = params.sort === 'price-asc' ? 1 : -1
+    // Girdi diziyi mutasyona ugratmamak icin kopya uzerinde sirala.
+    result = [...result].sort(
+      (a, b) => direction * (parseFloat(a.lowestPrice) - parseFloat(b.lowestPrice)),
     )
-  }
-
-  if (params.productTypes) {
-    const selected = params.productTypes.split(',').filter(Boolean)
-    result = result.filter((product) => product.productType !== null && selected.includes(product.productType))
-  }
-
-  if (params.sizes) {
-    const selected = params.sizes.split(',').filter(Boolean)
-    result = result.filter((product) =>
-      product.variants.some((variant) => selected.includes(variant.sizeLabel)),
-    )
-  }
-
-  if (params.price) {
-    result = result.filter((product) => {
-      const price = parseFloat(product.lowestPrice)
-      if (params.price === 'under-500') return price < 500
-      if (params.price === '500-700') return price >= 500 && price <= 700
-      if (params.price === 'over-700') return price > 700
-      return true
-    })
-  }
-
-  if (params.sort === 'price-asc') {
-    result.sort((a, b) => parseFloat(a.lowestPrice) - parseFloat(b.lowestPrice))
-  }
-
-  if (params.sort === 'price-desc') {
-    result.sort((a, b) => parseFloat(b.lowestPrice) - parseFloat(a.lowestPrice))
   }
 
   return result
@@ -136,24 +111,6 @@ export default async function ProductsPage({
           </div>
         )}
       </div>
-    </div>
-  )
-}
-
-function FilterSidebarSkeleton() {
-  return (
-    <div className="rounded-panel border border-line bg-cream-3 px-5 py-[22px]">
-      <div className="mb-4 h-6 w-24 animate-pulse rounded bg-line" />
-      {[1, 2, 3, 4].map((i) => (
-        <div key={i} className="border-t border-line py-4 first:border-t-0">
-          <div className="h-4 w-20 animate-pulse rounded bg-line" />
-          <div className="mt-3 space-y-2">
-            {[1, 2, 3].map((j) => (
-              <div key={j} className="h-4 w-full animate-pulse rounded bg-line" />
-            ))}
-          </div>
-        </div>
-      ))}
     </div>
   )
 }
