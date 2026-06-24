@@ -6,20 +6,20 @@ import com.babyshop.order.Order;
 import com.babyshop.order.OrderItem;
 import com.babyshop.order.OrderStatusPolicy;
 import com.babyshop.order.OrderRepository;
-import com.babyshop.product.ProductVariant;
 import com.babyshop.product.ProductVariantRepository;
 import com.babyshop.payment.dto.PaymentCallbackRequest;
 import com.babyshop.payment.dto.PaymentCallbackResponse;
 import com.babyshop.payment.dto.PaymentInitiationRequest;
 import com.babyshop.payment.dto.PaymentResponse;
+import com.babyshop.cart.CartRepository;
 import com.babyshop.payment.gateway.PaymentGateway;
 import com.babyshop.payment.gateway.PaymentGatewayCallbackResult;
 import com.babyshop.payment.gateway.PaymentGatewayInitiation;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -31,16 +31,19 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
+@Slf4j
 public class PaymentService {
 
     private static final String PAYMENT_STATUS_INITIATED = "INITIATED";
     private static final String PAYMENT_STATUS_SUCCEEDED = "SUCCEEDED";
     private static final String PAYMENT_STATUS_FAILED = "FAILED";
+    private static final String CART_STATUS_CHECKED_OUT = "CHECKED_OUT";
 
     private final OrderRepository orderRepository;
     private final PaymentRepository paymentRepository;
     private final List<PaymentGateway> paymentGateways;
     private final ProductVariantRepository productVariantRepository;
+    private final CartRepository cartRepository;
 
     @Transactional
     public PaymentResponse initiatePayment(PaymentInitiationRequest request) {
@@ -146,6 +149,8 @@ public class PaymentService {
                 .orElseThrow(() -> new ResourceNotFoundException("Payment not found for transaction id: " + transactionId));
     }
 
+    // Callback isleminde odeme satirini PESSIMISTIC_WRITE ile kilitleyerek bulur; boylece
+    // es zamanli duplicate/replay callback'ler serilestirilir ve cift islem onlenir (#7).
     private Payment findPaymentByTransactionOrReference(String transactionId, String providerReference) {
         String normalizedTransactionId = normalizeOptional(transactionId);
         String normalizedProviderReference = normalizeOptional(providerReference);
@@ -156,13 +161,13 @@ public class PaymentService {
 
         Optional<Payment> payment = normalizedTransactionId == null
                 ? Optional.empty()
-                : paymentRepository.findByTransactionId(normalizedTransactionId);
+                : paymentRepository.findByTransactionIdForUpdate(normalizedTransactionId);
 
         if (payment.isPresent()) {
             return payment.get();
         }
 
-        return paymentRepository.findByProviderReference(normalizedProviderReference)
+        return paymentRepository.findByProviderReferenceForUpdate(normalizedProviderReference)
                 .orElseThrow(() -> new ResourceNotFoundException("Payment not found for callback identifiers"));
     }
 
@@ -186,31 +191,48 @@ public class PaymentService {
     }
 
     private Payment completePaymentAsSucceeded(Payment payment) {
-        OrderStatusPolicy.validateTransition(payment.getOrder().getStatus(), OrderStatusPolicy.PAID);
-        decrementStockForOrder(payment.getOrder());
+        Order order = payment.getOrder();
+        OrderStatusPolicy.validateTransition(order.getStatus(), OrderStatusPolicy.PAID);
+        decrementStockForOrder(order);
         payment.setStatus(PAYMENT_STATUS_SUCCEEDED);
         payment.setPaidAt(java.time.OffsetDateTime.now());
-        payment.getOrder().setStatus(OrderStatusPolicy.PAID);
+        order.setStatus(OrderStatusPolicy.PAID);
+        consumeSourceCart(order);
         return paymentRepository.save(payment);
     }
 
-    // Stok yalnizca odeme basariyla tamamlaninca dusulur. Es zamanli bir baska siparis
-    // son urunu almis olabilir; bu durumda stogu 0'da tutariz (asiri satis yoneticiye birakilir).
+    // Stok yalnizca odeme basariyla tamamlaninca dusulur. Atomik kosullu UPDATE ile lost-update
+    // yarisi onlenir; yeterli stok yoksa (es zamanli baska siparis son urunu almis olabilir)
+    // negatife dusmeden 0'a sabitlenir ve asiri satis log'a yazilarak gorunur kilinir (#6).
     private void decrementStockForOrder(Order order) {
-        List<ProductVariant> updatedVariants = new ArrayList<>();
         for (OrderItem item : order.getItems()) {
             if (item.getProductVariantId() == null) {
                 continue;
             }
-            productVariantRepository.findById(item.getProductVariantId()).ifPresent(variant -> {
-                int remaining = variant.getStockQuantity() - item.getQuantity();
-                variant.setStockQuantity(Math.max(remaining, 0));
-                updatedVariants.add(variant);
-            });
+
+            int updated = productVariantRepository.decrementStockIfAvailable(
+                    item.getProductVariantId(), item.getQuantity());
+            if (updated == 0) {
+                productVariantRepository.clampStockToZero(item.getProductVariantId());
+                log.warn("Stok asiri satis: varyant {} icin {} adet istendi ama yeterli stok yok (siparis {}).",
+                        item.getProductVariantId(), item.getQuantity(), order.getOrderNumber());
+            }
         }
-        if (!updatedVariants.isEmpty()) {
-            productVariantRepository.saveAll(updatedVariants);
+    }
+
+    // Odeme basariyla tamamlaninca siparisi olusturan sepeti CHECKED_OUT yapar; boylece ayni
+    // sepetten tekrar siparis/odeme yapilamaz (#8). Sepet bulunamazsa sessizce gecilir.
+    private void consumeSourceCart(Order order) {
+        if (order.getCartId() == null) {
+            return;
         }
+
+        cartRepository.findById(order.getCartId()).ifPresent(cart -> {
+            if (!CART_STATUS_CHECKED_OUT.equalsIgnoreCase(cart.getStatus())) {
+                cart.setStatus(CART_STATUS_CHECKED_OUT);
+                cartRepository.save(cart);
+            }
+        });
     }
 
     private Payment completePaymentAsFailed(Payment payment) {

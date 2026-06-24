@@ -1,6 +1,9 @@
 package com.babyshop.product;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 import java.util.Optional;
@@ -9,6 +12,18 @@ public interface ProductVariantRepository extends JpaRepository<ProductVariant, 
 
     @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"product", "product.images"})
     Optional<ProductVariant> findById(Long id);
+
+    // Atomik kosullu dusum: yarisi ko-suzlastirir (lost-update'i onler). Yeterli stok
+    // yoksa 0 satir gunceller; cagiran taraf bu durumu ele alir.
+    @Modifying
+    @Query("UPDATE ProductVariant v SET v.stockQuantity = v.stockQuantity - :quantity "
+            + "WHERE v.id = :id AND v.stockQuantity >= :quantity")
+    int decrementStockIfAvailable(@Param("id") Long id, @Param("quantity") int quantity);
+
+    // Yetersiz stok durumunda negatife dusmeden 0'a sabitler (asiri satis gorunur kilinir).
+    @Modifying
+    @Query("UPDATE ProductVariant v SET v.stockQuantity = 0 WHERE v.id = :id AND v.stockQuantity > 0")
+    int clampStockToZero(@Param("id") Long id);
 
     List<ProductVariant> findAllByProductIdOrderBySizeLabelAscColorNameAsc(Long productId);
 

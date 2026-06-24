@@ -191,6 +191,7 @@ public class OrderService {
 
         Order order = new Order();
         resolveAuthenticatedUser(normalizedAuthenticatedEmail).ifPresent(order::setUser);
+        order.setCartId(cart.getId());
         order.setOrderNumber(generateOrderNumber());
         order.setStatus(OrderStatusPolicy.PENDING_PAYMENT);
         order.setCustomerEmail(request.customerEmail().trim().toLowerCase(Locale.ROOT));
