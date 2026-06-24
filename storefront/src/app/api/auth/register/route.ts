@@ -2,8 +2,12 @@ import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 import { buildBackendUrl } from '@/lib/api/backend'
 import { AUTH_COOKIE_NAME, authCookieOptions } from '@/lib/api/auth-cookie'
+import { enforceRateLimit, RATE_LIMITS } from '@/lib/api/rate-limit'
 
 export async function POST(request: Request) {
+  const limited = enforceRateLimit(request, 'auth', RATE_LIMITS.auth)
+  if (limited) return limited
+
   const body = await request.text()
 
   let response: Response
