@@ -50,6 +50,21 @@ public interface OrderRepository extends JpaRepository<Order, Long>, JpaSpecific
             @Param("statuses") Collection<String> statuses,
             @Param("start") OffsetDateTime start);
 
+    // Admin musteri listesi icin: verilen e-postalar bazinda siparis sayisi/harcama/son siparis.
+    @Query("select lower(o.customerEmail) as email, count(o) as orderCount, max(o.createdAt) as lastOrderAt, "
+            + "sum(case when o.status in :statuses then o.totalAmount else 0 end) as totalSpent "
+            + "from Order o where lower(o.customerEmail) in :emails group by lower(o.customerEmail)")
+    List<CustomerOrderAggregateView> aggregateByCustomerEmails(
+            @Param("emails") Collection<String> emails,
+            @Param("statuses") Collection<String> statuses);
+
+    interface CustomerOrderAggregateView {
+        String getEmail();
+        long getOrderCount();
+        OffsetDateTime getLastOrderAt();
+        BigDecimal getTotalSpent();
+    }
+
     interface RevenueAggregateView {
         BigDecimal getRevenue();
         long getCount();

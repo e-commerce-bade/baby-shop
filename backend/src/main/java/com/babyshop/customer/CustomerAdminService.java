@@ -1,33 +1,40 @@
 package com.babyshop.customer;
 
-import com.babyshop.auth.Role;
 import com.babyshop.auth.UserAccount;
 import com.babyshop.auth.UserAccountRepository;
+import com.babyshop.common.response.PageResponse;
+import com.babyshop.customer.dto.CustomerStatsResponse;
 import com.babyshop.customer.dto.CustomerSummaryResponse;
-import com.babyshop.order.Order;
 import com.babyshop.order.OrderRepository;
+import com.babyshop.order.OrderRepository.CustomerOrderAggregateView;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * Builds the admin "Customers" view: registered shop customers (users that hold
- * the CUSTOMER role) enriched with order counts and lifetime spend, computed by
- * joining users to orders on the (denormalized) customer email.
+ * Admin "Customers" view: registered shop customers (CUSTOMER role) enriched with
+ * order counts and lifetime spend. Pagination, search and the per-customer order
+ * aggregates are pushed to SQL instead of loading every user and order into memory.
  */
 @Service
 @RequiredArgsConstructor
 public class CustomerAdminService {
 
     private static final String CUSTOMER_ROLE = "CUSTOMER";
+    private static final int MAX_PAGE_SIZE = 100;
+    private static final int DEFAULT_PAGE_SIZE = 20;
 
     /** Statuses that represent realized revenue (everything except pending/cancelled). */
     private static final Set<String> REVENUE_STATUSES =
@@ -37,45 +44,58 @@ public class CustomerAdminService {
     private final OrderRepository orderRepository;
 
     @Transactional(readOnly = true)
-    public List<CustomerSummaryResponse> getAllCustomers() {
-        List<Order> orders = orderRepository.findAllByOrderByCreatedAtDesc();
+    public PageResponse<CustomerSummaryResponse> getCustomers(String search, int page, int size) {
+        int safePage = Math.max(page, 0);
+        int safeSize = size <= 0 ? DEFAULT_PAGE_SIZE : Math.min(size, MAX_PAGE_SIZE);
+        String query = (search == null || search.isBlank())
+                ? null
+                : "%" + search.trim().toLowerCase(Locale.ROOT) + "%";
 
-        Map<String, Long> orderCountByEmail = orders.stream()
-                .collect(Collectors.groupingBy(
-                        order -> normalizeEmail(order.getCustomerEmail()),
-                        Collectors.counting()));
+        Pageable pageable = PageRequest.of(safePage, safeSize, Sort.by(Sort.Direction.DESC, "createdAt"));
+        Page<UserAccount> users = userAccountRepository.findCustomers(query, pageable);
 
-        Map<String, BigDecimal> spentByEmail = orders.stream()
-                .filter(order -> REVENUE_STATUSES.contains(order.getStatus()))
-                .collect(Collectors.groupingBy(
-                        order -> normalizeEmail(order.getCustomerEmail()),
-                        Collectors.reducing(BigDecimal.ZERO, Order::getTotalAmount, BigDecimal::add)));
-
-        // Most recent order timestamp per customer (orders are sorted desc, so first wins)
-        Map<String, OffsetDateTime> lastOrderByEmail = orders.stream()
-                .collect(Collectors.toMap(
-                        order -> normalizeEmail(order.getCustomerEmail()),
-                        Order::getCreatedAt,
-                        (existing, ignored) -> existing));
-
-        return userAccountRepository.findAllByOrderByCreatedAtDesc().stream()
-                .filter(this::isCustomer)
-                .map(user -> toResponse(user, orderCountByEmail, spentByEmail, lastOrderByEmail))
+        // Yalnizca bu sayfadaki musterilerin siparis agregalarini cek (tum tabloyu degil).
+        List<String> emails = users.getContent().stream()
+                .map(user -> normalizeEmail(user.getEmail()))
                 .toList();
+        Map<String, CustomerOrderAggregateView> aggregatesByEmail = emails.isEmpty()
+                ? Map.of()
+                : orderRepository.aggregateByCustomerEmails(emails, REVENUE_STATUSES).stream()
+                        .collect(Collectors.toMap(
+                                view -> normalizeEmail(view.getEmail()),
+                                Function.identity()));
+
+        List<CustomerSummaryResponse> content = users.getContent().stream()
+                .map(user -> toResponse(user, aggregatesByEmail.get(normalizeEmail(user.getEmail()))))
+                .toList();
+
+        return new PageResponse<>(
+                content,
+                users.getNumber(),
+                users.getSize(),
+                users.getTotalElements(),
+                users.getTotalPages(),
+                users.hasNext(),
+                users.hasPrevious());
     }
 
-    private boolean isCustomer(UserAccount user) {
-        return user.getRoles().stream()
-                .map(Role::getName)
-                .anyMatch(CUSTOMER_ROLE::equalsIgnoreCase);
+    @Transactional(readOnly = true)
+    public CustomerStatsResponse getCustomerStats() {
+        long totalCustomers = userAccountRepository.countByRoleName(CUSTOMER_ROLE);
+        long customersWithOrders = userAccountRepository.countCustomersWithOrders();
+        BigDecimal totalRevenue = orderRepository.aggregateRevenue(REVENUE_STATUSES).getRevenue();
+        return new CustomerStatsResponse(
+                totalCustomers,
+                customersWithOrders,
+                totalRevenue == null ? BigDecimal.ZERO : totalRevenue,
+                "TRY");
     }
 
-    private CustomerSummaryResponse toResponse(
-            UserAccount user,
-            Map<String, Long> orderCountByEmail,
-            Map<String, BigDecimal> spentByEmail,
-            Map<String, OffsetDateTime> lastOrderByEmail) {
-        String email = normalizeEmail(user.getEmail());
+    private CustomerSummaryResponse toResponse(UserAccount user, CustomerOrderAggregateView aggregate) {
+        BigDecimal totalSpent = aggregate == null || aggregate.getTotalSpent() == null
+                ? BigDecimal.ZERO
+                : aggregate.getTotalSpent();
+
         return new CustomerSummaryResponse(
                 user.getId(),
                 user.getEmail(),
@@ -83,11 +103,11 @@ public class CustomerAdminService {
                 user.getLastName(),
                 user.getPhoneNumber(),
                 user.isActive(),
-                orderCountByEmail.getOrDefault(email, 0L),
-                spentByEmail.getOrDefault(email, BigDecimal.ZERO),
+                aggregate == null ? 0L : aggregate.getOrderCount(),
+                totalSpent,
                 "TRY",
                 user.getCreatedAt(),
-                lastOrderByEmail.get(email));
+                aggregate == null ? null : aggregate.getLastOrderAt());
     }
 
     private String normalizeEmail(String email) {
