@@ -4,8 +4,6 @@ import { useEffect, useState } from 'react'
 import { cn } from '@/lib/utils'
 import type { ProductImage } from '@/types/product'
 
-const THUMB_OPACITIES = ['1', '0.75', '0.88', '0.65', '0.5']
-
 interface Props {
   images: ProductImage[]
   productName: string
@@ -22,7 +20,6 @@ export default function ProductGallery({
   isNew,
 }: Props) {
   const [active, setActive] = useState(0)
-  const count = Math.max(images.length, 5)
 
   useEffect(() => {
     setActive(0)
@@ -30,12 +27,11 @@ export default function ProductGallery({
 
   return (
     <div className="flex w-full max-w-[560px] gap-3 max-[980px]:mx-auto max-[680px]:flex-col-reverse">
-      <div className="flex flex-col gap-2 max-[680px]:flex-row max-[680px]:overflow-x-auto">
-        {Array.from({ length: count }).map((_, index) => {
-          const image = images[index]
-          return (
+      {images.length > 1 ? (
+        <div className="flex flex-col gap-2 max-[680px]:flex-row max-[680px]:overflow-x-auto">
+          {images.map((image, index) => (
             <button
-              key={index}
+              key={image.id ?? index}
               type="button"
               onClick={() => setActive(index)}
               aria-label={`Görsel ${index + 1}`}
@@ -46,30 +42,16 @@ export default function ProductGallery({
                   : 'border-line-2 hover:border-rose-soft',
                 'max-[680px]:h-[68px] max-[680px]:w-[58px]',
               )}
-              style={{
-                background: image
-                  ? undefined
-                  : `linear-gradient(160deg, ${gradientFrom}${Math.round(parseFloat(THUMB_OPACITIES[index % 5]) * 255).toString(16).padStart(2, '0')}, ${gradientTo})`,
-              }}
             >
-              {image ? (
-                <img
-                  src={image.imageUrl}
-                  alt={image.altText ?? productName}
-                  className="h-full w-full object-contain p-1"
-                />
-              ) : null}
-              {!image && index === count - 1 ? (
-                <div className="flex h-full w-full items-center justify-center opacity-60">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="var(--tw-bg-opacity, #5B4839)" className="text-brown">
-                    <path d="M8 5v14l11-7z" />
-                  </svg>
-                </div>
-              ) : null}
+              <img
+                src={image.imageUrl}
+                alt={image.altText ?? productName}
+                className="h-full w-full object-contain p-1"
+              />
             </button>
-          )
-        })}
-      </div>
+          ))}
+        </div>
+      ) : null}
 
       <div
         className="relative flex min-h-[430px] flex-1 items-center justify-center overflow-hidden rounded-panel border border-line-2 max-[680px]:min-h-[360px]"

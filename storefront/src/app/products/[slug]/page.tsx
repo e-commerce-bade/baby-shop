@@ -5,7 +5,6 @@ import ProductDetailExperience from '@/components/product/detail/ProductDetailEx
 import ProductAccordion from '@/components/product/detail/ProductAccordion'
 import FeaturesPanel from '@/components/product/detail/FeaturesPanel'
 import RelatedProducts from '@/components/product/detail/RelatedProducts'
-import MobileStickyBar from '@/components/product/detail/MobileStickyBar'
 import { fetchProductBySlug, fetchProducts } from '@/lib/api/catalog'
 import { formatFreeShippingThreshold } from '@/lib/shipping'
 
@@ -42,17 +41,6 @@ export default async function ProductDetailPage({
   if (!product) notFound()
 
   const [gradFrom, gradTo] = PALETTES[product.id % PALETTES.length]
-  const currentPrice = parseFloat(product.lowestPrice)
-  // En dusuk fiyatli varyantin gercek karsilastirma fiyatindan indirimi turet (yoksa null).
-  const cheapestVariant = product.variants
-    .filter((variant) => variant.isActive)
-    .sort((a, b) => parseFloat(a.price) - parseFloat(b.price))[0]
-  const cheapestCompareAt = cheapestVariant?.compareAtPrice != null
-    ? parseFloat(cheapestVariant.compareAtPrice)
-    : null
-  const originalPrice = cheapestCompareAt != null && cheapestCompareAt > currentPrice
-    ? cheapestCompareAt
-    : null
 
   const related = (await fetchProducts(product.categorySlug))
     .filter((candidate) => candidate.id !== product.id)
@@ -118,12 +106,6 @@ export default async function ProductDetailPage({
       </div>
 
       <RelatedProducts products={related} />
-
-      <MobileStickyBar
-        price={product.lowestPrice}
-        currency={product.currency}
-        originalPrice={originalPrice}
-      />
     </div>
   )
 }

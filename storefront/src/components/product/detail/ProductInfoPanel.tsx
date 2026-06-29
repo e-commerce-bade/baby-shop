@@ -1,14 +1,13 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { formatPrice } from '@/lib/utils'
 import ColorSelector from './ColorSelector'
 import SizeSelector from './SizeSelector'
 import QuantityControl from './QuantityControl'
-import { useCartStore } from '@/store/cartStore'
 import { useFavoriteStore } from '@/store/favoriteStore'
-import type { ProductDetail } from '@/types/product'
+import type { ProductDetail, ProductVariant } from '@/types/product'
 
 // Beden etiketindeki ilk sayiya gore sirala ("3 Yas" < "10 Yas", "0-3 Ay" < "3-6 Ay")
 function sizeSortKey(label: string): number {
@@ -18,11 +17,33 @@ function sizeSortKey(label: string): number {
 
 interface Props {
   product: ProductDetail
-  selectedColor?: string
-  onColorSelect?: (color: string) => void
+  selectedColor: string
+  onColorSelect: (color: string) => void
+  selectedSize: string | null
+  onSizeSelect: (size: string | null) => void
+  quantity: number
+  onQuantityChange: (quantity: number) => void
+  currentVariant: ProductVariant | undefined
+  inStock: boolean
+  canAddToCart: boolean
+  isAdding: boolean
+  onAddToCart: () => void
 }
 
-export default function ProductInfoPanel({ product, selectedColor: selectedColorProp, onColorSelect }: Props) {
+export default function ProductInfoPanel({
+  product,
+  selectedColor,
+  onColorSelect,
+  selectedSize,
+  onSizeSelect,
+  quantity,
+  onQuantityChange,
+  currentVariant,
+  inStock,
+  canAddToCart,
+  isAdding,
+  onAddToCart,
+}: Props) {
   const router = useRouter()
   const pathname = usePathname()
   const uniqueColors = useMemo(
@@ -30,13 +51,6 @@ export default function ProductInfoPanel({ product, selectedColor: selectedColor
     [product.variants],
   )
 
-  const [internalSelectedColor, setInternalSelectedColor] = useState(uniqueColors[0] ?? '')
-  const selectedColor = selectedColorProp ?? internalSelectedColor
-  const [selectedSize, setSelectedSize] = useState<string | null>(null)
-  const [quantity, setQuantity] = useState(1)
-  const [isAdding, setIsAdding] = useState(false)
-
-  const addItem = useCartStore((state) => state.addItem)
   const isFavorite = useFavoriteStore((state) => state.isFavorite(product.id))
   const toggleFavorite = useFavoriteStore((state) => state.toggleFavorite)
 
@@ -56,12 +70,6 @@ export default function ProductInfoPanel({ product, selectedColor: selectedColor
       .sort((a, b) => sizeSortKey(a.label) - sizeSortKey(b.label))
   }, [product.variants, selectedColor])
 
-  const currentVariant = product.variants.find(
-    (variant) =>
-      variant.colorName === selectedColor && variant.sizeLabel === selectedSize,
-  )
-
-  const inStock = currentVariant ? currentVariant.stockQuantity > 0 : true
   const currentPrice = parseFloat(currentVariant?.price ?? product.lowestPrice)
   const compareAtPrice = currentVariant?.compareAtPrice != null
     ? parseFloat(currentVariant.compareAtPrice)
@@ -71,28 +79,6 @@ export default function ProductInfoPanel({ product, selectedColor: selectedColor
   const discountPercent = hasDiscount
     ? Math.round(((compareAtPrice - currentPrice) / compareAtPrice) * 100)
     : 0
-  const canAddToCart = selectedSize !== null && inStock
-
-  async function handleAddToCart() {
-    if (!canAddToCart || !currentVariant) return
-
-    setIsAdding(true)
-    try {
-      await addItem({
-        productId: product.id,
-        variantId: currentVariant.id,
-        slug: product.slug,
-        productName: product.name,
-        variantLabel: `${selectedSize} / ${selectedColor}`,
-        primaryImageUrl: product.primaryImage?.imageUrl ?? null,
-        price: currentVariant.price,
-        currency: currentVariant.currency,
-        quantity,
-      })
-    } finally {
-      setIsAdding(false)
-    }
-  }
 
   async function handleFavoriteToggle() {
     const result = await toggleFavorite(product)
@@ -138,11 +124,7 @@ export default function ProductInfoPanel({ product, selectedColor: selectedColor
         <ColorSelector
           colors={uniqueColors}
           selected={selectedColor}
-          onSelect={(color) => {
-            if (onColorSelect) onColorSelect(color)
-            else setInternalSelectedColor(color)
-            setSelectedSize(null)
-          }}
+          onSelect={onColorSelect}
         />
       </div>
 
@@ -156,7 +138,7 @@ export default function ProductInfoPanel({ product, selectedColor: selectedColor
         <SizeSelector
           sizes={sizesForColor}
           selected={selectedSize}
-          onSelect={setSelectedSize}
+          onSelect={onSizeSelect}
         />
       </div>
 
@@ -173,7 +155,7 @@ export default function ProductInfoPanel({ product, selectedColor: selectedColor
         <p className="text-[13.5px] font-bold text-brown">Adet</p>
         <QuantityControl
           value={quantity}
-          onChange={setQuantity}
+          onChange={onQuantityChange}
           max={currentVariant?.stockQuantity ?? 10}
         />
       </div>
@@ -182,7 +164,7 @@ export default function ProductInfoPanel({ product, selectedColor: selectedColor
         <button
           type="button"
           disabled={!canAddToCart || isAdding}
-          onClick={() => void handleAddToCart()}
+          onClick={onAddToCart}
           className="flex flex-1 items-center justify-center rounded-[14px] bg-rose py-4 text-[15px] font-bold text-white shadow-[0_10px_22px_-10px_rgba(138,114,88,.5)] transition-[background-color,transform] duration-[220ms] hover:-translate-y-0.5 hover:bg-rose-dk disabled:cursor-not-allowed disabled:opacity-50"
         >
           {isAdding ? 'Ekleniyor...' : !selectedSize ? 'Beden Seç' : 'Sepete Ekle'}
