@@ -76,8 +76,15 @@ public class CategoryService {
     @Transactional
     public void deleteCategory(Long id) {
         Category category = findCategoryById(id);
-        category.setActive(false);
-        categoryRepository.save(category);
+
+        if (productRepository.countByCategoryId(id) > 0) {
+            throw new InvalidRequestException("Category has products and cannot be deleted");
+        }
+        if (categoryRepository.existsByParentId(id)) {
+            throw new InvalidRequestException("Category has sub-categories and cannot be deleted");
+        }
+
+        categoryRepository.delete(category);
     }
 
     private Category findCategoryById(Long id) {

@@ -28,6 +28,16 @@ function formatDate(iso: string | undefined | null) {
   return new Date(iso).toLocaleDateString('tr-TR', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
+function deleteErrorMessage(backendMessage?: string) {
+  if (backendMessage?.includes('products')) {
+    return 'Bu kategoriye bağlı ürünler olduğu için silinemez. Önce ürünleri başka bir kategoriye taşıyın.'
+  }
+  if (backendMessage?.includes('sub-categories')) {
+    return 'Bu kategorinin alt kategorileri olduğu için silinemez. Önce alt kategorileri silin.'
+  }
+  return 'Kategori silinemedi.'
+}
+
 function AddCategoryDrawer({
   onClose,
   onSaved,
@@ -427,7 +437,10 @@ export default function AdminCategoriesPage() {
   async function handleDelete(cat: AdminCategory) {
     try {
       const res = await fetch(`/api/admin/categories/${cat.id}`, { method: 'DELETE' })
-      if (!res.ok) throw new Error('Kategori silinemedi.')
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { message?: string }
+        throw new Error(deleteErrorMessage(body.message))
+      }
       await loadCategories()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Silme işlemi başarısız.')

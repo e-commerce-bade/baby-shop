@@ -21,6 +21,7 @@ import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.doNothing;
+import static org.mockito.BDDMockito.doThrow;
 import static org.mockito.BDDMockito.given;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -95,11 +96,21 @@ class CategoryAdminControllerTest {
     }
 
     @Test
-    void shouldSoftDeleteCategory() throws Exception {
+    void shouldDeleteCategory() throws Exception {
         doNothing().when(categoryService).deleteCategory(2L);
 
         mockMvc.perform(delete("/api/v1/admin/categories/2"))
                 .andExpect(status().isNoContent());
+    }
+
+    @Test
+    void shouldReturnBadRequestWhenDeletingCategoryWithProducts() throws Exception {
+        doThrow(new InvalidRequestException("Category has products and cannot be deleted"))
+                .when(categoryService).deleteCategory(2L);
+
+        mockMvc.perform(delete("/api/v1/admin/categories/2"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Category has products and cannot be deleted"));
     }
 
     @Test
