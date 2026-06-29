@@ -1,7 +1,6 @@
 import { Suspense } from 'react'
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import CampaignPlacement from '@/components/campaign/CampaignPlacement'
 import FilterSidebar from '@/components/product/filter/FilterSidebar'
 import FilterSidebarSkeleton from '@/components/product/filter/FilterSidebarSkeleton'
 import ProductGrid from '@/components/product/ProductGrid'
@@ -85,9 +84,6 @@ export default async function ProductsPage({
             {activeCount > 0 && ` · ${activeCount} filtre aktif`}
           </p>
         </div>
-      </div>
-      <div className="mb-5">
-        <CampaignPlacement placement="productListTop" />
       </div>
 
       <div className="grid grid-cols-[248px_1fr] items-start gap-7 max-[980px]:grid-cols-1">

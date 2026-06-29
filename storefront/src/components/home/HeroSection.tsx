@@ -1,21 +1,8 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
-import type { Campaign, HeroButtonTone, HeroTextTone } from '@/lib/mock/campaigns'
-
-const heroTextToneClasses: Record<HeroTextTone, { title: string; body: string; eyebrow: string }> = {
-  dark: { title: 'text-brown', body: 'text-brown-2', eyebrow: 'text-muted' },
-  light: { title: 'text-white', body: 'text-white/85', eyebrow: 'text-white/75' },
-  brand: { title: 'text-[#5B4839]', body: 'text-[#8C5F4A]', eyebrow: 'text-[#C07B5A]' },
-}
-
-const heroButtonToneClasses: Record<HeroButtonTone, string> = {
-  brand: '',
-  dark: 'bg-[#3D2B1F] text-white',
-  light: 'bg-white text-[#3D2B1F]',
-}
 
 // ─── Slide verisi ─────────────────────────────────────────────────────────────
 
@@ -111,54 +98,8 @@ const ICONS = {
 
 export default function HeroSection() {
   const [current, setCurrent] = useState(0)
-  const [campaigns, setCampaigns] = useState<Campaign[]>([])
-  const heroCampaign = useMemo(
-    () => campaigns.find((campaign) => campaign.status === 'active' && campaign.placements.includes('homeHero')),
-    [campaigns],
-  )
-  const slides = useMemo(() => {
-    if (!heroCampaign) return SLIDES
-
-    return SLIDES.map((slide) => {
-      if (slide.id !== 'campaign') return slide
-      return {
-        ...slide,
-        eyebrow: 'Ozel Kampanya · Sinirli Sure',
-        badge: heroCampaign.value,
-        title: heroCampaign.name,
-        titleAccent: heroCampaign.code || heroCampaign.value,
-        desc: heroCampaign.code
-          ? `${heroCampaign.audience} icin hazirlanan kampanya. Kodu sepette kullan: ${heroCampaign.code}.`
-          : `${heroCampaign.audience} icin hazirlanan ${heroCampaign.value} kampanyasi.`,
-        primaryCta: { label: 'Kampanyayi Kesfet', href: '/products' },
-        background: heroCampaign.hero.backgroundColor,
-        image: heroCampaign.hero.backgroundType === 'image' ? heroCampaign.hero.imageUrl : '',
-        textTone: heroCampaign.hero.textTone,
-        buttonTone: heroCampaign.hero.buttonTone,
-        tags: [
-          { label: heroCampaign.audience, icon: 'tag' as const },
-          { label: heroCampaign.endsAt !== '-' ? `${heroCampaign.endsAt} tarihine kadar` : 'Sinirli sure', icon: 'clock' as const },
-          { label: heroCampaign.channels[0] ?? 'Web', icon: 'truck' as const },
-        ],
-      }
-    })
-  }, [heroCampaign])
+  const slides = SLIDES
   const count = slides.length
-
-  useEffect(() => {
-    let active = true
-    fetch('/api/campaigns', { cache: 'no-store', headers: { Accept: 'application/json' } })
-      .then((res) => (res.ok ? res.json() : []))
-      .then((data) => {
-        if (active) setCampaigns(Array.isArray(data) ? (data as Campaign[]) : [])
-      })
-      .catch(() => {
-        if (active) setCampaigns([])
-      })
-    return () => {
-      active = false
-    }
-  }, [])
 
   /* 5 saniyede bir ilerle; current değişince timer sıfırlanır */
   useEffect(() => {
@@ -178,8 +119,6 @@ export default function HeroSection() {
       {/* ── Slides ──────────────────────────────────────────────────────── */}
       {slides.map((slide, i) => {
         const isActive = i === current
-        const textTone = 'textTone' in slide ? slide.textTone : 'dark'
-        const buttonTone = 'buttonTone' in slide ? slide.buttonTone : 'brand'
         return (
           <div
             key={slide.id}
@@ -229,12 +168,12 @@ export default function HeroSection() {
               )}
 
               {/* Eyebrow */}
-              <p className={`mb-3 text-[13px] font-bold tracking-[0.4px] ${heroTextToneClasses[textTone].eyebrow}`}>
+              <p className="mb-3 text-[13px] font-bold tracking-[0.4px] text-muted">
                 {slide.eyebrow}
               </p>
 
               {/* Başlık */}
-              <h1 className={`font-serif text-[52px] font-semibold leading-[1.03] tracking-[-0.5px] max-[680px]:text-[38px] ${heroTextToneClasses[textTone].title}`}>
+              <h1 className="font-serif text-[52px] font-semibold leading-[1.03] tracking-[-0.5px] text-brown max-[680px]:text-[38px]">
                 {slide.title}
                 <em
                   className="mt-0.5 block font-medium not-italic"
@@ -244,7 +183,7 @@ export default function HeroSection() {
                 </em>
               </h1>
 
-              <p className={`mb-7 mt-5 max-w-[340px] text-[15px] leading-relaxed ${heroTextToneClasses[textTone].body}`}>
+              <p className="mb-7 mt-5 max-w-[340px] text-[15px] leading-relaxed text-brown-2">
                 {slide.desc}
               </p>
 
@@ -252,8 +191,8 @@ export default function HeroSection() {
               <div className="flex flex-wrap gap-3">
                 <Link
                   href={slide.primaryCta.href}
-                  className={`inline-flex items-center gap-2 rounded-pill px-[26px] py-[13px] text-sm font-bold shadow-[0_10px_22px_-10px_rgba(91,72,57,.35)] transition-[transform,background-color] duration-[220ms] hover:-translate-y-0.5 ${heroButtonToneClasses[buttonTone] || 'text-white'}`}
-                  style={buttonTone === 'brand' ? { background: slide.accentColor } : undefined}
+                  className="inline-flex items-center gap-2 rounded-pill px-[26px] py-[13px] text-sm font-bold text-white shadow-[0_10px_22px_-10px_rgba(91,72,57,.35)] transition-[transform,background-color] duration-[220ms] hover:-translate-y-0.5"
+                  style={{ background: slide.accentColor }}
                 >
                   {slide.primaryCta.label}
                 </Link>
@@ -270,7 +209,7 @@ export default function HeroSection() {
               {/* Etiketler */}
               <div className="mt-7 flex flex-wrap gap-5 max-[680px]:gap-4">
                 {slide.tags.map((tag) => (
-                  <div key={tag.label} className={`flex items-center gap-2 text-[13px] font-semibold ${heroTextToneClasses[textTone].body}`}>
+                  <div key={tag.label} className="flex items-center gap-2 text-[13px] font-semibold text-brown-2">
                     <span className="grid h-[26px] w-[26px] place-items-center rounded-full bg-white text-muted">
                       {ICONS[tag.icon]}
                     </span>

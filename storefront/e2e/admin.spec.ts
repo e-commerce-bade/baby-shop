@@ -20,7 +20,6 @@ const ROUTES: Array<{ name: string; path: string }> = [
   { name: 'filters', path: '/admin/filters' },
   { name: 'categories', path: '/admin/categories' },
   { name: 'inventory', path: '/admin/inventory' },
-  { name: 'campaigns', path: '/admin/campaigns' },
   { name: 'customers', path: '/admin/customers' },
   { name: 'analytics', path: '/admin/analytics' },
   { name: 'settings', path: '/admin/settings' },

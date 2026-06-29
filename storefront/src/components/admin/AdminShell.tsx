@@ -149,7 +149,6 @@ const navLinks: NavItem[] = [
   { href: '/admin/categories', label: 'Kategoriler', icon: IconFolder },
   { href: '/admin/inventory', label: 'Stok / Envanter', icon: IconBox },
   { href: '/admin/customers', label: 'Müşteriler', icon: IconUsers },
-  { href: '/admin/campaigns', label: 'Kampanyalar', icon: IconTag },
   { href: '/admin/analytics', label: 'Analitik', icon: IconBarChart },
   { href: '/admin/settings', label: 'Ayarlar', icon: IconSettings },
 ]
