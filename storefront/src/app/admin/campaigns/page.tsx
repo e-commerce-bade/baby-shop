@@ -97,11 +97,6 @@ function CampaignBadge({ status }: { status: CampaignStatus }) {
   )
 }
 
-function usagePercent(campaign: Campaign) {
-  if (campaign.limit <= 0) return 0
-  return Math.min(100, Math.round((campaign.usage / campaign.limit) * 100))
-}
-
 export default function AdminCampaignsPage() {
   const router = useRouter()
   const [profile, setProfile] = useState<AdminProfile | null>(null)
@@ -195,9 +190,8 @@ export default function AdminCampaignsPage() {
   const metrics = useMemo(() => {
     const active = campaigns.filter((campaign) => campaign.status === 'active').length
     const scheduled = campaigns.filter((campaign) => campaign.status === 'scheduled').length
-    const totalUsage = campaigns.reduce((total, campaign) => total + campaign.usage, 0)
-    const totalLimit = campaigns.reduce((total, campaign) => total + campaign.limit, 0)
-    return { active, scheduled, totalUsage, totalLimit }
+    const paused = campaigns.filter((campaign) => campaign.status === 'paused').length
+    return { active, scheduled, paused, total: campaigns.length }
   }, [campaigns])
 
   function resetDraft() {
@@ -392,12 +386,12 @@ export default function AdminCampaignsPage() {
           <p className="mt-2 text-[24px] font-bold text-[#3D2B1F]">{metrics.scheduled}</p>
         </div>
         <div className="rounded-[14px] border border-[#ECE3D6] bg-white p-4">
-          <p className="text-[12px] font-semibold text-[#B5A090]">Kullanim</p>
-          <p className="mt-2 text-[24px] font-bold text-[#3D2B1F]">{metrics.totalUsage}</p>
+          <p className="text-[12px] font-semibold text-[#B5A090]">Pasif</p>
+          <p className="mt-2 text-[24px] font-bold text-[#3D2B1F]">{metrics.paused}</p>
         </div>
         <div className="rounded-[14px] border border-[#ECE3D6] bg-white p-4">
-          <p className="text-[12px] font-semibold text-[#B5A090]">Kapasite</p>
-          <p className="mt-2 text-[24px] font-bold text-[#3D2B1F]">{metrics.totalLimit}</p>
+          <p className="text-[12px] font-semibold text-[#B5A090]">Toplam Kampanya</p>
+          <p className="mt-2 text-[24px] font-bold text-[#3D2B1F]">{metrics.total}</p>
         </div>
       </div>
 
@@ -427,11 +421,10 @@ export default function AdminCampaignsPage() {
       </div>
 
       <div className="overflow-hidden rounded-[16px] border border-[#ECE3D6] bg-white">
-        <div className="hidden grid-cols-[1.4fr_0.9fr_0.8fr_0.8fr_0.8fr_120px] border-b border-[#ECE3D6] bg-[#FAF6F1] px-5 py-3 text-[11px] font-bold uppercase tracking-[0.06em] text-[#B5A090] lg:grid">
+        <div className="hidden grid-cols-[1.4fr_0.9fr_0.8fr_0.8fr_120px] border-b border-[#ECE3D6] bg-[#FAF6F1] px-5 py-3 text-[11px] font-bold uppercase tracking-[0.06em] text-[#B5A090] lg:grid">
           <span>Kampanya</span>
           <span>Tip</span>
           <span>Durum</span>
-          <span>Kullanim</span>
           <span>Tarih</span>
           <span className="text-right">Aksiyon</span>
         </div>
@@ -439,7 +432,7 @@ export default function AdminCampaignsPage() {
         {filteredCampaigns.map((campaign) => (
           <div
             key={campaign.id}
-            className="grid gap-4 border-b border-[#F4EEE6] px-4 py-4 last:border-b-0 lg:grid-cols-[1.4fr_0.9fr_0.8fr_0.8fr_0.8fr_120px] lg:items-center lg:px-5"
+            className="grid gap-4 border-b border-[#F4EEE6] px-4 py-4 last:border-b-0 lg:grid-cols-[1.4fr_0.9fr_0.8fr_0.8fr_120px] lg:items-center lg:px-5"
           >
             <div className="flex gap-3">
               <div className="grid h-11 w-11 shrink-0 place-items-center rounded-[10px] bg-[#F4EEE6] text-[#C07B5A]">
@@ -471,14 +464,6 @@ export default function AdminCampaignsPage() {
               <CampaignBadge status={campaign.status} />
             </div>
             <div>
-              <p className="text-[13px] font-bold text-[#3D2B1F]">
-                {campaign.usage}/{campaign.limit}
-              </p>
-              <div className="mt-2 h-1.5 w-full rounded-full bg-[#F4EEE6]">
-                <div className="h-1.5 rounded-full bg-[#C07B5A]" style={{ width: `${usagePercent(campaign)}%` }} />
-              </div>
-            </div>
-            <div>
               <p className="text-[12px] font-semibold text-[#5B4839]">{campaign.startsAt}</p>
               <p className="mt-1 text-[12px] text-[#B5A090]">{campaign.endsAt}</p>
             </div>
@@ -491,7 +476,7 @@ export default function AdminCampaignsPage() {
                 {campaign.status === 'active' ? 'Pasife Cek' : 'Aktif Et'}
               </button>
             </div>
-            <div className="lg:col-span-6">
+            <div className="lg:col-span-5">
               <div className="flex flex-wrap items-center gap-2 rounded-[12px] bg-[#FAF6F1] px-3 py-2">
                 <span className="mr-1 text-[11px] font-bold uppercase tracking-[0.08em] text-[#B5A090]">
                   Yayin alani
