@@ -1,5 +1,6 @@
 package com.babyshop.payment;
 
+import com.babyshop.cart.Cart;
 import com.babyshop.cart.CartRepository;
 import com.babyshop.common.exception.InvalidRequestException;
 import com.babyshop.common.exception.ResourceNotFoundException;
@@ -160,6 +161,36 @@ class PaymentServiceTest {
         assertThat(order.getStatus()).isEqualTo("PAID");
         verify(productVariantRepository).decrementStockIfAvailable(10L, 2);
         verify(productVariantRepository, never()).clampStockToZero(anyLong());
+    }
+
+    @Test
+    void shouldReleaseCartSessionWhenPaymentSucceeds() {
+        Order order = buildOrder("ORD-ABC123DEF456", "PENDING_PAYMENT");
+        order.setCartId(5L);
+        Payment payment = buildPayment(order);
+
+        Cart cart = new Cart();
+        cart.setId(5L);
+        cart.setStatus("ACTIVE");
+        cart.setSessionId("session-abc");
+
+        given(paymentRepository.findByTransactionIdForUpdate("TXN-123")).willReturn(Optional.of(payment));
+        given(paymentRepository.save(any(Payment.class))).willAnswer(invocation -> invocation.getArgument(0));
+        given(cartRepository.findById(5L)).willReturn(Optional.of(cart));
+
+        paymentService = new PaymentService(orderRepository, paymentRepository, List.of(mockPaymentGateway), productVariantRepository, cartRepository);
+        paymentService.processCallback("MOCK", new PaymentCallbackRequest(
+                "TXN-123",
+                null,
+                "SUCCEEDED",
+                mockPaymentGateway.generateSignature("TXN-123", "MOCK-TXN-123", "SUCCEEDED"),
+                null
+        ));
+
+        assertThat(cart.getStatus()).isEqualTo("CHECKED_OUT");
+        // sessionId serbest birakilmali ki ayni oturum sonraki istekte taze/bos sepet alsin.
+        assertThat(cart.getSessionId()).isNull();
+        verify(cartRepository).save(cart);
     }
 
     @Test

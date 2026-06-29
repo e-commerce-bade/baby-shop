@@ -11,6 +11,15 @@ export default function PaymentSuccessContent() {
   const orderNumber = searchParams.get('orderNumber')
 
   useEffect(() => {
+    // iyzico Ödeme Formu callback'i, formun kendi iframe'i icinde bu sayfayi acabilir.
+    // Bu durumda sepeti temizleyen ana uygulama (ust pencere) hic yenilenmez ve sepet
+    // dolu gorunur. iframe icindeysek ust pencereyi bu sayfaya tasi; ana uygulama yeniden
+    // yuklenir, startNewCart calisir ve kullanici basari ekranini gercekten gorur.
+    if (typeof window !== 'undefined' && window.top && window.top !== window.self) {
+      window.top.location.href = window.location.href
+      return
+    }
+
     // Yeni session ile temiz sepet baslat; aksi halde odenmis (backend'de hala dolu) sepet
     // bir sonraki hydrate'te geri yuklenir.
     startNewCart()

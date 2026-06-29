@@ -86,6 +86,31 @@ class CartServiceTest {
     }
 
     @Test
+    void shouldStartFreshCartWhenSessionPointsToConsumedCart() {
+        // Odeme ile tuketilmis (CHECKED_OUT) sepet ayni sessionId'yi tutuyor.
+        Cart consumed = new Cart();
+        consumed.setId(1L);
+        consumed.setSessionId("session-1");
+        consumed.setStatus("CHECKED_OUT");
+        consumed.setItems(new ArrayList<>());
+
+        Cart freshCart = new Cart();
+        freshCart.setId(2L);
+        freshCart.setSessionId("session-1");
+        freshCart.setStatus("ACTIVE");
+        freshCart.setItems(new ArrayList<>());
+
+        given(cartRepository.findBySessionId("session-1")).willReturn(Optional.of(consumed));
+        given(cartRepository.save(any(Cart.class))).willReturn(freshCart);
+
+        var response = cartService.getCart("session-1");
+
+        // Tuketilmis sepetin sessionId'si serbest birakilmali; oturum taze, bos sepet almali.
+        assertThat(consumed.getSessionId()).isNull();
+        assertThat(response.totalQuantity()).isZero();
+    }
+
+    @Test
     void shouldReturnCheckoutSummaryForValidCart() {
         Cart cart = buildCart();
         ProductVariant variant = buildVariant(10L, 12, true, true);

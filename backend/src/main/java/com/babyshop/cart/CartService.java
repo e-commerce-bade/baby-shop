@@ -150,12 +150,12 @@ public class CartService {
         String normalizedSessionId = normalizeRequiredSessionId(sessionId);
 
         if (authenticatedEmail == null || authenticatedEmail.isBlank()) {
-            return cartRepository.findBySessionId(normalizedSessionId)
+            return findActiveCartBySessionReleasingConsumed(normalizedSessionId)
                     .orElseGet(() -> createCart(normalizedSessionId, null));
         }
 
         UserAccount user = resolveAuthenticatedUser(authenticatedEmail);
-        Optional<Cart> sessionCartOptional = cartRepository.findBySessionId(normalizedSessionId);
+        Optional<Cart> sessionCartOptional = findActiveCartBySessionReleasingConsumed(normalizedSessionId);
         Optional<Cart> userCartOptional = cartRepository.findByUserEmailIgnoreCaseAndStatus(user.getEmail(), ACTIVE_STATUS);
 
         if (sessionCartOptional.isPresent()) {
@@ -179,6 +179,26 @@ public class CartService {
         }
 
         return createCart(normalizedSessionId, user);
+    }
+
+    // sessionId'ye bagli ACTIVE sepeti dondurur. Sepet odeme ile tuketilmis (CHECKED_OUT) ise
+    // sessionId'sini serbest birakir ve bos dondurur; boylece ayni tarayici oturumu icin
+    // unique kisiti cakismadan taze bir ACTIVE sepet olusturulabilir. Bu, odeme sonrasi
+    // tuketilmis sepetin "hala dolu" gorunmesini onler (eski takili sepetleri de iyilestirir).
+    private Optional<Cart> findActiveCartBySessionReleasingConsumed(String sessionId) {
+        Optional<Cart> existing = cartRepository.findBySessionId(sessionId);
+        if (existing.isEmpty()) {
+            return Optional.empty();
+        }
+
+        Cart cart = existing.get();
+        if (ACTIVE_STATUS.equalsIgnoreCase(cart.getStatus())) {
+            return existing;
+        }
+
+        cart.setSessionId(null);
+        cartRepository.saveAndFlush(cart);
+        return Optional.empty();
     }
 
     private Cart findCartBySessionId(String sessionId) {

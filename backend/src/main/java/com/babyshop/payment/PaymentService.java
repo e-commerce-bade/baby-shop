@@ -230,6 +230,10 @@ public class PaymentService {
         cartRepository.findById(order.getCartId()).ifPresent(cart -> {
             if (!CART_STATUS_CHECKED_OUT.equalsIgnoreCase(cart.getStatus())) {
                 cart.setStatus(CART_STATUS_CHECKED_OUT);
+                // sessionId'yi serbest birak: ayni tarayici oturumu sonraki istekte taze ve bos
+                // bir ACTIVE sepet alir. Aksi halde tuketilmis sepet (kalemleri durdugu icin)
+                // ayni sessionId ile tekrar "aktif sepet" gibi servis edilir; sepet bosalmamis gorunur.
+                cart.setSessionId(null);
                 cartRepository.save(cart);
             }
         });
