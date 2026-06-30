@@ -39,12 +39,20 @@ export default function PaymentSuccessContent() {
             Siparis no: <span className="text-brown">{orderNumber}</span>
           </p>
         ) : null}
-        <Link
-          href="/products"
-          className="mt-6 inline-flex rounded-[14px] bg-rose px-7 py-3.5 text-[14px] font-bold text-white transition-colors hover:bg-rose-dk"
-        >
-          Alisverise devam et
-        </Link>
+        <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+          <Link
+            href="/products"
+            className="inline-flex rounded-[14px] bg-rose px-7 py-3.5 text-[14px] font-bold text-white transition-colors hover:bg-rose-dk"
+          >
+            Alisverise devam et
+          </Link>
+          <Link
+            href={orderNumber ? `/orders/track?orderNumber=${encodeURIComponent(orderNumber)}` : '/orders/track'}
+            className="inline-flex rounded-[14px] border border-line bg-white px-7 py-3.5 text-[14px] font-bold text-brown transition-colors hover:bg-cream-2"
+          >
+            Siparisi takip et
+          </Link>
+        </div>
       </div>
     </div>
   )

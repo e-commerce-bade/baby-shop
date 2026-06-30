@@ -104,6 +104,21 @@ public class OrderService {
         return toResponse(order);
     }
 
+    // Misafir takibi: siparis numarasi + e-posta eslesirse siparisi dondurur. Eslesmezse,
+    // bir siparisin varligini sizdirmamak icin 404 firlatir (numara tahminine karsi).
+    public OrderResponse getOrderByOrderNumberAndEmail(String orderNumber, String email) {
+        Order order = findOrderByOrderNumber(orderNumber);
+        String normalizedEmail = normalizeOptionalEmail(email);
+
+        if (normalizedEmail == null
+                || order.getCustomerEmail() == null
+                || !normalizedEmail.equalsIgnoreCase(order.getCustomerEmail())) {
+            throw new ResourceNotFoundException("Order not found for order number: " + orderNumber);
+        }
+
+        return toResponse(order);
+    }
+
     private Order findOrderByOrderNumber(String orderNumber) {
         if (orderNumber == null || orderNumber.trim().isEmpty()) {
             throw new InvalidRequestException("Order number is required");

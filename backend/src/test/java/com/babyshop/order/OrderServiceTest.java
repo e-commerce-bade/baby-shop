@@ -198,6 +198,29 @@ class OrderServiceTest {
     }
 
     @Test
+    void shouldReturnGuestOrderWhenEmailMatches() {
+        Order order = buildOrder("ORD-ABC123DEF456");
+        given(orderRepository.findByOrderNumber("ORD-ABC123DEF456")).willReturn(Optional.of(order));
+        given(paymentRepository.findAllByOrderOrderNumberOrderByCreatedAtDesc("ORD-ABC123DEF456"))
+                .willReturn(List.of());
+
+        // E-posta buyuk/kucuk harf duyarsiz eslesmeli.
+        var response = orderService.getOrderByOrderNumberAndEmail("ORD-ABC123DEF456", "Customer@Example.com");
+
+        assertThat(response.orderNumber()).isEqualTo("ORD-ABC123DEF456");
+    }
+
+    @Test
+    void shouldRejectGuestOrderLookupWhenEmailMismatches() {
+        Order order = buildOrder("ORD-ABC123DEF456");
+        given(orderRepository.findByOrderNumber("ORD-ABC123DEF456")).willReturn(Optional.of(order));
+
+        assertThatThrownBy(() -> orderService.getOrderByOrderNumberAndEmail("ORD-ABC123DEF456", "wrong@example.com"))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessage("Order not found for order number: ORD-ABC123DEF456");
+    }
+
+    @Test
     void shouldReturnPagedOrdersByUserEmail() {
         Order order = buildOrder("ORD-ABC123DEF456");
         given(orderRepository.findAll(

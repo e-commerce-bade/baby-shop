@@ -22,6 +22,8 @@ export const RATE_LIMITS = {
   auth: { limit: 10, windowMs: 60_000 },
   // Odeme baslatma: kart-testi / dolandiricilik denemelerine karsi.
   payment: { limit: 20, windowMs: 60_000 },
+  // Misafir siparis takibi: numara + e-posta tahminine karsi.
+  track: { limit: 15, windowMs: 60_000 },
 } as const
 
 export function clientIp(request: Request): string {

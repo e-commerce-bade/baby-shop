@@ -8,6 +8,7 @@ const shopLinks = [
 ]
 
 const supportLinks = [
+  { label: 'Sipariş Takibi', href: '/orders/track' },
   { label: 'İletişim', href: '#' },
   { label: 'Kargo & Teslimat', href: '#' },
   { label: 'İade & Değişim', href: '#' },

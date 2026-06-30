@@ -1,6 +1,7 @@
 package com.babyshop.order;
 
 import com.babyshop.order.dto.CreateOrderRequest;
+import com.babyshop.order.dto.OrderLookupRequest;
 import com.babyshop.order.dto.OrderResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -39,5 +40,13 @@ public class OrderController {
     ) {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(orderService.createOrder(request, authentication != null ? authentication.getName() : null));
+    }
+
+    // Misafir siparis takibi: kimlik dogrulama gerektirmez; siparis no + e-posta birlikte dogrulanir.
+    @PostMapping("/lookup")
+    public ResponseEntity<OrderResponse> lookupOrder(@Valid @RequestBody OrderLookupRequest request) {
+        return ResponseEntity.ok(
+                orderService.getOrderByOrderNumberAndEmail(request.orderNumber(), request.email())
+        );
     }
 }

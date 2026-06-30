@@ -56,6 +56,8 @@ public class SecurityConfig {
                         // Misafir checkout: siparis olusturma anonim olabilir, ancak siparis detayini
                         // yalnizca sahibi (kimligi dogrulanmis kullanici) gorebilir.
                         .requestMatchers(HttpMethod.POST, "/api/v1/orders").permitAll()
+                        // Misafir siparis takibi: numara + e-posta ile public sorgulama.
+                        .requestMatchers(HttpMethod.POST, "/api/v1/orders/lookup").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/orders/**").authenticated()
                         .requestMatchers("/api/v1/payments/**").permitAll()
                         .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
