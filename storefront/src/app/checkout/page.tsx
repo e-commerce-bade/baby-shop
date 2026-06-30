@@ -262,6 +262,15 @@ export default function CheckoutPage() {
         }
       }
 
+      // Başarı ekranında sipariş özetini gösterebilmek için sipariş no + e-postayı yalnızca bu
+      // sekmede (sessionStorage) sakla. E-posta URL'e konmaz; success sayfası bunu okuyup özeti çeker.
+      try {
+        sessionStorage.setItem(
+          'badebebe_last_order',
+          JSON.stringify({ orderNumber: order.orderNumber, email: values.customerEmail }),
+        )
+      } catch { /* sessionStorage erisilemezse ozet gosterilemez, kritik degil */ }
+
       // Sipariş oluşturuldu; iyzico güvenli ödeme sayfasını başlat.
       const origin = window.location.origin
       const paymentRes = await fetch('/api/payments/initiate', {
