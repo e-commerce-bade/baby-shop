@@ -1,6 +1,6 @@
 'use client'
 
-import { usePathname } from 'next/navigation'
+import { usePathname, useSearchParams } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
 import RabbitLoader from '@/components/ui/RabbitLoader'
 
@@ -10,7 +10,12 @@ const MAX_NAVIGATION_MS = 4500
 
 export default function NavigationProgress() {
   const pathname = usePathname()
-  const prevPath = useRef(pathname)
+  const searchParams = useSearchParams()
+  // Kategori linkleri yalnizca query'yi degistirir (/products?categorySlug=...); bu yuzden
+  // navigasyon tamamlanmasini path + query (tam URL) ile izlemeliyiz. Yalnizca pathname
+  // izlenirse kategori-kategori gecislerde overlay kapanmaz ve fallback'e kadar (4.5sn) takilir.
+  const navKey = `${pathname}?${searchParams.toString()}`
+  const prevKey = useRef(navKey)
   const [phase, setPhase] = useState<Phase>('idle')
   const doneTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const idleTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
@@ -47,15 +52,15 @@ export default function NavigationProgress() {
   }, [])
 
   useEffect(() => {
-    if (prevPath.current === pathname) return
-    prevPath.current = pathname
+    if (prevKey.current === navKey) return
+    prevKey.current = navKey
 
     clearTimers()
     setPhase('done')
     doneTimer.current = setTimeout(() => {
       idleTimer.current = setTimeout(() => setPhase('idle'), 300)
     }, 120)
-  }, [pathname])
+  }, [navKey])
 
   useEffect(() => clearTimers, [])
 

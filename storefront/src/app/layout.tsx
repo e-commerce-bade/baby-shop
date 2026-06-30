@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { Suspense } from 'react'
 import { Fraunces, Mulish } from 'next/font/google'
 import './globals.css'
 import CartSyncProvider from '@/components/cart/CartSyncProvider'
@@ -45,7 +46,9 @@ export default async function RootLayout({
   return (
     <html lang="tr" className={`${fraunces.variable} ${mulish.variable}`}>
       <body>
-        <NavigationProgress />
+        <Suspense fallback={null}>
+          <NavigationProgress />
+        </Suspense>
         <CartSyncProvider />
         <SiteChrome categories={navCategories}>{children}</SiteChrome>
       </body>
