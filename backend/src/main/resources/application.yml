@@ -32,12 +32,15 @@ spring:
       mail:
         smtp:
           auth: true
+          # Varsayilan 587 (STARTTLS). 587 engelliyse 465'i dene:
+          # MAIL_PORT=465, MAIL_SSL=true, MAIL_STARTTLS=false.
           starttls:
-            enable: true
-          # SMTP yavas/erisimsizse odeme callback'ini uzun sure bekletmemek icin kisa timeout.
-          connectiontimeout: 5000
-          timeout: 5000
-          writetimeout: 5000
+            enable: ${MAIL_STARTTLS:true}
+          ssl:
+            enable: ${MAIL_SSL:false}
+          connectiontimeout: ${MAIL_TIMEOUT_MS:10000}
+          timeout: ${MAIL_TIMEOUT_MS:10000}
+          writetimeout: ${MAIL_TIMEOUT_MS:10000}
 
 server:
   port: ${PORT:${SERVER_PORT:5050}}
