@@ -28,6 +28,7 @@ const checkoutSchema = z
     notes:     z.string().trim().max(2000).optional(),
     createAccount: z.boolean().optional(),
     password:  z.string().max(255).optional(),
+    saveAddress: z.boolean().optional(),
   })
   .superRefine((data, ctx) => {
     // Hesap olusturma secildiyse sifre zorunlu (backend min 8 ile uyumlu).
@@ -131,6 +132,16 @@ export default function CheckoutPage() {
     defaultValues: { country: 'Türkiye' },
   })
   const createAccount = watch('createAccount')
+  const saveAddress = watch('saveAddress')
+  const [isLoggedIn, setIsLoggedIn] = useState(false)
+
+  useEffect(() => {
+    let active = true
+    fetch('/api/account/me', { cache: 'no-store', credentials: 'same-origin', headers: { Accept: 'application/json' } })
+      .then((res) => { if (active) setIsLoggedIn(res.ok) })
+      .catch(() => { if (active) setIsLoggedIn(false) })
+    return () => { active = false }
+  }, [])
 
   useEffect(() => setMounted(true), [])
 
@@ -225,6 +236,33 @@ export default function CheckoutPage() {
         throw new Error(message)
       }
       const order = payload as OrderResponse
+
+      // Adresi kaydet (best-effort): yalnizca oturum acik ya da bu checkout'ta hesap olusturulduysa
+      // anlamli; basarisiz olursa siparisi engellemeden sessizce gecilir.
+      if (values.saveAddress && (isLoggedIn || values.createAccount)) {
+        try {
+          await fetch('/api/account/addresses', {
+            method: 'POST',
+            headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              label: 'Teslimat',
+              recipientFirstName: values.customerFirstName?.trim() || '-',
+              recipientLastName: values.customerLastName?.trim() || '-',
+              phoneNumber: optionalValue(values.customerPhone),
+              line1: values.line1,
+              line2: optionalValue(values.line2),
+              district: values.district,
+              city: values.city,
+              postalCode: optionalValue(values.postalCode),
+              country: values.country,
+              // Yeni hesapta ilk adres varsayilan olsun; mevcut kullanicinin varsayilanini degistirme.
+              defaultAddress: Boolean(values.createAccount),
+            }),
+          })
+        } catch {
+          // sessizce gec
+        }
+      }
 
       // Sipariş oluşturuldu; iyzico güvenli ödeme sayfasını başlat.
       const origin = window.location.origin
@@ -429,14 +467,19 @@ export default function CheckoutPage() {
                   <input {...register('postalCode')} placeholder="34000" className={inputCls} />
                 </Field>
               </div>
-              {/* UI-only checkbox */}
               <label className="mt-4 flex cursor-pointer items-center gap-2.5 text-[13px] text-brown-2">
                 <input
                   type="checkbox"
+                  {...register('saveAddress')}
                   className="h-4 w-4 rounded border-line accent-rose"
                 />
                 Bu adresi bir sonraki alışveriş için kaydet
               </label>
+              {saveAddress && !isLoggedIn && !createAccount && (
+                <p className="mt-1.5 text-[12px] text-muted">
+                  Adresi kaydetmek için yukarıdan hesap oluşturun veya giriş yapın.
+                </p>
+              )}
             </CheckoutSection>
 
             {/* 3. Kargo Yöntemi */}
