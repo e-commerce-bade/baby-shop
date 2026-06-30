@@ -25,19 +25,18 @@ const SLIDES = [
     accentColor: '#D2918D', // rose
   },
   {
-    id: 'campaign',
+    id: 'quality',
     background: '#F6E6E2',
     image: '/images/hero_2.png',
-    eyebrow: 'Özel Kampanya · Sınırlı Süre',
-    badge: '%30\'a Varan İndirim',
-    title: 'Büyük fırsatlar,',
-    titleAccent: 'küçük fiyatlar',
-    desc: 'Seçili koleksiyonlarda %30\'a varan indirim fırsatı. Stoklar tükenebilir, kaçırmayın!',
-    primaryCta: { label: 'İndirimleri Keşfet', href: '/products' },
+    eyebrow: 'Özenle Üretildi',
+    title: 'Yumuşacık kumaşlar,',
+    titleAccent: 'nazik dokunuşlar',
+    desc: 'Bebeğinizin hassas teni için seçilmiş yumuşak, nefes alabilir kumaşlar ve özenli dikiş detayları.',
+    primaryCta: { label: 'Koleksiyonu Keşfet', href: '/products' },
     tags: [
-      { label: 'Seçili ürünler', icon: 'tag' },
-      { label: 'Sınırlı süre', icon: 'clock' },
-      { label: 'Ücretsiz kargo', icon: 'truck' },
+      { label: 'Yumuşak kumaş', icon: 'leaf' },
+      { label: 'Özenli dikiş', icon: 'heart' },
+      { label: 'Günlük konfor', icon: 'clock' },
     ],
     accentColor: '#C57F7B', // rose-dk
   },
@@ -77,19 +76,6 @@ const ICONS = {
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
       <circle cx="12" cy="12" r="8" />
       <path d="M12 8v4l2.5 2" />
-    </svg>
-  ),
-  tag: (
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-      <path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z" />
-      <circle cx="7" cy="7" r="1.5" fill="currentColor" />
-    </svg>
-  ),
-  truck: (
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-      <rect x="1" y="3" width="15" height="13" rx="2" />
-      <path d="M16 8h4l3 4v4h-7V8z" />
-      <circle cx="5.5" cy="18.5" r="2.5" /><circle cx="18.5" cy="18.5" r="2.5" />
     </svg>
   ),
 }
@@ -156,16 +142,6 @@ export default function HeroSection() {
 
             {/* Sol metin alanı */}
             <div className="relative z-10 flex max-w-[560px] flex-col justify-center px-14 py-[46px] max-[680px]:px-6 max-[680px]:py-8">
-
-              {/* Kampanya badge */}
-              {'badge' in slide && slide.badge && (
-                <span
-                  className="mb-3 inline-block w-fit rounded-[20px] px-3 py-1 text-[11px] font-extrabold uppercase tracking-[0.5px] text-white"
-                  style={{ background: slide.accentColor }}
-                >
-                  {slide.badge}
-                </span>
-              )}
 
               {/* Eyebrow */}
               <p className="mb-3 text-[13px] font-bold tracking-[0.4px] text-muted">
