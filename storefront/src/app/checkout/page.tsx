@@ -8,7 +8,6 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useCartStore, cartSubtotal } from '@/store/cartStore'
 import CheckoutSteps from '@/components/checkout/CheckoutSteps'
 import CheckoutSection from '@/components/checkout/CheckoutSection'
-import ShippingMethodSelector from '@/components/checkout/ShippingMethodSelector'
 import CheckoutOrderSummary from '@/components/checkout/CheckoutOrderSummary'
 
 // ─── Schema (değiştirilmedi) ──────────────────────────────────────────────────
@@ -108,7 +107,6 @@ function Field({
 export default function CheckoutPage() {
   const [mounted, setMounted]         = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
-  const [shipping, setShipping]       = useState('standard')
   const [checkoutFormContent, setCheckoutFormContent] = useState<string | null>(null)
   // iyzico script'inin enjekte edilecegi React-yonetimli kapsayici (document.body yerine).
   const iyzicoContainerRef = useRef<HTMLDivElement>(null)
@@ -480,21 +478,6 @@ export default function CheckoutPage() {
                   Adresi kaydetmek için yukarıdan hesap oluşturun veya giriş yapın.
                 </p>
               )}
-            </CheckoutSection>
-
-            {/* 3. Kargo Yöntemi */}
-            <CheckoutSection
-              num={3}
-              title="Kargo Yöntemi"
-              subtitle="Siparişinizin nasıl teslim edileceğini seçin."
-            >
-              <ShippingMethodSelector
-                selected={shipping}
-                onChange={setShipping}
-              />
-              <p className="mt-3 text-[11.5px] text-muted">
-                * Kargo fiyatları gösterim amaçlıdır. Gerçek kargo ücreti sipariş oluşturulduğunda backend tarafından hesaplanır.
-              </p>
             </CheckoutSection>
 
             {/* Sipariş notu */}
