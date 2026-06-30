@@ -24,7 +24,7 @@ class OrderEmailServiceTest {
 
     @Test
     void shouldDispatchConfirmationWhenEnabled() {
-        var properties = new MailProperties(true, "Bade Bebe <shop@example.com>", "Bade Bebe", "https://shop.test");
+        var properties = new MailProperties(true, "smtp", "Bade Bebe <shop@example.com>", "Bade Bebe", "https://shop.test", null);
         var service = new OrderEmailService(properties, dispatcher);
 
         service.sendOrderConfirmation(buildOrder());
@@ -40,7 +40,7 @@ class OrderEmailServiceTest {
 
     @Test
     void shouldNotDispatchWhenDisabled() {
-        var properties = new MailProperties(false, "shop@example.com", "Bade Bebe", "https://shop.test");
+        var properties = new MailProperties(false, "smtp", "shop@example.com", "Bade Bebe", "https://shop.test", null);
         var service = new OrderEmailService(properties, dispatcher);
 
         service.sendOrderConfirmation(buildOrder());
@@ -50,7 +50,7 @@ class OrderEmailServiceTest {
 
     @Test
     void shouldNotDispatchWhenCustomerEmailMissing() {
-        var properties = new MailProperties(true, "shop@example.com", "Bade Bebe", "https://shop.test");
+        var properties = new MailProperties(true, "smtp", "shop@example.com", "Bade Bebe", "https://shop.test", null);
         var service = new OrderEmailService(properties, dispatcher);
         Order order = buildOrder();
         order.setCustomerEmail(null);

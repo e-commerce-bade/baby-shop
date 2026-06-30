@@ -49,9 +49,12 @@ app:
   mail:
     # E-posta gonderimi yalnizca acikca etkinlestirilince yapilir (kimlik bilgileri ayarli olmali).
     enabled: ${MAIL_ENABLED:false}
+    # "smtp" | "brevo". Railway giden SMTP'yi engelledigi icin prod'da "brevo" (HTTP API) kullanilir.
+    provider: ${MAIL_PROVIDER:smtp}
     from: ${MAIL_FROM:Bade Bebe <badebebe001@gmail.com>}
     store-name: ${MAIL_STORE_NAME:Bade Bebe}
     track-base-url: ${MAIL_TRACK_BASE_URL:https://badebebe-frontend-production.up.railway.app}
+    brevo-api-key: ${MAIL_BREVO_API_KEY:}
   payment:
     mock:
       callback-secret: ${MOCK_PAYMENT_CALLBACK_SECRET:}
