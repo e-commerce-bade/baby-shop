@@ -13,19 +13,32 @@ import CheckoutOrderSummary from '@/components/checkout/CheckoutOrderSummary'
 
 // ─── Schema (değiştirilmedi) ──────────────────────────────────────────────────
 
-const checkoutSchema = z.object({
-  customerEmail:     z.string().trim().email('Geçerli bir e-posta adresi girin.'),
-  customerFirstName: z.string().trim().max(100).optional(),
-  customerLastName:  z.string().trim().max(100).optional(),
-  customerPhone:     z.string().trim().max(30).optional(),
-  line1:     z.string().trim().min(1, 'Adres zorunludur.').max(255),
-  line2:     z.string().trim().max(255).optional(),
-  district:  z.string().trim().min(1, 'İlçe zorunludur.').max(120),
-  city:      z.string().trim().min(1, 'Şehir zorunludur.').max(120),
-  postalCode:z.string().trim().max(20).optional(),
-  country:   z.string().trim().min(1, 'Ülke zorunludur.').max(100),
-  notes:     z.string().trim().max(2000).optional(),
-})
+const checkoutSchema = z
+  .object({
+    customerEmail:     z.string().trim().email('Geçerli bir e-posta adresi girin.'),
+    customerFirstName: z.string().trim().max(100).optional(),
+    customerLastName:  z.string().trim().max(100).optional(),
+    customerPhone:     z.string().trim().max(30).optional(),
+    line1:     z.string().trim().min(1, 'Adres zorunludur.').max(255),
+    line2:     z.string().trim().max(255).optional(),
+    district:  z.string().trim().min(1, 'İlçe zorunludur.').max(120),
+    city:      z.string().trim().min(1, 'Şehir zorunludur.').max(120),
+    postalCode:z.string().trim().max(20).optional(),
+    country:   z.string().trim().min(1, 'Ülke zorunludur.').max(100),
+    notes:     z.string().trim().max(2000).optional(),
+    createAccount: z.boolean().optional(),
+    password:  z.string().max(255).optional(),
+  })
+  .superRefine((data, ctx) => {
+    // Hesap olusturma secildiyse sifre zorunlu (backend min 8 ile uyumlu).
+    if (data.createAccount && (data.password ?? '').length < 8) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['password'],
+        message: 'Şifre en az 8 karakter olmalı.',
+      })
+    }
+  })
 
 type CheckoutFormValues = z.infer<typeof checkoutSchema>
 
@@ -111,11 +124,13 @@ export default function CheckoutPage() {
   const {
     register,
     handleSubmit,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<CheckoutFormValues>({
     resolver: zodResolver(checkoutSchema),
     defaultValues: { country: 'Türkiye' },
   })
+  const createAccount = watch('createAccount')
 
   useEffect(() => setMounted(true), [])
 
@@ -156,6 +171,29 @@ export default function CheckoutPage() {
   async function onSubmit(values: CheckoutFormValues) {
     setSubmitError(null)
     try {
+      // Hesap olustur seciliyse once kayit ol: basarili kayit auth cookie'sini set eder,
+      // boylece asagidaki siparis bu yeni hesaba baglanir.
+      if (values.createAccount) {
+        const registerRes = await fetch('/api/auth/register', {
+          method: 'POST',
+          headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: values.customerEmail,
+            password: values.password,
+            firstName: optionalValue(values.customerFirstName),
+            lastName: optionalValue(values.customerLastName),
+            phoneNumber: optionalValue(values.customerPhone),
+          }),
+        })
+        if (!registerRes.ok) {
+          const regBody = (await registerRes.json().catch(() => null)) as { message?: string } | null
+          const message = registerRes.status === 409
+            ? 'Bu e-posta ile zaten bir hesap var. Giriş yapın ya da "hesap oluştur" seçeneğini kaldırıp misafir olarak devam edin.'
+            : (regBody?.message ?? 'Hesap oluşturulamadı. Lütfen tekrar deneyin.')
+          throw new Error(message)
+        }
+      }
+
       const res = await fetch('/api/orders', {
         method: 'POST',
         headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
@@ -338,14 +376,31 @@ export default function CheckoutPage() {
                   <input {...register('customerPhone')} type="tel" placeholder="+90 555 000 00 00" className={inputCls} />
                 </Field>
               </div>
-              {/* UI-only checkbox */}
               <label className="mt-4 flex cursor-pointer items-center gap-2.5 text-[13px] text-brown-2">
                 <input
                   type="checkbox"
+                  {...register('createAccount')}
                   className="h-4 w-4 rounded border-line accent-rose"
                 />
                 Bir dahaki alışverişim için hesap oluştur
               </label>
+
+              {createAccount && (
+                <div className="mt-3">
+                  <Field label="Şifre" required error={errors.password?.message}>
+                    <input
+                      {...register('password')}
+                      type="password"
+                      autoComplete="new-password"
+                      placeholder="En az 8 karakter"
+                      className={inputCls}
+                    />
+                  </Field>
+                  <p className="mt-1.5 text-[12px] text-muted">
+                    Hesabınız bu e-posta ile oluşturulur; siparişiniz hesabınıza kaydedilir.
+                  </p>
+                </div>
+              )}
             </CheckoutSection>
 
             {/* 2. Teslimat Adresi */}
