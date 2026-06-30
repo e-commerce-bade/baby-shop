@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { cn, formatPrice } from '@/lib/utils'
@@ -58,12 +59,12 @@ export default function ProductCard({ product, badge }: Props) {
         }}
       >
         {product.primaryImage ? (
-          <img
+          <Image
+            fill
             src={product.primaryImage.imageUrl}
             alt={product.primaryImage.altText ?? product.name}
-            loading="lazy"
-            decoding="async"
-            className="absolute inset-0 h-full w-full object-cover"
+            sizes="(max-width: 680px) 50vw, (max-width: 980px) 33vw, 240px"
+            className="object-cover"
           />
         ) : (
           <div className="absolute inset-0" />

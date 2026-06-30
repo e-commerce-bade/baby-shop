@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import { useCallback, useEffect, useState } from 'react'
 import { cn } from '@/lib/utils'
 import type { ProductImage } from '@/types/product'
@@ -67,17 +68,19 @@ export default function ProductGallery({
               onClick={() => setActive(index)}
               aria-label={`Görsel ${index + 1}`}
               className={cn(
-                'h-[82px] w-[70px] shrink-0 overflow-hidden rounded-thumb border-[1.5px] bg-cream-2 transition-colors duration-[180ms]',
+                'relative h-[82px] w-[70px] shrink-0 overflow-hidden rounded-thumb border-[1.5px] bg-cream-2 transition-colors duration-[180ms]',
                 active === index
                   ? 'border-rose'
                   : 'border-line-2 hover:border-rose-soft',
                 'max-[680px]:h-[68px] max-[680px]:w-[58px]',
               )}
             >
-              <img
+              <Image
+                fill
                 src={image.imageUrl}
                 alt={image.altText ?? productName}
-                className="h-full w-full object-contain p-1"
+                sizes="70px"
+                className="object-contain p-1"
               />
             </button>
           ))}
@@ -95,11 +98,14 @@ export default function ProductGallery({
         }}
       >
         {images[active] ? (
-          <img
+          <Image
+            fill
+            priority
             src={images[active].imageUrl}
             alt={images[active].altText ?? productName}
             onClick={() => setZoomed(true)}
-            className="absolute inset-0 h-full w-full cursor-zoom-in object-contain p-7 max-[680px]:p-5"
+            sizes="(max-width: 680px) 90vw, 560px"
+            className="cursor-zoom-in object-contain p-7 max-[680px]:p-5"
           />
         ) : null}
 
