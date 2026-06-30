@@ -53,7 +53,7 @@ app:
     provider: ${MAIL_PROVIDER:smtp}
     from: ${MAIL_FROM:Bade Bebe <badebebe001@gmail.com>}
     store-name: ${MAIL_STORE_NAME:Bade Bebe}
-    track-base-url: ${MAIL_TRACK_BASE_URL:https://badebebe-frontend-production.up.railway.app}
+    track-base-url: ${MAIL_TRACK_BASE_URL:https://badebebe.net}
     brevo-api-key: ${MAIL_BREVO_API_KEY:}
   payment:
     mock:
