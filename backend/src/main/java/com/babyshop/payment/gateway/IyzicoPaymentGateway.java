@@ -50,7 +50,8 @@ public class IyzicoPaymentGateway implements PaymentGateway {
             Order order,
             String transactionId,
             String successUrl,
-            String cancelUrl
+            String cancelUrl,
+            String clientIp
     ) {
         PaymentProperties.Iyzico properties = properties();
         CreateCheckoutFormInitializeRequest request = new CreateCheckoutFormInitializeRequest();
@@ -65,7 +66,7 @@ public class IyzicoPaymentGateway implements PaymentGateway {
         request.setCallbackUrl(callbackUrl(properties));
         request.setEnabledInstallments(enabledInstallments(properties));
         request.setForceThreeDS(properties.forceThreeDS() == null ? 0 : properties.forceThreeDS());
-        request.setBuyer(buildBuyer(order, properties));
+        request.setBuyer(buildBuyer(order, properties, clientIp));
         Address address = buildAddress(order);
         request.setShippingAddress(address);
         request.setBillingAddress(address);
@@ -132,7 +133,7 @@ public class IyzicoPaymentGateway implements PaymentGateway {
         }
     }
 
-    private Buyer buildBuyer(Order order, PaymentProperties.Iyzico properties) {
+    private Buyer buildBuyer(Order order, PaymentProperties.Iyzico properties, String clientIp) {
         Buyer buyer = new Buyer();
         buyer.setId(order.getOrderNumber());
         buyer.setName(firstNonBlank(order.getCustomerFirstName(), "Baby"));
@@ -144,7 +145,7 @@ public class IyzicoPaymentGateway implements PaymentGateway {
         buyer.setCity(firstNonBlank(order.getShippingCity(), "Istanbul"));
         buyer.setCountry(firstNonBlank(order.getShippingCountry(), "Turkey"));
         buyer.setZipCode(firstNonBlank(order.getShippingPostalCode(), "34000"));
-        buyer.setIp(firstNonBlank(properties.defaultBuyerIp(), "127.0.0.1"));
+        buyer.setIp(firstNonBlank(clientIp, firstNonBlank(properties.defaultBuyerIp(), "127.0.0.1")));
         return buyer;
     }
 

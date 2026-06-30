@@ -12,7 +12,8 @@ public interface PaymentGateway {
             Order order,
             String transactionId,
             String successUrl,
-            String cancelUrl
+            String cancelUrl,
+            String clientIp
     );
 
     PaymentGatewayCallbackResult verifyCallback(PaymentCallbackRequest request, Payment payment);

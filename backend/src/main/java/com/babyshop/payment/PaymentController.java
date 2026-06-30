@@ -4,6 +4,7 @@ import com.babyshop.payment.dto.PaymentCallbackRequest;
 import com.babyshop.payment.dto.PaymentCallbackResponse;
 import com.babyshop.payment.dto.PaymentInitiationRequest;
 import com.babyshop.payment.dto.PaymentResponse;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
@@ -27,9 +28,30 @@ public class PaymentController {
     private final PaymentService paymentService;
 
     @PostMapping("/initiate")
-    public ResponseEntity<PaymentResponse> initiatePayment(@Valid @RequestBody PaymentInitiationRequest request) {
+    public ResponseEntity<PaymentResponse> initiatePayment(
+            @Valid @RequestBody PaymentInitiationRequest request,
+            HttpServletRequest httpRequest
+    ) {
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(paymentService.initiatePayment(request));
+                .body(paymentService.initiatePayment(request, resolveClientIp(httpRequest)));
+    }
+
+    // Iyzico'ya gercek alici IP'sini gondermek icin istek IP'sini cozer. Railway/proxy
+    // arkasinda gercek istemci IP'si X-Forwarded-For'un ilk girdisindedir; bu yoksa
+    // dogrudan baglanti adresine (getRemoteAddr) duseriz. Null donulurse gateway
+    // yapilandirilmis varsayilan IP'ye fallback yapar.
+    private String resolveClientIp(HttpServletRequest httpRequest) {
+        if (httpRequest == null) {
+            return null;
+        }
+        String forwardedFor = httpRequest.getHeader("X-Forwarded-For");
+        if (forwardedFor != null && !forwardedFor.isBlank()) {
+            String firstHop = forwardedFor.split(",")[0].trim();
+            if (!firstHop.isEmpty()) {
+                return firstHop;
+            }
+        }
+        return httpRequest.getRemoteAddr();
     }
 
     @GetMapping("/{transactionId}")

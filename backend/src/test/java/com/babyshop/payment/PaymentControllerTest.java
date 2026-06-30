@@ -49,7 +49,7 @@ class PaymentControllerTest {
                 "http://localhost:3000/payment/cancel"
         );
 
-        given(paymentService.initiatePayment(any(PaymentInitiationRequest.class))).willReturn(samplePaymentResponse());
+        given(paymentService.initiatePayment(any(PaymentInitiationRequest.class), any())).willReturn(samplePaymentResponse());
 
         mockMvc.perform(post("/api/v1/payments/initiate")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -110,7 +110,7 @@ class PaymentControllerTest {
                 "http://localhost:3000/payment/cancel"
         );
 
-        given(paymentService.initiatePayment(any(PaymentInitiationRequest.class)))
+        given(paymentService.initiatePayment(any(PaymentInitiationRequest.class), any()))
                 .willThrow(new InvalidRequestException("Unsupported payment provider: PAYTR"));
 
         mockMvc.perform(post("/api/v1/payments/initiate")

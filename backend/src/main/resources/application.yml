@@ -23,11 +23,32 @@ spring:
     enabled: true
     locations: classpath:db/migration
     validate-on-migrate: true
+  mail:
+    host: ${MAIL_HOST:smtp.gmail.com}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+          # SMTP yavas/erisimsizse odeme callback'ini uzun sure bekletmemek icin kisa timeout.
+          connectiontimeout: 5000
+          timeout: 5000
+          writetimeout: 5000
 
 server:
   port: ${PORT:${SERVER_PORT:5050}}
 
 app:
+  mail:
+    # E-posta gonderimi yalnizca acikca etkinlestirilince yapilir (kimlik bilgileri ayarli olmali).
+    enabled: ${MAIL_ENABLED:false}
+    from: ${MAIL_FROM:Bade Bebe <badebebe001@gmail.com>}
+    store-name: ${MAIL_STORE_NAME:Bade Bebe}
+    track-base-url: ${MAIL_TRACK_BASE_URL:https://badebebe-frontend-production.up.railway.app}
   payment:
     mock:
       callback-secret: ${MOCK_PAYMENT_CALLBACK_SECRET:}

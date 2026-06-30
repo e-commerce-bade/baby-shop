@@ -71,7 +71,7 @@ class PaymentServiceTest {
         });
 
         paymentService = new PaymentService(orderRepository, paymentRepository, List.of(mockPaymentGateway), productVariantRepository, cartRepository);
-        var response = paymentService.initiatePayment(request);
+        var response = paymentService.initiatePayment(request, "203.0.113.5");
 
         assertThat(response.provider()).isEqualTo("MOCK");
         assertThat(response.status()).isEqualTo("INITIATED");
@@ -103,7 +103,7 @@ class PaymentServiceTest {
         given(orderRepository.findByOrderNumber("ORD-ABC123DEF456")).willReturn(Optional.of(order));
 
         paymentService = new PaymentService(orderRepository, paymentRepository, List.of(mockPaymentGateway), productVariantRepository, cartRepository);
-        assertThatThrownBy(() -> paymentService.initiatePayment(request))
+        assertThatThrownBy(() -> paymentService.initiatePayment(request, "203.0.113.5"))
                 .isInstanceOf(InvalidRequestException.class)
                 .hasMessage("Unsupported payment provider: PAYTR");
     }
@@ -121,7 +121,7 @@ class PaymentServiceTest {
         given(orderRepository.findByOrderNumber("ORD-ABC123DEF456")).willReturn(Optional.of(order));
 
         paymentService = new PaymentService(orderRepository, paymentRepository, List.of(mockPaymentGateway), productVariantRepository, cartRepository);
-        assertThatThrownBy(() -> paymentService.initiatePayment(request))
+        assertThatThrownBy(() -> paymentService.initiatePayment(request, "203.0.113.5"))
                 .isInstanceOf(InvalidRequestException.class)
                 .hasMessage("Payment can only be initiated for orders in PENDING_PAYMENT status");
     }

@@ -32,7 +32,8 @@ public class MockPaymentGateway implements PaymentGateway {
             Order order,
             String transactionId,
             String successUrl,
-            String cancelUrl
+            String cancelUrl,
+            String clientIp
     ) {
         String providerReference = "MOCK-" + transactionId;
         String paymentPageUrl = "https://mock-payments.local/checkout/"

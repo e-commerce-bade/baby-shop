@@ -12,11 +12,13 @@ import com.babyshop.payment.dto.PaymentCallbackResponse;
 import com.babyshop.payment.dto.PaymentInitiationRequest;
 import com.babyshop.payment.dto.PaymentResponse;
 import com.babyshop.cart.CartRepository;
+import com.babyshop.notification.OrderEmailService;
 import com.babyshop.payment.gateway.PaymentGateway;
 import com.babyshop.payment.gateway.PaymentGatewayCallbackResult;
 import com.babyshop.payment.gateway.PaymentGatewayInitiation;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -45,8 +47,13 @@ public class PaymentService {
     private final ProductVariantRepository productVariantRepository;
     private final CartRepository cartRepository;
 
+    // Non-final + opsiyonel enjeksiyon: @RequiredArgsConstructor'a girmez, boylece testlerdeki
+    // manuel `new PaymentService(...)` cagrilari degismeden derlenir; runtime'da Spring enjekte eder.
+    @Autowired(required = false)
+    private OrderEmailService orderEmailService;
+
     @Transactional
-    public PaymentResponse initiatePayment(PaymentInitiationRequest request) {
+    public PaymentResponse initiatePayment(PaymentInitiationRequest request, String clientIp) {
         String orderNumber = request.orderNumber().trim();
         String provider = request.provider().trim().toUpperCase(Locale.ROOT);
 
@@ -63,7 +70,8 @@ public class PaymentService {
                 order,
                 transactionId,
                 request.successUrl().trim(),
-                request.cancelUrl().trim()
+                request.cancelUrl().trim(),
+                normalizeOptional(clientIp)
         );
 
         Payment payment = new Payment();
@@ -198,7 +206,23 @@ public class PaymentService {
         payment.setPaidAt(java.time.OffsetDateTime.now());
         order.setStatus(OrderStatusPolicy.PAID);
         consumeSourceCart(order);
-        return paymentRepository.save(payment);
+        Payment saved = paymentRepository.save(payment);
+        sendOrderConfirmationQuietly(order);
+        return saved;
+    }
+
+    // Siparis onay e-postasi: best-effort. orderEmailService runtime'da enjekte edilir (testlerde
+    // null olabilir). Herhangi bir hata yutulur; e-posta gonderimi odeme akisini asla bozmaz.
+    private void sendOrderConfirmationQuietly(Order order) {
+        if (orderEmailService == null) {
+            return;
+        }
+        try {
+            orderEmailService.sendOrderConfirmation(order);
+        } catch (Exception e) {
+            log.warn("Siparis onay e-postasi gonderilemedi (siparis {}): {}",
+                    order.getOrderNumber(), e.getMessage());
+        }
     }
 
     // Stok yalnizca odeme basariyla tamamlaninca dusulur. Atomik kosullu UPDATE ile lost-update

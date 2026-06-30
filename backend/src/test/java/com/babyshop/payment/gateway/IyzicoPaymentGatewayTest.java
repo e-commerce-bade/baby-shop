@@ -46,7 +46,8 @@ class IyzicoPaymentGatewayTest {
                 buildOrder(),
                 "TXN-123",
                 "https://shop.local/payment/success",
-                "https://shop.local/payment/cancel"
+                "https://shop.local/payment/cancel",
+                "203.0.113.7"
         );
 
         assertThat(initiation.providerReference()).isEqualTo("iyzico-token");
@@ -62,7 +63,32 @@ class IyzicoPaymentGatewayTest {
         assertThat(requestCaptor.getValue().getCallbackUrl()).isEqualTo("https://api.shop.local/api/v1/payments/callbacks/IYZICO");
         assertThat(requestCaptor.getValue().getPaidPrice()).isEqualByComparingTo("998.00");
         assertThat(requestCaptor.getValue().getBasketItems()).hasSize(1);
+        assertThat(requestCaptor.getValue().getBuyer().getIp()).isEqualTo("203.0.113.7");
         assertThat(optionsCaptor.getValue().getBaseUrl()).isEqualTo("https://sandbox-api.iyzipay.com");
+    }
+
+    @Test
+    void shouldFallBackToConfiguredBuyerIpWhenClientIpMissing() {
+        IyzicoPaymentGateway gateway = new IyzicoPaymentGateway(properties(), iyzicoClient);
+        CheckoutFormInitialize response = new CheckoutFormInitialize();
+        response.setStatus("success");
+        response.setToken("iyzico-token");
+        response.setPaymentPageUrl("https://sandbox-api.iyzipay.com/checkoutform/iyzico-token");
+
+        given(iyzicoClient.initializeCheckoutForm(any(), any())).willReturn(response);
+
+        gateway.initiatePayment(
+                buildOrder(),
+                "TXN-123",
+                "https://shop.local/payment/success",
+                "https://shop.local/payment/cancel",
+                null
+        );
+
+        ArgumentCaptor<CreateCheckoutFormInitializeRequest> requestCaptor =
+                ArgumentCaptor.forClass(CreateCheckoutFormInitializeRequest.class);
+        org.mockito.Mockito.verify(iyzicoClient).initializeCheckoutForm(requestCaptor.capture(), any());
+        assertThat(requestCaptor.getValue().getBuyer().getIp()).isEqualTo("127.0.0.1");
     }
 
     @Test
@@ -93,7 +119,8 @@ class IyzicoPaymentGatewayTest {
                 buildOrder(),
                 "TXN-123",
                 "https://shop.local/payment/success",
-                "https://shop.local/payment/cancel"
+                "https://shop.local/payment/cancel",
+                "203.0.113.7"
         );
 
         ArgumentCaptor<CreateCheckoutFormInitializeRequest> requestCaptor =
@@ -159,7 +186,8 @@ class IyzicoPaymentGatewayTest {
                 buildOrder(),
                 "TXN-123",
                 "https://shop.local/payment/success",
-                "https://shop.local/payment/cancel"
+                "https://shop.local/payment/cancel",
+                "203.0.113.7"
         ))
                 .isInstanceOf(InvalidRequestException.class)
                 .hasMessage("iyzico checkout form initialize failed: Invalid API key");
