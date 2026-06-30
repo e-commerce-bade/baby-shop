@@ -53,6 +53,10 @@ public class CartService {
         return getCheckoutSummary(sessionId, null);
     }
 
+    // findOrCreateCart sepet olusturabilir/serbest birakabilir (yazma); bu yuzden read-write olmali.
+    // Aksi halde (sinif readOnly varsayilani) odeme sonrasi taze sepet INSERT'i Postgres'te
+    // "read-only transaction" hatasiyla 500 doner.
+    @Transactional
     public CheckoutSummaryResponse getCheckoutSummary(String sessionId, String authenticatedEmail) {
         Cart cart = findOrCreateCart(sessionId, authenticatedEmail);
         CartResponse cartResponse = toResponse(cart);
