@@ -119,6 +119,16 @@ export default function Header() {
             ) : null}
           </Link>
 
+          <Link href="/orders/track" className="flex items-center gap-2 text-sm font-semibold text-brown-2 transition-colors hover:text-rose-dk">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="1.5" y="6" width="12" height="10" rx="1.5" />
+              <path d="M13.5 9.5H17l3.5 3.5V16h-7z" />
+              <circle cx="6" cy="18.5" r="1.6" />
+              <circle cx="17.5" cy="18.5" r="1.6" />
+            </svg>
+            <span>Sipariş Takibi</span>
+          </Link>
+
           {authChecked && profile ? (
             <div
               className="relative"
