@@ -1,19 +1,20 @@
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 
+type NavCategory = { name: string; slug: string }
 type NavItem = { label: string; href: string; sale?: boolean }
 
-const navItems: NavItem[] = [
-  { label: 'Yeni Gelenler', href: '/products' },
-  { label: 'Yenidoğan', href: '/products?categorySlug=yenidogan' },
-  { label: 'Kız Bebek', href: '/products?categorySlug=kiz-bebek' },
-  { label: 'Erkek Bebek', href: '/products?categorySlug=erkek-bebek' },
-  { label: 'Kız Çocuk', href: '/products?categorySlug=kiz-cocuk' },
-  { label: 'Erkek Çocuk', href: '/products?categorySlug=erkek-cocuk' },
-  { label: 'İndirim', href: '/products?sort=price-desc', sale: true },
-]
+// "Yeni Gelenler" ve "İndirim" sabit; aradaki kategoriler layout'tan (aktif kategoriler) prop gelir.
+export default function Nav({ categories }: { categories: NavCategory[] }) {
+  const navItems: NavItem[] = [
+    { label: 'Yeni Gelenler', href: '/products' },
+    ...categories.map((category) => ({
+      label: category.name,
+      href: `/products?categorySlug=${encodeURIComponent(category.slug)}`,
+    })),
+    { label: 'İndirim', href: '/products?sort=price-desc', sale: true },
+  ]
 
-export default function Nav() {
   return (
     <nav
       className="flex flex-wrap items-center justify-center gap-9 border-b border-line px-[38px] py-4 max-[680px]:gap-x-[18px] max-[680px]:gap-y-3.5 max-[680px]:px-5 max-[680px]:py-3.5"

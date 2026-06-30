@@ -7,7 +7,13 @@ import Nav from '@/components/layout/Nav'
 import Footer from '@/components/layout/Footer'
 import { AuthProvider } from '@/components/auth/AuthProvider'
 
-export default function SiteChrome({ children }: { children: React.ReactNode }) {
+export default function SiteChrome({
+  children,
+  categories,
+}: {
+  children: React.ReactNode
+  categories: { name: string; slug: string }[]
+}) {
   const pathname = usePathname()
   const isAdminArea = pathname.startsWith('/admin')
   const isAuthPage = pathname === '/account/login' || pathname === '/account/register'
@@ -31,7 +37,7 @@ export default function SiteChrome({ children }: { children: React.ReactNode }) 
     <AuthProvider>
       <AnnouncementBar />
       <Header />
-      <Nav />
+      <Nav categories={categories} />
       <main>{children}</main>
       <Footer />
     </AuthProvider>
