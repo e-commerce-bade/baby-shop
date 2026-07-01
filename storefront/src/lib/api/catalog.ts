@@ -81,7 +81,7 @@ export interface ProductSearchParams {
   size?: number
 }
 
-interface BackendProductSummaryResponse {
+export interface BackendProductSummaryResponse {
   id: number
   name: string
   slug: string
@@ -225,7 +225,7 @@ function mapPrimaryImage(
   }
 }
 
-function mapSummary(
+export function mapSummary(
   product: BackendProductSummaryResponse,
 ): ProductSummary {
   const variants = product.variants.map(mapVariant)

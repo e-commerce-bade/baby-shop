@@ -2,6 +2,7 @@
 
 import { create } from 'zustand'
 import type { ProductSummary } from '@/types/product'
+import { mapSummary, type BackendProductSummaryResponse } from '@/lib/api/catalog'
 
 export type FavoriteToggleResult = 'added' | 'removed' | 'unauthorized' | 'error'
 
@@ -42,7 +43,10 @@ export const useFavoriteStore = create<FavoriteState>()((set, get) => ({
         return
       }
 
-      const items = (await res.json()) as ProductSummary[]
+      // Backend ham ProductSummaryResponse doner ({minPrice, primaryImageUrl}); UI'nin bekledigi
+      // {lowestPrice, primaryImage} sekline donusturmezsek favoriler sayfasinda gorseller/fiyat cikmaz.
+      const raw = (await res.json()) as BackendProductSummaryResponse[]
+      const items = Array.isArray(raw) ? raw.map(mapSummary) : []
       set({ items, hasLoaded: true, isAuthenticated: true })
     } catch {
       set({ hasLoaded: true })

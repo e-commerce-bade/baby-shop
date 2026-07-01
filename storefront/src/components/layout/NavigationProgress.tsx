@@ -31,6 +31,11 @@ export default function NavigationProgress() {
     function onLinkClick(e: MouseEvent) {
       const anchor = (e.target as Element).closest('a[href]') as HTMLAnchorElement | null
       if (!anchor) return
+      // Link icindeki buton/kontrol tiklamalari (or. urun kartindaki favori butonu) genelde
+      // preventDefault yapar ve navigasyon olmaz; overlay'i baslatirsak navKey degismez ve
+      // fallback'e kadar (4.5sn) takili kalir. Bu tiklamalari yok say.
+      const control = (e.target as Element).closest('button, input, select, textarea, [role="button"]')
+      if (control && anchor.contains(control)) return
       if (anchor.target && anchor.target !== '_self') return
       if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return
 
