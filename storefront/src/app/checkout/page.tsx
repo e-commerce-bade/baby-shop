@@ -507,19 +507,10 @@ export default function CheckoutPage() {
                 {submitError}
               </p>
             )}
-
-            {/* Mobile CTA — sadece küçük ekranda görünür, sağ panel gizlendiğinde */}
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="w-full rounded-[14px] bg-rose py-4 text-[15px] font-bold text-white transition-colors hover:bg-rose-dk disabled:opacity-60 lg:hidden"
-            >
-              {isSubmitting ? 'Hazırlanıyor...' : 'Ödemeye Geç'}
-            </button>
           </form>
 
-          {/* SAĞ: sipariş özeti ──────────────────────────────────────────── */}
-          <div className="max-[980px]:order-first">
+          {/* SAĞ (mobilde en altta): sipariş özeti + Ödemeye Geç ─────────── */}
+          <div>
             <CheckoutOrderSummary isSubmitting={isSubmitting} />
           </div>
 
