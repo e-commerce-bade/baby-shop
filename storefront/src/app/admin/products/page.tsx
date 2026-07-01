@@ -1136,6 +1136,55 @@ function ProductManagementDrawer({
   const [detailError, setDetailError] = useState<string | null>(null)
   const [detailNotice, setDetailNotice] = useState<string | null>(null)
 
+  // Varyant hizli editoru: fiyat + stok (tam duzenleme Stok/Envanter sayfasinda da mevcut).
+  type VariantRow = {
+    id: number; sku: string | null; sizeLabel: string; colorName: string
+    currency: string; compareAtPrice: number | string | null; active: boolean
+    price: string; stock: string
+  }
+  const [variantRows, setVariantRows] = useState<VariantRow[]>([])
+  const [savingVariantId, setSavingVariantId] = useState<number | null>(null)
+  const [variantError, setVariantError] = useState<string | null>(null)
+  const [variantNotice, setVariantNotice] = useState<string | null>(null)
+
+  function updateVariantRow(id: number, patch: Partial<VariantRow>) {
+    setVariantRows((rows) => rows.map((row) => (row.id === id ? { ...row, ...patch } : row)))
+  }
+
+  async function handleSaveVariant(row: VariantRow) {
+    setVariantError(null)
+    setVariantNotice(null)
+    const price = Number(row.price.replace(',', '.'))
+    const stock = Number(row.stock)
+    if (Number.isNaN(price) || price < 0) { setVariantError('Fiyat sifir veya daha buyuk olmali.'); return }
+    if (!Number.isInteger(stock) || stock < 0) { setVariantError('Stok sifir veya daha buyuk tam sayi olmali.'); return }
+
+    setSavingVariantId(row.id)
+    try {
+      const res = await fetch(`/api/admin/products/${product.id}/variants/${row.id}`, {
+        method: 'PUT',
+        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sku: row.sku,
+          sizeLabel: row.sizeLabel,
+          colorName: row.colorName,
+          stockQuantity: stock,
+          price,
+          compareAtPrice: row.compareAtPrice != null ? Number(row.compareAtPrice) : null,
+          currency: row.currency,
+          active: row.active,
+        }),
+      })
+      if (!res.ok) throw new Error(await readApiError(res, 'Varyant guncellenemedi.'))
+      setVariantNotice(`${row.sizeLabel} / ${row.colorName} kaydedildi.`)
+      await onUpdated()
+    } catch (e) {
+      setVariantError(e instanceof Error ? e.message : 'Varyant guncellenemedi.')
+    } finally {
+      setSavingVariantId(null)
+    }
+  }
+
   useEffect(() => {
     let active = true
 
@@ -1151,6 +1200,11 @@ function ProductManagementDrawer({
         const detail = (await res.json()) as {
           name?: string; slug?: string; description?: string | null; brand?: string | null
           productType?: string | null; categoryName?: string
+          variants?: Array<{
+            id: number; sku: string | null; sizeLabel: string; colorName: string
+            stockQuantity: number; price: number | string; compareAtPrice: number | string | null
+            currency: string; active: boolean
+          }>
         }
         // Kategori id'sini mevcut kategori adindan cozumle (AdminCategory'de slug yok).
         const categoryId = categories.find((category) => category.name === detail.categoryName)?.id
@@ -1163,6 +1217,17 @@ function ProductManagementDrawer({
             description: detail.description ?? '',
             slug: detail.slug ?? '',
           })
+          setVariantRows((detail.variants ?? []).map((variant) => ({
+            id: variant.id,
+            sku: variant.sku,
+            sizeLabel: variant.sizeLabel,
+            colorName: variant.colorName,
+            currency: variant.currency,
+            compareAtPrice: variant.compareAtPrice,
+            active: variant.active,
+            price: String(variant.price),
+            stock: String(variant.stockQuantity),
+          })))
         }
       } catch (e) {
         if (active) setDetailError(e instanceof Error ? e.message : 'Urun bilgileri yuklenemedi.')
@@ -1470,6 +1535,70 @@ function ProductManagementDrawer({
                 >
                   {savingDetail ? 'Kaydediliyor...' : 'Bilgileri Kaydet'}
                 </button>
+              </div>
+            )}
+          </div>
+
+          <div className="mt-4 rounded-[14px] border border-[#ECE3D6] bg-white p-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-[13px] font-bold text-[#3D2B1F]">Varyantlar</h3>
+              {variantRows.length > 0 ? (
+                <span className="rounded-full bg-[#FAF6F1] px-2.5 py-1 text-[11px] font-bold text-[#A89070]">{variantRows.length} varyant</span>
+              ) : null}
+            </div>
+            <p className="mt-1 text-[12.5px] leading-5 text-[#7A6656]">Her varyantin fiyat ve stogunu buradan guncelleyin.</p>
+
+            {variantError ? (
+              <div className="mt-3 rounded-[10px] bg-[#FEEAEA] px-3 py-2 text-[12px] text-[#8A1A1A]">{variantError}</div>
+            ) : null}
+            {variantNotice ? (
+              <div className="mt-3 rounded-[10px] bg-[#EDF7F1] px-3 py-2 text-[12px] font-semibold text-[#1A6640]">{variantNotice}</div>
+            ) : null}
+
+            {detailLoading ? (
+              <p className="mt-3 text-[12.5px] text-[#B5A090]">Yukleniyor...</p>
+            ) : variantRows.length === 0 ? (
+              <p className="mt-3 text-[12.5px] text-[#B5A090]">Bu urunun varyanti yok.</p>
+            ) : (
+              <div className="mt-3 space-y-2.5">
+                {variantRows.map((row) => (
+                  <div key={row.id} className="rounded-[10px] border border-[#ECE3D6] p-3">
+                    <p className="text-[12px] font-bold text-[#3D2B1F]">
+                      {row.sizeLabel} / {row.colorName}
+                      {row.active ? null : <span className="ml-1 text-[11px] font-semibold text-[#B5A090]">(Pasif)</span>}
+                    </p>
+                    <div className="mt-2 grid grid-cols-[1fr_1fr_auto] items-end gap-2">
+                      <div>
+                        <label className="mb-1 block text-[11px] font-bold text-[#5B4839]">Fiyat ({row.currency})</label>
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          value={row.price}
+                          onChange={(event) => updateVariantRow(row.id, { price: event.target.value })}
+                          className="h-9 w-full rounded-[9px] border border-[#ECE3D6] bg-white px-2.5 text-[12.5px] text-[#3D2B1F] outline-none focus:border-[#A89070] focus:ring-2 focus:ring-[#A89070]/20"
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-[11px] font-bold text-[#5B4839]">Stok</label>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={row.stock}
+                          onChange={(event) => updateVariantRow(row.id, { stock: event.target.value })}
+                          className="h-9 w-full rounded-[9px] border border-[#ECE3D6] bg-white px-2.5 text-[12.5px] text-[#3D2B1F] outline-none focus:border-[#A89070] focus:ring-2 focus:ring-[#A89070]/20"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => void handleSaveVariant(row)}
+                        disabled={savingVariantId === row.id}
+                        className="h-9 rounded-[9px] bg-[#5B4839] px-3 text-[12px] font-bold text-white transition-colors hover:bg-[#3D2B1F] disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {savingVariantId === row.id ? '...' : 'Kaydet'}
+                      </button>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </div>
