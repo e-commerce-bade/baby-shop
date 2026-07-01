@@ -27,6 +27,12 @@ export const RATE_LIMITS = {
 } as const
 
 export function clientIp(request: Request): string {
+  // Site Cloudflare arkasinda: CF-Connecting-IP gercek istemci IP'sidir ve Cloudflare tarafindan
+  // her istekte yeniden yazilir (istemci sahteleyemez). Once bunu kullan; boylece sahte
+  // x-forwarded-for ile rate-limit atlatilamaz.
+  const cfIp = request.headers.get('cf-connecting-ip')
+  if (cfIp && cfIp.trim()) return cfIp.trim()
+
   const forwarded = request.headers.get('x-forwarded-for')
   if (forwarded) {
     const first = forwarded.split(',')[0]?.trim()

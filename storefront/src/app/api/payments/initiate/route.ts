@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { buildBackendUrl } from '@/lib/api/backend'
-import { enforceRateLimit, RATE_LIMITS } from '@/lib/api/rate-limit'
+import { clientIp, enforceRateLimit, RATE_LIMITS } from '@/lib/api/rate-limit'
 
 export async function POST(request: Request) {
   const limited = enforceRateLimit(request, 'payment', RATE_LIMITS.payment)
@@ -8,14 +8,22 @@ export async function POST(request: Request) {
 
   const body = await request.text()
 
+  // Gercek alici IP'sini backend'e ilet (iyzico fraud/3DS skorlamasi icin). Backend
+  // X-Forwarded-For'un ilk girdisini okur; aksi halde BFF'in IP'sini gorurdu.
+  const ip = clientIp(request)
+  const forwardHeaders: Record<string, string> = {
+    Accept: 'application/json',
+    'Content-Type': 'application/json',
+  }
+  if (ip && ip !== 'unknown') {
+    forwardHeaders['X-Forwarded-For'] = ip
+  }
+
   let response: Response
   try {
     response = await fetch(buildBackendUrl('/api/v1/payments/initiate'), {
       method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-      },
+      headers: forwardHeaders,
       body,
     })
   } catch {
