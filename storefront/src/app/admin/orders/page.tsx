@@ -537,6 +537,133 @@ function StatusSelect({
   )
 }
 
+function escapeHtml(value: string) {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;')
+}
+
+function absoluteUrl(url: string) {
+  try {
+    return new URL(url, window.location.origin).href
+  } catch {
+    return url
+  }
+}
+
+// Siparis detayini bagimsiz bir yazdirma penceresinde acar; kullanici yazdirabilir veya
+// "PDF olarak kaydet" ile PDF alabilir. Admin arayuzunun stilini tasimadan temiz cikti verir.
+function printOrder(order: AdminOrder) {
+  const status = getStatus(order.status)
+  const address = order.shippingAddress
+  const addressHtml = address
+    ? [
+        address.line1,
+        address.line2,
+        [address.district, address.city].filter(Boolean).join(', '),
+        [address.postalCode, address.country].filter(Boolean).join(' / '),
+      ]
+        .filter(Boolean)
+        .map((line) => `<div>${escapeHtml(String(line))}</div>`)
+        .join('')
+    : '<div>Adres bilgisi yok.</div>'
+
+  const rowsHtml = order.items
+    .map((item) => {
+      const thumb = item.imageUrl
+        ? `<img src="${escapeHtml(absoluteUrl(item.imageUrl))}" alt="" style="width:44px;height:52px;object-fit:cover;border-radius:6px;border:1px solid #ECE3D6;" />`
+        : '<div style="width:44px;height:52px;border-radius:6px;border:1px solid #ECE3D6;background:#F4EEE6;"></div>'
+      return `
+        <tr>
+          <td style="padding:8px 6px;vertical-align:middle;">${thumb}</td>
+          <td style="padding:8px 6px;vertical-align:middle;">
+            <div style="font-weight:600;color:#3D2B1F;">${escapeHtml(item.productName)}</div>
+            <div style="font-size:12px;color:#8C7A6A;">${escapeHtml(item.variantLabel ?? '')}</div>
+          </td>
+          <td style="padding:8px 6px;text-align:center;vertical-align:middle;">${item.quantity}</td>
+          <td style="padding:8px 6px;text-align:right;vertical-align:middle;font-weight:700;color:#3D2B1F;white-space:nowrap;">${escapeHtml(formatPrice(item.lineTotal, item.currency))}</td>
+        </tr>`
+    })
+    .join('')
+
+  const html = `<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8" />
+<title>Sipariş ${escapeHtml(order.orderNumber)}</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, Segoe UI, Roboto, Arial, sans-serif; color: #3D2B1F; margin: 32px; }
+  h1 { font-size: 22px; margin: 0; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em; color: #A89070; margin: 24px 0 8px; }
+  .brand { font-size: 13px; font-weight: 700; color: #C07B5A; letter-spacing: 0.14em; text-transform: uppercase; }
+  .head { display:flex; justify-content:space-between; align-items:flex-start; border-bottom:2px solid #ECE3D6; padding-bottom:16px; }
+  .muted { color:#8C7A6A; font-size:13px; }
+  .badge { display:inline-block; padding:4px 10px; border-radius:999px; font-size:12px; font-weight:700; background:${status.bg}; color:${status.color}; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  thead th { text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:0.06em; color:#A89070; border-bottom:1px solid #ECE3D6; padding:6px; }
+  tbody tr { border-bottom:1px solid #F4EEE6; }
+  .total { display:flex; justify-content:space-between; font-size:16px; font-weight:800; border-top:2px solid #ECE3D6; margin-top:10px; padding-top:10px; }
+  .grid { display:flex; gap:32px; }
+  .grid > div { flex:1; }
+  @media print { body { margin: 12mm; } }
+</style>
+</head>
+<body>
+  <div class="head">
+    <div>
+      <div class="brand">Bade Bebe · Sipariş Detayı</div>
+      <h1>${escapeHtml(order.orderNumber)}</h1>
+      <div class="muted">${escapeHtml(formatDate(order.createdAt))}</div>
+    </div>
+    <span class="badge">${escapeHtml(status.label)}</span>
+  </div>
+
+  <div class="grid">
+    <div>
+      <h2>Müşteri</h2>
+      <div style="font-weight:600;">${escapeHtml(customerName(order))}</div>
+      <div class="muted">${escapeHtml(order.customerEmail)}</div>
+      ${order.customerPhone ? `<div class="muted">${escapeHtml(order.customerPhone)}</div>` : ''}
+    </div>
+    <div>
+      <h2>Teslimat</h2>
+      <div class="muted">${addressHtml}</div>
+    </div>
+  </div>
+
+  <h2>Ürünler</h2>
+  <table>
+    <thead>
+      <tr><th>Görsel</th><th>Ürün</th><th style="text-align:center;">Adet</th><th style="text-align:right;">Tutar</th></tr>
+    </thead>
+    <tbody>${rowsHtml}</tbody>
+  </table>
+
+  <div class="total">
+    <span>Toplam</span>
+    <span>${escapeHtml(formatPrice(order.totalAmount, order.currency))}</span>
+  </div>
+
+  ${order.notes ? `<h2>Not</h2><div class="muted">${escapeHtml(order.notes)}</div>` : ''}
+</body>
+</html>`
+
+  const printWindow = window.open('', '_blank', 'width=820,height=900')
+  if (!printWindow) return
+  printWindow.document.open()
+  printWindow.document.write(html)
+  printWindow.document.close()
+  printWindow.focus()
+  // Gorsellerin yuklenmesi icin kisa bekleme; onload guvenilir sekilde tetiklenmeyebilir.
+  printWindow.setTimeout(() => {
+    printWindow.print()
+  }, 350)
+}
+
 function OrderDetailsDrawer({ order, onClose }: { order: AdminOrder; onClose: () => void }) {
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-black/25" role="dialog" aria-modal="true">
@@ -547,16 +674,28 @@ function OrderDetailsDrawer({ order, onClose }: { order: AdminOrder; onClose: ()
             <p className="text-[11px] font-extrabold uppercase tracking-[0.14em] text-[#C07B5A]">Sipariş Detayı</p>
             <h2 className="mt-1 text-[22px] font-bold text-[#3D2B1F]">{order.orderNumber}</h2>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="grid h-9 w-9 place-items-center rounded-full border border-[#ECE3D6] text-[#5B4839] transition-colors hover:bg-[#F4EEE6]"
-            aria-label="Kapat"
-          >
-            <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
-              <path d="M4 4l8 8M12 4l-8 8" />
-            </svg>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => printOrder(order)}
+              className="flex h-9 items-center gap-1.5 rounded-[10px] border border-[#ECE3D6] px-3 text-[12.5px] font-semibold text-[#5B4839] transition-colors hover:bg-[#F4EEE6]"
+            >
+              <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M4 6V2h8v4M4 12H3a1 1 0 01-1-1V8a1 1 0 011-1h10a1 1 0 011 1v3a1 1 0 01-1 1h-1M4 10h8v4H4z" />
+              </svg>
+              Yazdır
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="grid h-9 w-9 place-items-center rounded-full border border-[#ECE3D6] text-[#5B4839] transition-colors hover:bg-[#F4EEE6]"
+              aria-label="Kapat"
+            >
+              <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+                <path d="M4 4l8 8M12 4l-8 8" />
+              </svg>
+            </button>
+          </div>
         </div>
 
         <div className="space-y-5 px-6 py-5">
