@@ -37,19 +37,23 @@ const items = [
 
 export default function TrustBand() {
   return (
-    <div className="mt-[34px] grid grid-cols-3 gap-3.5 max-[680px]:mt-[26px] max-[680px]:grid-cols-1">
-      {items.map((item) => (
-        <div
-          key={item.title}
-          className="rounded-card border border-line bg-cream-3 px-4 py-5 text-center"
-        >
-          <div className="mx-auto mb-2.5 grid h-10 w-10 place-items-center rounded-full bg-rose-tint text-rose-dk">
-            {item.icon}
+    <div className="mt-[34px] rounded-card border border-line bg-cream-3 max-[680px]:mt-[26px]">
+      <div className="grid grid-cols-3 divide-x divide-line max-[680px]:grid-cols-1 max-[680px]:divide-x-0 max-[680px]:divide-y">
+        {items.map((item) => (
+          <div
+            key={item.title}
+            className="flex items-center justify-center gap-3 px-4 py-5"
+          >
+            <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-rose-tint text-rose-dk">
+              {item.icon}
+            </div>
+            <div className="text-left">
+              <div className="text-[13px] font-extrabold text-brown">{item.title}</div>
+              <div className="mt-0.5 text-[11.5px] font-semibold text-muted">{item.subtitle}</div>
+            </div>
           </div>
-          <div className="text-[13px] font-extrabold text-brown">{item.title}</div>
-          <div className="mt-0.5 text-[11.5px] font-semibold text-muted">{item.subtitle}</div>
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   )
 }
