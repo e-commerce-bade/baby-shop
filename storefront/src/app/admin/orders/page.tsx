@@ -731,7 +731,7 @@ function OrderDetailsDrawer({ order, onClose }: { order: AdminOrder; onClose: ()
                       {formatPrice(item.lineTotal, item.currency)}
                     </p>
                   </div>
-                  <div className="mt-2.5 h-44 w-36 overflow-hidden rounded-[10px] border border-[#ECE3D6] bg-[#F4EEE6]">
+                  <div className="mt-2.5 h-[352px] w-[288px] max-w-full overflow-hidden rounded-[10px] border border-[#ECE3D6] bg-[#F4EEE6]">
                     {item.imageUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
