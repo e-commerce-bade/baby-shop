@@ -13,7 +13,6 @@ export interface CategoryDisplayItem {
   name: string
   slug: string
   emoji: string
-  ageRange: string
   backgroundColor: string
   /** Kategori kartı arka plan görseli — opsiyonel, yoksa emoji gösterilir */
   imageUrl?: string | null

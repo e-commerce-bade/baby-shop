@@ -99,72 +99,71 @@ export interface BackendProductSummaryResponse {
 
 const categoryDecorators: Record<
   string,
-  Pick<CategoryDisplayItem, 'emoji' | 'ageRange' | 'backgroundColor' | 'imageUrl'>
+  Pick<CategoryDisplayItem, 'emoji' | 'backgroundColor' | 'imageUrl'>
 > = {
   yenidogan: {
     emoji: '🍼',
-    ageRange: '0-3 Ay',
     backgroundColor: '#EFE6D9',
     imageUrl: '/images/category_newborn.png',
   },
   'kiz-bebek': {
     emoji: '🎀',
-    ageRange: '0-24 Ay',
     backgroundColor: '#F4DEDB',
     imageUrl: '/images/category_girl.png',
   },
   'erkek-bebek': {
     emoji: '🧸',
-    ageRange: '0-24 Ay',
     backgroundColor: '#D9E4EC',
     imageUrl: '/images/category_boy.png',
   },
   'kiz-cocuk': {
     emoji: '👗',
-    ageRange: '2-14 Yaş',
     backgroundColor: '#F0E1DD',
     imageUrl: '/images/category_girl.png',
   },
   'erkek-cocuk': {
     emoji: '🌿',
-    ageRange: '2-14 Yaş',
     backgroundColor: '#E4EBD9',
     imageUrl: '/images/category_boy.png',
+  },
+  pijamalar: {
+    emoji: '🌙',
+    backgroundColor: '#EFE6DC',
+    imageUrl: '/images/category_pajamas.png',
+  },
+  'mayo-ve-havlu': {
+    emoji: '🏖️',
+    backgroundColor: '#E7E1D3',
+    imageUrl: '/images/category_swim.png',
   },
   // Eski slug'lar icin fallback
   newborn: {
     emoji: '🍼',
-    ageRange: '0-3 Ay',
     backgroundColor: '#EFE6D9',
     imageUrl: '/images/category_newborn.png',
   },
   'baby-girl': {
     emoji: '🎀',
-    ageRange: '0-24 Ay',
     backgroundColor: '#F4DEDB',
     imageUrl: '/images/category_girl.png',
   },
   'baby-boy': {
     emoji: '🧸',
-    ageRange: '0-24 Ay',
     backgroundColor: '#D9E4EC',
     imageUrl: '/images/category_boy.png',
   },
   'kids-girl': {
     emoji: '👗',
-    ageRange: '2-14 Yaş',
     backgroundColor: '#F0E1DD',
     imageUrl: '/images/category_girl.png',
   },
   'kids-boy': {
     emoji: '🌿',
-    ageRange: '2-14 Yaş',
     backgroundColor: '#E4EBD9',
     imageUrl: '/images/category_boy.png',
   },
   'yeni-dogan': {
     emoji: '🍼',
-    ageRange: '0-3 Ay',
     backgroundColor: '#EFE6D9',
     imageUrl: '/images/category_newborn.png',
   },

@@ -32,13 +32,10 @@ export default function CategoryStrip({ categories }: Props) {
             )}
           </div>
 
-          {/* Başlık + yaş */}
+          {/* Başlık */}
           <div className="px-2 pt-2.5">
             <p className="font-serif text-[13.5px] font-semibold text-brown max-[680px]:text-[12px]">
               {category.name}
-            </p>
-            <p className="mt-0.5 text-[11px] font-semibold text-muted">
-              {category.ageRange}
             </p>
           </div>
         </Link>
