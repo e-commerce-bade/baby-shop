@@ -56,6 +56,9 @@ export interface CartState {
   isSyncing: boolean
   hasHydrated: boolean
   checkoutSummary: CheckoutSummary | null
+  // Sepet islemi (ekle/cikar/adet) basarisiz olursa kullaniciya gosterilecek mesaj.
+  cartError: string | null
+  clearCartError: () => void
   hydrateCart: () => Promise<void>
   refreshCheckoutSummary: () => Promise<void>
   addItem: (item: Omit<CartLineItem, 'id' | 'cartItemId'> & { quantity?: number }) => Promise<void>

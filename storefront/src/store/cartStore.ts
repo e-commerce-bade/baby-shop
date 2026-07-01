@@ -81,7 +81,13 @@ async function requestCart(path: string, init?: RequestInit): Promise<BackendCar
   })
 
   if (!res.ok) {
-    throw new Error(`Cart request failed: ${res.status}`)
+    // Backend'in hata mesajini (orn. "Yeterli stok yok") kullaniciya gosterebilmek icin cikar.
+    const body = (await res.json().catch(() => null)) as { message?: string } | null
+    const message =
+      body && typeof body.message === 'string' && body.message.trim()
+        ? body.message.trim()
+        : 'Sepet güncellenemedi. Lütfen tekrar deneyin.'
+    throw new Error(message)
   }
 
   return res.json() as Promise<BackendCartResponse>
@@ -113,6 +119,9 @@ export const useCartStore = create<CartState>()(
       isSyncing: false,
       hasHydrated: false,
       checkoutSummary: null,
+      cartError: null,
+
+      clearCartError: () => set({ cartError: null }),
 
       refreshCheckoutSummary: async () => {
         const requestToken = beginCartRequest()
@@ -150,7 +159,7 @@ export const useCartStore = create<CartState>()(
 
       addItem: async ({ quantity = 1, ...incoming }) => {
         const requestToken = beginCartRequest()
-        set({ isSyncing: true })
+        set({ isSyncing: true, cartError: null })
 
         try {
           const cart = await requestCart(`/api/cart/${get().sessionId}/items`, {
@@ -171,6 +180,8 @@ export const useCartStore = create<CartState>()(
           set({ checkoutSummary: summary })
         } catch (err) {
           console.error('Failed to add item to cart', err)
+          // Sessizce yutma: kullaniciya hata mesajini goster (orn. stok yetersiz/pasif urun).
+          set({ cartError: err instanceof Error ? err.message : 'Ürün sepete eklenemedi.' })
         } finally {
           if (!isLatestCartRequest(requestToken)) return
           set({ isSyncing: false })
@@ -179,7 +190,7 @@ export const useCartStore = create<CartState>()(
 
       removeItem: async (id) => {
         const requestToken = beginCartRequest()
-        set({ isSyncing: true })
+        set({ isSyncing: true, cartError: null })
 
         try {
           const cart = await requestCart(`/api/cart/${get().sessionId}/items/${id}`, {
@@ -195,6 +206,9 @@ export const useCartStore = create<CartState>()(
           set({ checkoutSummary: summary })
         } catch (err) {
           console.error('Failed to remove item from cart', err)
+          // Sunucu ile senkron kalmak icin gercege geri don ve hatayi bildir.
+          set({ cartError: err instanceof Error ? err.message : 'Ürün sepetten çıkarılamadı.' })
+          void get().hydrateCart()
         } finally {
           if (!isLatestCartRequest(requestToken)) return
           set({ isSyncing: false })
@@ -208,6 +222,7 @@ export const useCartStore = create<CartState>()(
         //    Token'i hemen artir; boylece halen ucan eski bir yanit optimistik durumu ezmez.
         beginCartRequest()
         set((state) => ({
+          cartError: null,
           items: state.items.map((item) =>
             item.id === id ? { ...item, quantity: nextQuantity } : item,
           ),
@@ -241,7 +256,8 @@ export const useCartStore = create<CartState>()(
                 set({ checkoutSummary: summary })
               } catch (err) {
                 console.error('Failed to update cart quantity', err)
-                // Sunucu reddederse (orn. stok yetersiz) optimistik degisikligi gercege geri al.
+                // Sunucu reddederse (orn. stok yetersiz) optimistik degisikligi gercege geri al ve bildir.
+                set({ cartError: err instanceof Error ? err.message : 'Adet güncellenemedi.' })
                 void get().hydrateCart()
               }
             })()
