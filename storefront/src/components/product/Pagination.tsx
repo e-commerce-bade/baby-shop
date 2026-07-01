@@ -13,7 +13,9 @@ function hrefFor(page: number, baseParams: Record<string, string | undefined>): 
   for (const [key, value] of Object.entries(baseParams)) {
     if (value) params.set(key, value)
   }
-  if (page > 0) params.set('page', String(page))
+  // `page` 0-tabanli index; URL parametresi ise 1-tabanli (products/page.tsx bunu 1-tabanli okur).
+  // 1-tabanli yazmazsak her link bir onceki sayfayi acar ve son sayfaya ulasilamaz.
+  if (page > 0) params.set('page', String(page + 1))
   const qs = params.toString()
   return qs ? `/products?${qs}` : '/products'
 }
