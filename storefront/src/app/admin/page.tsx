@@ -67,8 +67,9 @@ interface DashboardData {
   categories: CategoryResponse[]
   products: ProductResponse[]
   orders: PageResponse<OrderResponse>
-  analytics: AnalyticsSummary | null
 }
+
+type SalesWindow = 7 | 30
 
 const STATUS_MAP: Record<string, { label: string; bg: string; color: string }> = {
   PENDING: { label: 'Beklemede', bg: '#FFF8EC', color: '#9A7020' },
@@ -243,11 +244,16 @@ function SalesChart({ data, currency }: { data: DailySales[]; currency: string }
           ) : null}
         </div>
         <div className="mt-2 flex justify-between">
-          {points.map((p) => (
-            <span key={p.date} className="text-[10px] text-[#C4B5A5]">
-              {new Date(p.date).getDate()}
-            </span>
-          ))}
+          {points.map((p, i) => {
+            // Cok gunlu pencerede (30 gun) etiketleri seyrelt: en fazla ~8 etiket goster.
+            const labelStep = Math.max(1, Math.ceil(points.length / 8))
+            const showLabel = i % labelStep === 0 || i === points.length - 1
+            return (
+              <span key={p.date} className="text-[10px] text-[#C4B5A5]">
+                {showLabel ? new Date(p.date).getDate() : ''}
+              </span>
+            )
+          })}
         </div>
       </div>
     </div>
@@ -285,6 +291,9 @@ export default function AdminDashboardPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [forbidden, setForbidden] = useState(false)
+  const [salesDays, setSalesDays] = useState<SalesWindow>(7)
+  const [analytics, setAnalytics] = useState<AnalyticsSummary | null>(null)
+  const [salesLoading, setSalesLoading] = useState(false)
 
   useEffect(() => {
     let active = true
@@ -315,11 +324,10 @@ export default function AdminDashboardPage() {
           return
         }
 
-        const [catRes, prodRes, ordRes, analyticsRes] = await Promise.all([
+        const [catRes, prodRes, ordRes] = await Promise.all([
           fetch('/api/admin/categories', { cache: 'no-store', headers: { Accept: 'application/json' } }),
           fetch('/api/admin/products', { cache: 'no-store', headers: { Accept: 'application/json' } }),
           fetch('/api/admin/orders?page=0&size=5', { cache: 'no-store', headers: { Accept: 'application/json' } }),
-          fetch('/api/admin/analytics/summary', { cache: 'no-store', headers: { Accept: 'application/json' } }),
         ])
 
         if (!catRes.ok || !prodRes.ok || !ordRes.ok) {
@@ -333,7 +341,6 @@ export default function AdminDashboardPage() {
           categories: (await catRes.json()) as CategoryResponse[],
           products: (await prodRes.json()) as ProductResponse[],
           orders: (await ordRes.json()) as PageResponse<OrderResponse>,
-          analytics: analyticsRes.ok ? ((await analyticsRes.json()) as AnalyticsSummary) : null,
         })
       } catch (e) {
         if (!active) return
@@ -346,6 +353,25 @@ export default function AdminDashboardPage() {
     void loadDashboard()
     return () => { active = false }
   }, [router])
+
+  // Satis ozeti grafigi: secilen pencereye (7/30 gun) gore analytics'i ayri cek; boylece
+  // buton degisince grafik tum dashboard'u yeniden yuklemeden dinamik guncellenir.
+  useEffect(() => {
+    if (!profile) return
+    let active = true
+
+    setSalesLoading(true)
+    fetch(`/api/admin/analytics/summary?days=${salesDays}`, {
+      cache: 'no-store',
+      headers: { Accept: 'application/json' },
+    })
+      .then(async (res) => (res.ok ? ((await res.json()) as AnalyticsSummary) : null))
+      .then((result) => { if (active) setAnalytics(result) })
+      .catch(() => { if (active) setAnalytics(null) })
+      .finally(() => { if (active) setSalesLoading(false) })
+
+    return () => { active = false }
+  }, [profile, salesDays])
 
   const displayName = profile
     ? [profile.firstName, profile.lastName].filter(Boolean).join(' ') || profile.email
@@ -458,19 +484,35 @@ export default function AdminDashboardPage() {
       {/* Chart + Low Stock */}
       <div className="mt-5 grid gap-5 lg:grid-cols-[1.3fr_1fr]">
         <div className="rounded-[16px] border border-[#ECE3D6] bg-white p-5">
-          <div className="mb-4 flex items-center justify-between">
+          <div className="mb-4 flex items-center justify-between gap-3">
             <div>
               <h2 className="text-[16px] font-bold text-[#3D2B1F]">Satış Özeti</h2>
-              <p className="text-[12px] text-[#C4B5A5]">Son 7 günlük tahmini görünüm</p>
+              <p className="text-[12px] text-[#C4B5A5]">Son {salesDays} günlük tahmini görünüm</p>
             </div>
-            <span className="rounded-[8px] bg-[#FAF6F1] px-2.5 py-1 text-[11.5px] font-semibold text-[#B5A090]">
-              Son 7 Gün
-            </span>
+            <div className="flex items-center gap-0.5 rounded-[9px] bg-[#FAF6F1] p-0.5">
+              {([7, 30] as SalesWindow[]).map((window) => (
+                <button
+                  key={window}
+                  type="button"
+                  onClick={() => setSalesDays(window)}
+                  aria-pressed={salesDays === window}
+                  className={`rounded-[7px] px-2.5 py-1 text-[11.5px] font-semibold transition-colors ${
+                    salesDays === window
+                      ? 'bg-white text-[#5B4839] shadow-[0_1px_2px_rgba(61,43,31,0.08)]'
+                      : 'text-[#B5A090] hover:text-[#5B4839]'
+                  }`}
+                >
+                  Son {window} Gün
+                </button>
+              ))}
+            </div>
           </div>
-          <SalesChart
-            data={data?.analytics?.dailySales ?? []}
-            currency={data?.analytics?.currency ?? 'TRY'}
-          />
+          <div className={salesLoading ? 'opacity-50 transition-opacity' : 'transition-opacity'}>
+            <SalesChart
+              data={analytics?.dailySales ?? []}
+              currency={analytics?.currency ?? 'TRY'}
+            />
+          </div>
         </div>
 
         <div className="rounded-[16px] border border-[#ECE3D6] bg-white p-5">

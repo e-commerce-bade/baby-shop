@@ -37,7 +37,8 @@ public class AnalyticsService {
     private static final Set<String> REVENUE_STATUSES =
             Set.of("PAID", "PREPARING", "SHIPPED", "DELIVERED");
     private static final int TOP_PRODUCT_LIMIT = 5;
-    private static final int SALES_WINDOW_DAYS = 7;
+    private static final int DEFAULT_SALES_WINDOW_DAYS = 7;
+    private static final int MAX_SALES_WINDOW_DAYS = 90;
     private static final ZoneId STORE_ZONE = ZoneId.of("Europe/Istanbul");
 
     private final OrderRepository orderRepository;
@@ -47,6 +48,12 @@ public class AnalyticsService {
 
     @Transactional(readOnly = true)
     public AnalyticsSummaryResponse getSummary() {
+        return getSummary(DEFAULT_SALES_WINDOW_DAYS);
+    }
+
+    @Transactional(readOnly = true)
+    public AnalyticsSummaryResponse getSummary(int salesWindowDays) {
+        int windowDays = Math.min(Math.max(salesWindowDays, 1), MAX_SALES_WINDOW_DAYS);
         OrderRepository.RevenueAggregateView revenue = orderRepository.aggregateRevenue(REVENUE_STATUSES);
         BigDecimal totalRevenue = revenue.getRevenue() == null ? BigDecimal.ZERO : revenue.getRevenue();
         long paidOrders = revenue.getCount();
@@ -66,7 +73,7 @@ public class AnalyticsService {
                 .map(view -> new TopProduct(view.getProductName(), view.getQuantity(), view.getRevenue()))
                 .toList();
 
-        List<DailySales> dailySales = computeDailySales();
+        List<DailySales> dailySales = computeDailySales(windowDays);
 
         long totalProducts = productRepository.count();
         long activeProducts = productRepository.countByActiveTrue();
@@ -89,19 +96,19 @@ public class AnalyticsService {
     }
 
     /**
-     * Builds a revenue series for the last {@value #SALES_WINDOW_DAYS} days (inclusive of today),
+     * Builds a revenue series for the last {@code windowDays} days (inclusive of today),
      * with a zero-filled entry for every day so the chart always has a full window.
      */
-    private List<DailySales> computeDailySales() {
+    private List<DailySales> computeDailySales(int windowDays) {
         LocalDate today = LocalDate.now(STORE_ZONE);
-        LocalDate windowStart = today.minusDays(SALES_WINDOW_DAYS - 1L);
+        LocalDate windowStart = today.minusDays(windowDays - 1L);
 
         // Yalnizca pencere icindeki gelir siparislerini cek (sinirli kume), gun bazinda topla.
         OffsetDateTime windowStartInstant = windowStart.atStartOfDay(STORE_ZONE).toOffsetDateTime();
         List<Order> revenueOrders = orderRepository.findRevenueOrdersSince(REVENUE_STATUSES, windowStartInstant);
 
         Map<LocalDate, BigDecimal> revenueByDay = new LinkedHashMap<>();
-        for (int i = 0; i < SALES_WINDOW_DAYS; i++) {
+        for (int i = 0; i < windowDays; i++) {
             revenueByDay.put(windowStart.plusDays(i), BigDecimal.ZERO);
         }
 
