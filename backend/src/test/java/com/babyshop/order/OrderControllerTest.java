@@ -160,7 +160,8 @@ class OrderControllerTest {
                         2,
                         new BigDecimal("499.00"),
                         new BigDecimal("998.00"),
-                        "TRY"
+                        "TRY",
+                        null
                 ))
         );
     }

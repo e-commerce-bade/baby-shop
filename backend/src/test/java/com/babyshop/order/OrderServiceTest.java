@@ -15,6 +15,7 @@ import com.babyshop.order.dto.OrderStatusUpdateRequest;
 import com.babyshop.payment.Payment;
 import com.babyshop.payment.PaymentRepository;
 import com.babyshop.product.Product;
+import com.babyshop.product.ProductImageRepository;
 import com.babyshop.product.ProductVariant;
 import com.babyshop.settings.StoreSettingService;
 import org.junit.jupiter.api.BeforeEach;
@@ -60,6 +61,9 @@ class OrderServiceTest {
 
     @Mock
     private StoreSettingService storeSettingService;
+
+    @Mock
+    private ProductImageRepository productImageRepository;
 
     @InjectMocks
     private OrderService orderService;

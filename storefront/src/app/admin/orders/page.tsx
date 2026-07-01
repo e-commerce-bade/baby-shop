@@ -39,6 +39,7 @@ interface AdminOrder {
     quantity: number
     lineTotal: number | string
     currency: string
+    imageUrl: string | null
   }>
 }
 
@@ -581,8 +582,26 @@ function OrderDetailsDrawer({ order, onClose }: { order: AdminOrder; onClose: ()
           <DetailSection title="Ürünler">
             <div className="divide-y divide-[#F4EEE6]">
               {order.items.map((item) => (
-                <div key={item.id} className="flex justify-between gap-4 py-3 first:pt-0 last:pb-0">
-                  <div>
+                <div key={item.id} className="flex items-center gap-3 py-3 first:pt-0 last:pb-0">
+                  <div className="h-14 w-12 shrink-0 overflow-hidden rounded-[8px] border border-[#ECE3D6] bg-[#F4EEE6]">
+                    {item.imageUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={item.imageUrl}
+                        alt={item.productName}
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center text-[#C4B5A5]">
+                        <svg className="h-5 w-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.4">
+                          <rect x="3" y="3" width="14" height="14" rx="2" />
+                          <circle cx="7.5" cy="7.5" r="1.5" />
+                          <path d="M4 14l4-4 3 3 2-2 3 3" />
+                        </svg>
+                      </div>
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
                     <p className="text-[13px] font-semibold text-[#3D2B1F]">{item.productName}</p>
                     <p className="mt-0.5 text-[12px] text-[#8C7A6A]">{item.variantLabel} x {item.quantity}</p>
                   </div>

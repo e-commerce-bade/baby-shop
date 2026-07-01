@@ -19,6 +19,8 @@ import com.babyshop.order.dto.OrderResponse;
 import com.babyshop.order.dto.OrderStatusUpdateRequest;
 import com.babyshop.payment.Payment;
 import com.babyshop.payment.PaymentRepository;
+import com.babyshop.product.ProductImage;
+import com.babyshop.product.ProductImageRepository;
 import com.babyshop.product.ProductVariant;
 import com.babyshop.settings.StoreSettingService;
 import lombok.RequiredArgsConstructor;
@@ -33,9 +35,14 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -50,6 +57,7 @@ public class OrderService {
     private final CustomerAddressRepository customerAddressRepository;
     private final PaymentRepository paymentRepository;
     private final StoreSettingService storeSettingService;
+    private final ProductImageRepository productImageRepository;
 
     public List<OrderResponse> getAllOrders() {
         return orderRepository.findAllByOrderByCreatedAtDesc().stream()
@@ -462,6 +470,7 @@ public class OrderService {
     }
 
     private OrderResponse toResponse(Order order) {
+        Map<Long, String> imageUrls = resolveItemImageUrls(order.getItems());
         return new OrderResponse(
                 order.getId(),
                 order.getOrderNumber(),
@@ -487,12 +496,12 @@ public class OrderService {
                 resolvePaymentSummary(order),
                 order.getNotes(),
                 order.getItems().stream()
-                        .map(this::toItemResponse)
+                        .map(item -> toItemResponse(item, imageUrls))
                         .toList()
         );
     }
 
-    private OrderItemResponse toItemResponse(OrderItem item) {
+    private OrderItemResponse toItemResponse(OrderItem item, Map<Long, String> imageUrls) {
         return new OrderItemResponse(
                 item.getId(),
                 item.getProductId(),
@@ -503,8 +512,35 @@ public class OrderService {
                 item.getQuantity(),
                 item.getUnitPrice(),
                 item.getLineTotal(),
-                item.getCurrency()
+                item.getCurrency(),
+                item.getProductId() == null ? null : imageUrls.get(item.getProductId())
         );
+    }
+
+    // Siparis kalemleri gorseli snapshot'lamiyor; urun kimliginden ana gorseli tek sorguyla cozeriz
+    // (siparis basina 1 sorgu, kalem basina N+1 degil). Once primary, yoksa en dusuk sortOrder.
+    private Map<Long, String> resolveItemImageUrls(List<OrderItem> items) {
+        Set<Long> productIds = items.stream()
+                .map(OrderItem::getProductId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        if (productIds.isEmpty()) {
+            return Map.of();
+        }
+
+        Map<Long, String> firstByProduct = new HashMap<>();
+        Map<Long, String> primaryByProduct = new HashMap<>();
+        for (ProductImage image : productImageRepository.findAllByProductIdInOrderBySortOrderAscIdAsc(productIds)) {
+            Long productId = image.getProduct().getId();
+            firstByProduct.putIfAbsent(productId, image.getImageUrl());
+            if (image.isPrimary()) {
+                primaryByProduct.putIfAbsent(productId, image.getImageUrl());
+            }
+        }
+
+        Map<Long, String> resolved = new HashMap<>(firstByProduct);
+        resolved.putAll(primaryByProduct);
+        return resolved;
     }
 
     private OrderPaymentSummaryResponse resolvePaymentSummary(Order order) {
