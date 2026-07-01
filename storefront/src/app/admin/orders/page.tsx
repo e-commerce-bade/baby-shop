@@ -574,17 +574,17 @@ function printOrder(order: AdminOrder) {
   const rowsHtml = order.items
     .map((item) => {
       const thumb = item.imageUrl
-        ? `<img src="${escapeHtml(absoluteUrl(item.imageUrl))}" alt="" style="width:44px;height:52px;object-fit:cover;border-radius:6px;border:1px solid #ECE3D6;" />`
-        : '<div style="width:44px;height:52px;border-radius:6px;border:1px solid #ECE3D6;background:#F4EEE6;"></div>'
+        ? `<img src="${escapeHtml(absoluteUrl(item.imageUrl))}" alt="" style="width:130px;height:160px;object-fit:cover;border-radius:8px;border:1px solid #ECE3D6;display:block;" />`
+        : '<div style="width:130px;height:160px;border-radius:8px;border:1px solid #ECE3D6;background:#F4EEE6;"></div>'
       return `
         <tr>
-          <td style="padding:8px 6px;vertical-align:middle;">${thumb}</td>
-          <td style="padding:8px 6px;vertical-align:middle;">
+          <td style="padding:12px 6px;vertical-align:top;">
             <div style="font-weight:600;color:#3D2B1F;">${escapeHtml(item.productName)}</div>
-            <div style="font-size:12px;color:#8C7A6A;">${escapeHtml(item.variantLabel ?? '')}</div>
+            <div style="font-size:12px;color:#8C7A6A;margin-bottom:8px;">${escapeHtml(item.variantLabel ?? '')}</div>
+            ${thumb}
           </td>
-          <td style="padding:8px 6px;text-align:center;vertical-align:middle;">${item.quantity}</td>
-          <td style="padding:8px 6px;text-align:right;vertical-align:middle;font-weight:700;color:#3D2B1F;white-space:nowrap;">${escapeHtml(formatPrice(item.lineTotal, item.currency))}</td>
+          <td style="padding:12px 6px;text-align:center;vertical-align:top;">${item.quantity}</td>
+          <td style="padding:12px 6px;text-align:right;vertical-align:top;font-weight:700;color:#3D2B1F;white-space:nowrap;">${escapeHtml(formatPrice(item.lineTotal, item.currency))}</td>
         </tr>`
     })
     .join('')
@@ -638,7 +638,7 @@ function printOrder(order: AdminOrder) {
   <h2>Ürünler</h2>
   <table>
     <thead>
-      <tr><th>Görsel</th><th>Ürün</th><th style="text-align:center;">Adet</th><th style="text-align:right;">Tutar</th></tr>
+      <tr><th>Ürün</th><th style="text-align:center;">Adet</th><th style="text-align:right;">Tutar</th></tr>
     </thead>
     <tbody>${rowsHtml}</tbody>
   </table>
@@ -721,8 +721,17 @@ function OrderDetailsDrawer({ order, onClose }: { order: AdminOrder; onClose: ()
           <DetailSection title="Ürünler">
             <div className="divide-y divide-[#F4EEE6]">
               {order.items.map((item) => (
-                <div key={item.id} className="flex items-center gap-3 py-3 first:pt-0 last:pb-0">
-                  <div className="h-14 w-12 shrink-0 overflow-hidden rounded-[8px] border border-[#ECE3D6] bg-[#F4EEE6]">
+                <div key={item.id} className="py-4 first:pt-0 last:pb-0">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[13px] font-semibold text-[#3D2B1F]">{item.productName}</p>
+                      <p className="mt-0.5 text-[12px] text-[#8C7A6A]">{item.variantLabel} x {item.quantity}</p>
+                    </div>
+                    <p className="shrink-0 text-[13px] font-bold text-[#3D2B1F]">
+                      {formatPrice(item.lineTotal, item.currency)}
+                    </p>
+                  </div>
+                  <div className="mt-2.5 h-44 w-36 overflow-hidden rounded-[10px] border border-[#ECE3D6] bg-[#F4EEE6]">
                     {item.imageUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
@@ -732,7 +741,7 @@ function OrderDetailsDrawer({ order, onClose }: { order: AdminOrder; onClose: ()
                       />
                     ) : (
                       <div className="flex h-full w-full items-center justify-center text-[#C4B5A5]">
-                        <svg className="h-5 w-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.4">
+                        <svg className="h-9 w-9" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.3">
                           <rect x="3" y="3" width="14" height="14" rx="2" />
                           <circle cx="7.5" cy="7.5" r="1.5" />
                           <path d="M4 14l4-4 3 3 2-2 3 3" />
@@ -740,13 +749,6 @@ function OrderDetailsDrawer({ order, onClose }: { order: AdminOrder; onClose: ()
                       </div>
                     )}
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[13px] font-semibold text-[#3D2B1F]">{item.productName}</p>
-                    <p className="mt-0.5 text-[12px] text-[#8C7A6A]">{item.variantLabel} x {item.quantity}</p>
-                  </div>
-                  <p className="shrink-0 text-[13px] font-bold text-[#3D2B1F]">
-                    {formatPrice(item.lineTotal, item.currency)}
-                  </p>
                 </div>
               ))}
             </div>
