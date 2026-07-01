@@ -1,6 +1,5 @@
 'use client'
 
-import { useState } from 'react'
 import Link from 'next/link'
 import { useCartStore } from '@/store/cartStore'
 import { formatPrice } from '@/lib/utils'
@@ -32,8 +31,6 @@ export default function CheckoutOrderSummary({ isSubmitting }: Props) {
   const shipping = toNum(summary?.shippingAmount)
   const discount = toNum(summary?.discountAmount)
   const total    = toNum(summary?.totalAmount)
-
-  const [promoCode, setPromoCode] = useState('')
 
   return (
     <aside className="flex flex-col gap-4 lg:sticky lg:top-6">
@@ -94,24 +91,6 @@ export default function CheckoutOrderSummary({ isSubmitting }: Props) {
               </div>
             )
           })}
-        </div>
-
-        {/* Promo code — UI placeholder */}
-        <div className="mt-4 flex gap-2 border-t border-line pt-4">
-          <input
-            type="text"
-            value={promoCode}
-            onChange={(e) => setPromoCode(e.target.value)}
-            placeholder="Promosyon kodu"
-            className="flex-1 rounded-[10px] border border-line bg-cream-3 px-3.5 py-2.5 text-[13px] text-brown placeholder:text-muted focus:border-rose-soft focus:outline-none"
-          />
-          <button
-            type="button"
-            disabled={!promoCode.trim()}
-            className="shrink-0 rounded-[10px] border border-line px-4 py-2.5 text-[13px] font-semibold text-brown-2 transition-colors hover:border-rose-soft hover:bg-rose-tint hover:text-rose-dk disabled:opacity-40"
-          >
-            Uygula
-          </button>
         </div>
       </div>
 

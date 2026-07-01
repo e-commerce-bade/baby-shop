@@ -405,11 +405,6 @@ export default function AdminDashboardPage() {
           <h1 className="text-[26px] font-bold text-[#3D2B1F]">Dashboard</h1>
           <p className="mt-1 text-[13px] text-[#B5A090]">Mağazanızdaki son durumu buradan takip edin.</p>
         </div>
-        <select className="rounded-[10px] border border-[#ECE3D6] bg-white px-3 py-2 text-[12.5px] font-semibold text-[#5B4839] focus:outline-none">
-          <option>Son 7 Gün</option>
-          <option>Son 30 Gün</option>
-          <option>Bu Ay</option>
-        </select>
       </div>
 
       {/* Metric cards */}

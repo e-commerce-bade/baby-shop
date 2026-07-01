@@ -90,15 +90,6 @@ function IconSettings({ className }: IconProps) {
   )
 }
 
-function IconBell({ className }: IconProps) {
-  return (
-    <svg className={className} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M10 2a5.5 5.5 0 015.5 5.5c0 3.5 1 5 1 5h-13s1-1.5 1-5A5.5 5.5 0 0110 2z" />
-      <path d="M8.5 17.5a1.5 1.5 0 003 0" />
-    </svg>
-  )
-}
-
 function IconMenu({ className }: IconProps) {
   return (
     <svg className={className} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
@@ -315,14 +306,6 @@ export default function AdminShell({
           </div>
 
           <div className="ml-auto flex items-center gap-2">
-            <button
-              type="button"
-              className="relative flex h-9 w-9 items-center justify-center rounded-[10px] text-[#B5A090] transition-colors hover:bg-[#FAF6F1] hover:text-[#5B4839]"
-            >
-              <IconBell className="h-5 w-5" />
-              <span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-[#C07B5A]" />
-            </button>
-
             <div ref={profileMenuRef} className="relative">
               <button
                 type="button"
