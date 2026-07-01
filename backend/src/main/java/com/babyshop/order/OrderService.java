@@ -242,10 +242,17 @@ public class OrderService {
         BigDecimal discountAmount = BigDecimal.ZERO;
         BigDecimal subtotalAmount = BigDecimal.ZERO;
 
-        Order order = new Order();
+        // Idempotency: ayni sepet icin zaten bekleyen bir siparis varsa yeni satir olusturmayiz;
+        // mevcut siparisi guncelleyip yeniden kullaniriz. Boylece modal kapatilip tekrar denendiginde
+        // ayni sepetten birden fazla PENDING siparis (ve olasi cift cekim) olusmaz.
+        Order order = orderRepository.findFirstByCartIdAndStatus(cart.getId(), OrderStatusPolicy.PENDING_PAYMENT)
+                .orElseGet(Order::new);
+        if (order.getOrderNumber() == null) {
+            order.setOrderNumber(generateOrderNumber());
+        }
+        order.getItems().clear();
         resolveAuthenticatedUser(normalizedAuthenticatedEmail).ifPresent(order::setUser);
         order.setCartId(cart.getId());
-        order.setOrderNumber(generateOrderNumber());
         order.setStatus(OrderStatusPolicy.PENDING_PAYMENT);
         order.setCustomerEmail(request.customerEmail().trim().toLowerCase(Locale.ROOT));
         order.setCustomerFirstName(shippingDetails.customerFirstName());

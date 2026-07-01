@@ -328,6 +328,30 @@ class OrderServiceTest {
     }
 
     @Test
+    void shouldReusePendingOrderForSameCartInsteadOfCreatingDuplicate() {
+        Cart cart = buildCart("ACTIVE");
+        ProductVariant variant = buildVariant(10L, 5, true, true, "TRY");
+        cart.getItems().add(buildCartItem(cart, variant, 1));
+
+        Order existing = new Order();
+        existing.setId(99L);
+        existing.setOrderNumber("ORD-EXISTING123");
+        existing.setStatus("PENDING_PAYMENT");
+
+        CreateOrderRequest request = new CreateOrderRequest(
+                "session-1", "customer@example.com", "Ceren", "Yilmaz", "5551112233", null, addressRequest(), null);
+
+        given(cartRepository.findBySessionId("session-1")).willReturn(Optional.of(cart));
+        given(orderRepository.findFirstByCartIdAndStatus(1L, "PENDING_PAYMENT")).willReturn(Optional.of(existing));
+        given(orderRepository.save(any(Order.class))).willAnswer(invocation -> invocation.getArgument(0));
+
+        var response = orderService.createOrder(request, null);
+
+        // Ayni sepetten yeni siparis olusturulmaz; mevcut PENDING siparis (ayni numara) yeniden kullanilir.
+        assertThat(response.orderNumber()).isEqualTo("ORD-EXISTING123");
+    }
+
+    @Test
     void shouldRejectEmptyCart() {
         Cart cart = buildCart("ACTIVE");
         CreateOrderRequest request = new CreateOrderRequest("session-1", "customer@example.com", null, null, null, null, addressRequest(), null);

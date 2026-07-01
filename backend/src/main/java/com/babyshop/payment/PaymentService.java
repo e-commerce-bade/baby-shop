@@ -259,6 +259,17 @@ public class PaymentService {
 
     private Payment completePaymentAsSucceeded(Payment payment) {
         Order order = payment.getOrder();
+
+        // Siparis baska bir odeme ile zaten islenmisse (artik PENDING_PAYMENT degil), stok dusumu ve
+        // sepet tuketimi TEKRAR yapilmamalidir; aksi halde ayni siparise ait ikinci bir odeme stogu
+        // ikinci kez duserdi (PAID->PAID gecisi no-op oldugundan validateTransition engellemez).
+        // Bu durumda yalnizca bu odeme kaydini basarili olarak isaretleriz (idempotent).
+        if (!OrderStatusPolicy.PENDING_PAYMENT.equalsIgnoreCase(order.getStatus())) {
+            payment.setStatus(PAYMENT_STATUS_SUCCEEDED);
+            payment.setPaidAt(java.time.OffsetDateTime.now());
+            return paymentRepository.save(payment);
+        }
+
         OrderStatusPolicy.validateTransition(order.getStatus(), OrderStatusPolicy.PAID);
         decrementStockForOrder(order);
         payment.setStatus(PAYMENT_STATUS_SUCCEEDED);

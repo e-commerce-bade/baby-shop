@@ -23,6 +23,11 @@ public interface OrderRepository extends JpaRepository<Order, Long>, JpaSpecific
     @EntityGraph(attributePaths = {"items"})
     Optional<Order> findByOrderNumber(String orderNumber);
 
+    // Ayni sepetten mukerrer siparis olusmasini onlemek icin: bir sepetin bekleyen (odenmemis)
+    // siparisi varsa yeniden kullanilir.
+    @EntityGraph(attributePaths = {"items"})
+    Optional<Order> findFirstByCartIdAndStatus(Long cartId, String status);
+
     @EntityGraph(attributePaths = {"items"})
     List<Order> findAllByUserEmailIgnoreCaseOrderByCreatedAtDesc(String email);
 
