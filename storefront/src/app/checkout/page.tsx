@@ -42,6 +42,21 @@ const checkoutSchema = z
 
 type CheckoutFormValues = z.infer<typeof checkoutSchema>
 
+type SavedAddress = {
+  id: number
+  label?: string | null
+  recipientFirstName?: string
+  recipientLastName?: string
+  phoneNumber?: string
+  line1?: string
+  line2?: string
+  district?: string
+  city?: string
+  postalCode?: string
+  country?: string
+  defaultAddress?: boolean
+}
+
 interface OrderResponse {
   orderNumber: string
   status: string
@@ -133,6 +148,9 @@ export default function CheckoutPage() {
   const createAccount = watch('createAccount')
   const saveAddress = watch('saveAddress')
   const [isLoggedIn, setIsLoggedIn] = useState(false)
+  const [savedAddresses, setSavedAddresses] = useState<SavedAddress[]>([])
+  // Secili adres: kayitli bir adresin id'si veya yeni adres icin 'new'.
+  const [addressMode, setAddressMode] = useState<number | 'new'>('new')
 
   // Giris yapmis kullanicida iletisim bilgilerini ve kayitli varsayilan adresi forma onceden
   // doldur; boylece profilde kaydedilen adres siparis ekraninda otomatik gelir.
@@ -168,25 +186,15 @@ export default function CheckoutPage() {
           headers: { Accept: 'application/json' },
         })
         if (!addrRes.ok) return
-        const addresses = (await addrRes.json().catch(() => null)) as
-          | Array<{
-              recipientFirstName?: string
-              recipientLastName?: string
-              phoneNumber?: string
-              line1?: string
-              line2?: string
-              district?: string
-              city?: string
-              postalCode?: string
-              country?: string
-              defaultAddress?: boolean
-            }>
-          | null
+        const addresses = (await addrRes.json().catch(() => null)) as SavedAddress[] | null
         if (!active || !Array.isArray(addresses) || addresses.length === 0) return
+
+        setSavedAddresses(addresses)
 
         const preferred = addresses.find((a) => a.defaultAddress) ?? addresses[0]
         if (!preferred) return
 
+        setAddressMode(preferred.id)
         if (preferred.line1) setValue('line1', preferred.line1)
         if (preferred.line2) setValue('line2', preferred.line2)
         if (preferred.district) setValue('district', preferred.district)
@@ -204,6 +212,32 @@ export default function CheckoutPage() {
     void loadAccount()
     return () => { active = false }
   }, [setValue])
+
+  // Kayitli bir adresi sec: formu o adresle doldur ("tekrar kaydet" gereksiz oldugundan kapat).
+  function selectSavedAddress(addr: SavedAddress) {
+    setAddressMode(addr.id)
+    setValue('line1', addr.line1 ?? '')
+    setValue('line2', addr.line2 ?? '')
+    setValue('district', addr.district ?? '')
+    setValue('city', addr.city ?? '')
+    setValue('postalCode', addr.postalCode ?? '')
+    setValue('country', addr.country ?? 'Türkiye')
+    if (addr.phoneNumber) setValue('customerPhone', addr.phoneNumber)
+    if (addr.recipientFirstName) setValue('customerFirstName', addr.recipientFirstName)
+    if (addr.recipientLastName) setValue('customerLastName', addr.recipientLastName)
+    setValue('saveAddress', false)
+  }
+
+  // Yeni adres gir: adres alanlarini temizle ve manuel giris moduna gec.
+  function selectNewAddress() {
+    setAddressMode('new')
+    setValue('line1', '')
+    setValue('line2', '')
+    setValue('district', '')
+    setValue('city', '')
+    setValue('postalCode', '')
+    setValue('country', 'Türkiye')
+  }
 
   useEffect(() => setMounted(true), [])
 
@@ -419,6 +453,9 @@ export default function CheckoutPage() {
   const currency = summary?.currency ?? items[0]?.currency ?? 'TRY'
   const subtotal = summary?.subtotal ?? localSubtotal
 
+  // Adres alanlarini yalnizca misafirde, kayitli adres yoksa ya da "yeni adres" secildiginde goster.
+  const showAddressFields = !isLoggedIn || savedAddresses.length === 0 || addressMode === 'new'
+
   return (
     <div className="min-h-screen bg-cream-3">
       {/* ── Checkout header ──────────────────────────────────────────────── */}
@@ -518,7 +555,66 @@ export default function CheckoutPage() {
               title="Teslimat Adresi"
               subtitle="Siparişinizin gönderileceği adres."
             >
-              <div className="grid grid-cols-2 gap-4 max-[680px]:grid-cols-1">
+              {isLoggedIn && savedAddresses.length > 0 && (
+                <div className="mb-4 flex flex-col gap-2.5">
+                  {savedAddresses.map((addr) => {
+                    const selected = addressMode === addr.id
+                    const title =
+                      (addr.label && addr.label.trim()) ||
+                      [addr.recipientFirstName, addr.recipientLastName].filter(Boolean).join(' ') ||
+                      'Kayıtlı adres'
+                    const line = [
+                      addr.line1,
+                      addr.district,
+                      [addr.city, addr.postalCode].filter(Boolean).join(' '),
+                    ]
+                      .filter(Boolean)
+                      .join(', ')
+                    return (
+                      <button
+                        type="button"
+                        key={addr.id}
+                        onClick={() => selectSavedAddress(addr)}
+                        className={`flex items-start gap-3 rounded-[12px] border p-3.5 text-left transition-colors ${
+                          selected ? 'border-rose bg-rose-tint/50' : 'border-line hover:border-rose-soft'
+                        }`}
+                      >
+                        <span
+                          className={`mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded-full border ${
+                            selected ? 'border-rose' : 'border-line-2'
+                          }`}
+                        >
+                          {selected && <span className="h-2 w-2 rounded-full bg-rose" />}
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="flex items-center gap-2">
+                            <span className="text-[13px] font-bold text-brown">{title}</span>
+                            {addr.defaultAddress && (
+                              <span className="rounded-full bg-cream-3 px-1.5 py-0.5 text-[10px] font-bold text-muted">
+                                Varsayılan
+                              </span>
+                            )}
+                          </span>
+                          <span className="mt-0.5 block text-[12px] text-muted">{line}</span>
+                        </span>
+                      </button>
+                    )
+                  })}
+                  <button
+                    type="button"
+                    onClick={selectNewAddress}
+                    className={`flex items-center gap-2 rounded-[12px] border border-dashed p-3.5 text-[13px] font-semibold transition-colors ${
+                      addressMode === 'new'
+                        ? 'border-rose text-rose-dk'
+                        : 'border-line text-brown-2 hover:border-rose-soft'
+                    }`}
+                  >
+                    <span className="text-[16px] leading-none">+</span> Yeni adres ekle
+                  </button>
+                </div>
+              )}
+
+              <div className={`grid grid-cols-2 gap-4 max-[680px]:grid-cols-1 ${showAddressFields ? '' : 'hidden'}`}>
                 <Field label="Ülke / Bölge" required error={errors.country?.message} className="col-span-2 max-[680px]:col-span-1">
                   <input {...register('country')} placeholder="Türkiye" className={inputCls} />
                 </Field>
@@ -538,18 +634,22 @@ export default function CheckoutPage() {
                   <input {...register('postalCode')} placeholder="34000" className={inputCls} />
                 </Field>
               </div>
-              <label className="mt-4 flex cursor-pointer items-center gap-2.5 text-[13px] text-brown-2">
-                <input
-                  type="checkbox"
-                  {...register('saveAddress')}
-                  className="h-4 w-4 rounded border-line accent-rose"
-                />
-                Bu adresi bir sonraki alışveriş için kaydet
-              </label>
-              {saveAddress && !isLoggedIn && !createAccount && (
-                <p className="mt-1.5 text-[12px] text-muted">
-                  Adresi kaydetmek için yukarıdan hesap oluşturun veya giriş yapın.
-                </p>
+              {showAddressFields && (
+                <>
+                  <label className="mt-4 flex cursor-pointer items-center gap-2.5 text-[13px] text-brown-2">
+                    <input
+                      type="checkbox"
+                      {...register('saveAddress')}
+                      className="h-4 w-4 rounded border-line accent-rose"
+                    />
+                    Bu adresi bir sonraki alışveriş için kaydet
+                  </label>
+                  {saveAddress && !isLoggedIn && !createAccount && (
+                    <p className="mt-1.5 text-[12px] text-muted">
+                      Adresi kaydetmek için yukarıdan hesap oluşturun veya giriş yapın.
+                    </p>
+                  )}
+                </>
               )}
             </CheckoutSection>
 
