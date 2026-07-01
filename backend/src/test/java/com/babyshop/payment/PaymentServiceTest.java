@@ -50,7 +50,8 @@ class PaymentServiceTest {
     private final MockPaymentGateway mockPaymentGateway =
             new MockPaymentGateway(new PaymentProperties(
                     new PaymentProperties.Mock("mock-callback-secret-for-tests"),
-                    null
+                    null,
+                    java.util.List.of()
             ));
 
     @Test

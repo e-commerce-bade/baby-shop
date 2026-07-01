@@ -52,6 +52,9 @@ public class PaymentService {
     @Autowired(required = false)
     private OrderEmailService orderEmailService;
 
+    @Autowired(required = false)
+    private PaymentProperties paymentProperties;
+
     @Transactional
     public PaymentResponse initiatePayment(PaymentInitiationRequest request, String clientIp) {
         String orderNumber = request.orderNumber().trim();
@@ -64,13 +67,16 @@ public class PaymentService {
             throw new InvalidRequestException("Payment can only be initiated for orders in PENDING_PAYMENT status");
         }
 
+        String successUrl = validateRedirectUrl(request.successUrl(), "successUrl");
+        String cancelUrl = validateRedirectUrl(request.cancelUrl(), "cancelUrl");
+
         PaymentGateway gateway = resolveGateway(provider);
         String transactionId = generateTransactionId();
         PaymentGatewayInitiation initiation = gateway.initiatePayment(
                 order,
                 transactionId,
-                request.successUrl().trim(),
-                request.cancelUrl().trim(),
+                successUrl,
+                cancelUrl,
                 normalizeOptional(clientIp)
         );
 
@@ -86,6 +92,59 @@ public class PaymentService {
         payment.setCancelUrl(request.cancelUrl().trim());
 
         return toResponse(paymentRepository.save(payment), initiation.paymentPageUrl(), initiation.checkoutFormContent());
+    }
+
+    // Odeme sonrasi yonlendirme URL'ini izinli origin listesine gore dogrular; boylece acik
+    // yonlendirme (open redirect) engellenir. Liste bos/yapilandirilmamissa dogrulama atlanir.
+    private String validateRedirectUrl(String url, String field) {
+        if (url == null || url.trim().isEmpty()) {
+            throw new InvalidRequestException(field + " is required");
+        }
+        String trimmed = url.trim();
+
+        List<String> allowed = allowedRedirectOrigins();
+        if (allowed.isEmpty()) {
+            return trimmed;
+        }
+
+        String origin;
+        try {
+            origin = originOf(java.net.URI.create(trimmed));
+        } catch (IllegalArgumentException ex) {
+            throw new InvalidRequestException(field + " is not a valid URL");
+        }
+        if (origin == null || allowed.stream().noneMatch(origin::equalsIgnoreCase)) {
+            throw new InvalidRequestException(field + " is not an allowed redirect target");
+        }
+        return trimmed;
+    }
+
+    private List<String> allowedRedirectOrigins() {
+        if (paymentProperties == null || paymentProperties.allowedRedirectOrigins() == null) {
+            return List.of();
+        }
+        return paymentProperties.allowedRedirectOrigins().stream()
+                .filter(value -> value != null && !value.isBlank())
+                .map(value -> {
+                    try {
+                        String normalized = originOf(java.net.URI.create(value.trim()));
+                        return normalized != null ? normalized : value.trim();
+                    } catch (IllegalArgumentException ex) {
+                        return value.trim();
+                    }
+                })
+                .toList();
+    }
+
+    private String originOf(java.net.URI uri) {
+        if (uri.getScheme() == null || uri.getHost() == null) {
+            return null;
+        }
+        String origin = uri.getScheme().toLowerCase(Locale.ROOT) + "://" + uri.getHost().toLowerCase(Locale.ROOT);
+        if (uri.getPort() != -1) {
+            origin += ":" + uri.getPort();
+        }
+        return origin;
     }
 
     public PaymentResponse getPaymentByTransactionId(String transactionId) {

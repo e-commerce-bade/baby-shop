@@ -46,8 +46,15 @@ function checkRateLimit(
   const entry = store.get(key)
 
   if (!entry || now - entry.windowStart >= windowMs) {
+    // Bellegi sinirla: yalnizca suresi dolmus girdileri buda. Onceden store.clear() ile TUM
+    // sayaclar sifirlaniyordu; bu, cok sayida benzersiz anahtar ureterek mesru kullanicilarin
+    // sayaclarinin da sifirlanmasina (limit bypass) yol aciyordu.
     if (store.size > MAX_ENTRIES) {
-      store.clear()
+      for (const [existingKey, existingEntry] of store) {
+        if (now - existingEntry.windowStart >= windowMs) {
+          store.delete(existingKey)
+        }
+      }
     }
     store.set(key, { count: 1, windowStart: now })
     return { allowed: true, retryAfterSeconds: 0 }

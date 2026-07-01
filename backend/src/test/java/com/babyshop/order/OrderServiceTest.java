@@ -205,8 +205,6 @@ class OrderServiceTest {
     void shouldReturnGuestOrderWhenEmailMatches() {
         Order order = buildOrder("ORD-ABC123DEF456");
         given(orderRepository.findByOrderNumber("ORD-ABC123DEF456")).willReturn(Optional.of(order));
-        given(paymentRepository.findAllByOrderOrderNumberOrderByCreatedAtDesc("ORD-ABC123DEF456"))
-                .willReturn(List.of());
 
         // E-posta buyuk/kucuk harf duyarsiz eslesmeli.
         var response = orderService.getOrderByOrderNumberAndEmail("ORD-ABC123DEF456", "Customer@Example.com");

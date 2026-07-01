@@ -1,6 +1,7 @@
 package com.babyshop.order;
 
 import com.babyshop.order.dto.CreateOrderRequest;
+import com.babyshop.order.dto.GuestOrderResponse;
 import com.babyshop.order.dto.OrderLookupRequest;
 import com.babyshop.order.dto.OrderResponse;
 import jakarta.validation.Valid;
@@ -44,7 +45,7 @@ public class OrderController {
 
     // Misafir siparis takibi: kimlik dogrulama gerektirmez; siparis no + e-posta birlikte dogrulanir.
     @PostMapping("/lookup")
-    public ResponseEntity<OrderResponse> lookupOrder(@Valid @RequestBody OrderLookupRequest request) {
+    public ResponseEntity<GuestOrderResponse> lookupOrder(@Valid @RequestBody OrderLookupRequest request) {
         return ResponseEntity.ok(
                 orderService.getOrderByOrderNumberAndEmail(request.orderNumber(), request.email())
         );

@@ -105,7 +105,8 @@ class IyzicoPaymentGatewayTest {
                         0,
                         "11111111111",
                         "127.0.0.1"
-                )
+                ),
+                List.of()
         );
         IyzicoPaymentGateway gateway = new IyzicoPaymentGateway(properties, iyzicoClient);
         CheckoutFormInitialize response = new CheckoutFormInitialize();
@@ -206,7 +207,8 @@ class IyzicoPaymentGatewayTest {
                         0,
                         "11111111111",
                         "127.0.0.1"
-                )
+                ),
+                List.of()
         );
     }
 

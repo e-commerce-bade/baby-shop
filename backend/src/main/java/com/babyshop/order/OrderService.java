@@ -11,6 +11,7 @@ import com.babyshop.common.exception.ResourceNotFoundException;
 import com.babyshop.customer.CustomerAddress;
 import com.babyshop.customer.CustomerAddressRepository;
 import com.babyshop.order.dto.CreateOrderRequest;
+import com.babyshop.order.dto.GuestOrderResponse;
 import com.babyshop.order.dto.OrderAddressRequest;
 import com.babyshop.order.dto.OrderAddressResponse;
 import com.babyshop.order.dto.OrderItemResponse;
@@ -114,7 +115,8 @@ public class OrderService {
 
     // Misafir takibi: siparis numarasi + e-posta eslesirse siparisi dondurur. Eslesmezse,
     // bir siparisin varligini sizdirmamak icin 404 firlatir (numara tahminine karsi).
-    public OrderResponse getOrderByOrderNumberAndEmail(String orderNumber, String email) {
+    // Kimlik dogrulanmamis uc oldugundan yalin (PII'siz) yanit doner.
+    public GuestOrderResponse getOrderByOrderNumberAndEmail(String orderNumber, String email) {
         Order order = findOrderByOrderNumber(orderNumber);
         String normalizedEmail = normalizeOptionalEmail(email);
 
@@ -124,7 +126,34 @@ public class OrderService {
             throw new ResourceNotFoundException("Order not found for order number: " + orderNumber);
         }
 
-        return toResponse(order);
+        return toGuestResponse(order);
+    }
+
+    private GuestOrderResponse toGuestResponse(Order order) {
+        Map<Long, String> imageUrls = resolveItemImageUrls(order.getItems());
+        return new GuestOrderResponse(
+                order.getOrderNumber(),
+                order.getStatus(),
+                order.getCustomerFirstName(),
+                order.getCustomerLastName(),
+                order.getSubtotalAmount(),
+                order.getShippingAmount(),
+                order.getDiscountAmount(),
+                order.getTotalAmount(),
+                order.getCurrency(),
+                order.getCreatedAt(),
+                new OrderAddressResponse(
+                        order.getShippingAddressLine1(),
+                        order.getShippingAddressLine2(),
+                        order.getShippingDistrict(),
+                        order.getShippingCity(),
+                        order.getShippingPostalCode(),
+                        order.getShippingCountry()
+                ),
+                order.getItems().stream()
+                        .map(item -> toItemResponse(item, imageUrls))
+                        .toList()
+        );
     }
 
     private Order findOrderByOrderNumber(String orderNumber) {

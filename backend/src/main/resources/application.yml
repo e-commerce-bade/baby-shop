@@ -56,6 +56,8 @@ app:
     track-base-url: ${MAIL_TRACK_BASE_URL:https://badebebe.net}
     brevo-api-key: ${MAIL_BREVO_API_KEY:}
   payment:
+    # Odeme sonrasi (iyzico callback) yonlendirilebilecek izinli origin'ler; acik yonlendirmeyi onler.
+    allowed-redirect-origins: ${PAYMENT_ALLOWED_REDIRECT_ORIGINS:https://badebebe.net,https://www.badebebe.net,https://badebebe-frontend-production.up.railway.app,http://localhost:3000}
     mock:
       callback-secret: ${MOCK_PAYMENT_CALLBACK_SECRET:}
     iyzico:
