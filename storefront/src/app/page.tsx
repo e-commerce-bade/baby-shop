@@ -3,7 +3,6 @@ import HeroSection from '@/components/home/HeroSection'
 import CategoryStrip from '@/components/home/CategoryStrip'
 import ProductSection from '@/components/home/ProductSection'
 import TrustBand from '@/components/home/TrustBand'
-import NewsletterBand from '@/components/home/NewsletterBand'
 import FilterSidebar from '@/components/product/filter/FilterSidebar'
 import FilterSidebarSkeleton from '@/components/product/filter/FilterSidebarSkeleton'
 import { fetchCategoryStripItems, fetchProducts } from '@/lib/api/catalog'
@@ -51,7 +50,6 @@ export default async function HomePage({
 
   return (
     <div className="px-[38px] py-5 max-[980px]:px-6 max-[680px]:px-5">
-      <NewsletterBand />
       {/* Hero yalnizca masaustu/tablette gosterilir, mobilde gizlenir. */}
       <div className="max-[680px]:hidden">
         <HeroSection />
