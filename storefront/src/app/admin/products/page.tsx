@@ -1099,18 +1099,22 @@ function WorkingAddProductDrawer({
 
 function ProductManagementDrawer({
   product,
+  categories,
   busyAction,
   onClose,
   onToggleActive,
   onDelete,
   onImagesChanged,
+  onUpdated,
 }: {
   product: AdminProduct
+  categories: AdminCategory[]
   busyAction: 'active' | 'delete' | null
   onClose: () => void
   onToggleActive: (product: AdminProduct) => Promise<void> | void
   onDelete: (product: AdminProduct) => Promise<void> | void
   onImagesChanged: () => Promise<void> | void
+  onUpdated: () => Promise<void> | void
 }) {
   const variants = product.variants ?? []
   const price = product.basePrice ?? product.price ?? product.minPrice
@@ -1122,6 +1126,87 @@ function ProductManagementDrawer({
   const [uploadingImage, setUploadingImage] = useState(false)
   const [imageAltText, setImageAltText] = useState(product.name)
   const [imageColorName, setImageColorName] = useState('')
+
+  // Urun cekirdek alanlari (ad/kategori/tip/marka/aciklama/slug) duzenleme formu.
+  const [detailForm, setDetailForm] = useState({
+    name: '', categoryId: '', productType: '', brand: '', description: '', slug: '',
+  })
+  const [detailLoading, setDetailLoading] = useState(true)
+  const [savingDetail, setSavingDetail] = useState(false)
+  const [detailError, setDetailError] = useState<string | null>(null)
+  const [detailNotice, setDetailNotice] = useState<string | null>(null)
+
+  useEffect(() => {
+    let active = true
+
+    async function loadDetail() {
+      setDetailLoading(true)
+      setDetailError(null)
+      try {
+        const res = await fetch(`/api/admin/products/${product.id}`, {
+          cache: 'no-store',
+          headers: { Accept: 'application/json' },
+        })
+        if (!res.ok) throw new Error(await readApiError(res, 'Urun bilgileri yuklenemedi.'))
+        const detail = (await res.json()) as {
+          name?: string; slug?: string; description?: string | null; brand?: string | null
+          productType?: string | null; categoryName?: string
+        }
+        // Kategori id'sini mevcut kategori adindan cozumle (AdminCategory'de slug yok).
+        const categoryId = categories.find((category) => category.name === detail.categoryName)?.id
+        if (active) {
+          setDetailForm({
+            name: detail.name ?? '',
+            categoryId: categoryId != null ? String(categoryId) : '',
+            productType: detail.productType ?? '',
+            brand: detail.brand ?? '',
+            description: detail.description ?? '',
+            slug: detail.slug ?? '',
+          })
+        }
+      } catch (e) {
+        if (active) setDetailError(e instanceof Error ? e.message : 'Urun bilgileri yuklenemedi.')
+      } finally {
+        if (active) setDetailLoading(false)
+      }
+    }
+
+    void loadDetail()
+    return () => { active = false }
+  }, [product.id, categories])
+
+  async function handleSaveDetail() {
+    setDetailError(null)
+    setDetailNotice(null)
+    if (!detailForm.name.trim()) { setDetailError('Urun adi zorunludur.'); return }
+    if (!detailForm.categoryId) { setDetailError('Kategori secimi zorunludur.'); return }
+    if (!detailForm.slug.trim()) { setDetailError('Slug zorunludur.'); return }
+
+    setSavingDetail(true)
+    try {
+      const res = await fetch(`/api/admin/products/${product.id}`, {
+        method: 'PUT',
+        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          categoryId: Number(detailForm.categoryId),
+          name: detailForm.name.trim(),
+          slug: detailForm.slug.trim(),
+          description: detailForm.description.trim() || null,
+          brand: detailForm.brand.trim() || null,
+          productType: detailForm.productType.trim() || null,
+          // Yayin durumu ayri toggle ile yonetilir; mevcut degeri koru.
+          active: product.active,
+        }),
+      })
+      if (!res.ok) throw new Error(await readApiError(res, 'Urun guncellenemedi.'))
+      setDetailNotice('Urun bilgileri kaydedildi.')
+      await onUpdated()
+    } catch (e) {
+      setDetailError(e instanceof Error ? e.message : 'Urun guncellenemedi.')
+    } finally {
+      setSavingDetail(false)
+    }
+  }
 
   useEffect(() => {
     let active = true
@@ -1290,6 +1375,106 @@ function ProductManagementDrawer({
           </div>
 
           <div className="mt-5 rounded-[14px] border border-[#ECE3D6] bg-white p-4">
+            <h3 className="text-[13px] font-bold text-[#3D2B1F]">Urun bilgileri</h3>
+            <p className="mt-1 text-[12.5px] leading-5 text-[#7A6656]">
+              Ad, kategori, tip, marka, aciklama ve slug bilgilerini duzenleyin.
+            </p>
+
+            {detailLoading ? (
+              <p className="mt-4 text-[12.5px] text-[#B5A090]">Yukleniyor...</p>
+            ) : (
+              <div className="mt-4 space-y-3">
+                {detailError ? (
+                  <div className="rounded-[10px] bg-[#FEEAEA] px-3 py-2 text-[12px] text-[#8A1A1A]">{detailError}</div>
+                ) : null}
+                {detailNotice ? (
+                  <div className="rounded-[10px] bg-[#EDF7F1] px-3 py-2 text-[12px] font-semibold text-[#1A6640]">{detailNotice}</div>
+                ) : null}
+
+                <div>
+                  <label className="mb-1 block text-[12px] font-bold text-[#5B4839]">Urun Adi</label>
+                  <input
+                    type="text"
+                    value={detailForm.name}
+                    onChange={(event) => setDetailForm((form) => ({ ...form, name: event.target.value }))}
+                    className="h-10 w-full rounded-[9px] border border-[#ECE3D6] bg-white px-3 text-[12.5px] text-[#3D2B1F] outline-none placeholder:text-[#C4B5A5] focus:border-[#A89070] focus:ring-2 focus:ring-[#A89070]/20"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-[12px] font-bold text-[#5B4839]">Kategori</label>
+                  <select
+                    value={detailForm.categoryId}
+                    onChange={(event) => setDetailForm((form) => ({ ...form, categoryId: event.target.value }))}
+                    className="h-10 w-full rounded-[9px] border border-[#ECE3D6] bg-white px-3 text-[12.5px] text-[#3D2B1F] outline-none focus:border-[#A89070] focus:ring-2 focus:ring-[#A89070]/20"
+                  >
+                    <option value="">Kategori Sec</option>
+                    {categories.map((category) => (
+                      <option key={category.id} value={category.id}>
+                        {category.name}{category.active ? '' : ' (Pasif)'}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="mb-1 block text-[12px] font-bold text-[#5B4839]">Urun Tipi</label>
+                    <input
+                      type="text"
+                      value={detailForm.productType}
+                      onChange={(event) => setDetailForm((form) => ({ ...form, productType: event.target.value }))}
+                      placeholder="Orn. Pijama"
+                      className="h-10 w-full rounded-[9px] border border-[#ECE3D6] bg-white px-3 text-[12.5px] text-[#3D2B1F] outline-none placeholder:text-[#C4B5A5] focus:border-[#A89070] focus:ring-2 focus:ring-[#A89070]/20"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-[12px] font-bold text-[#5B4839]">Marka</label>
+                    <input
+                      type="text"
+                      value={detailForm.brand}
+                      onChange={(event) => setDetailForm((form) => ({ ...form, brand: event.target.value }))}
+                      placeholder="Opsiyonel"
+                      className="h-10 w-full rounded-[9px] border border-[#ECE3D6] bg-white px-3 text-[12.5px] text-[#3D2B1F] outline-none placeholder:text-[#C4B5A5] focus:border-[#A89070] focus:ring-2 focus:ring-[#A89070]/20"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-[12px] font-bold text-[#5B4839]">Slug</label>
+                  <input
+                    type="text"
+                    value={detailForm.slug}
+                    onChange={(event) => setDetailForm((form) => ({ ...form, slug: event.target.value }))}
+                    className="h-10 w-full rounded-[9px] border border-[#ECE3D6] bg-white px-3 font-mono text-[12.5px] text-[#3D2B1F] outline-none placeholder:text-[#C4B5A5] focus:border-[#A89070] focus:ring-2 focus:ring-[#A89070]/20"
+                  />
+                  <p className="mt-1 text-[11px] text-[#C4B5A5]">URL'de kullanilir; degistirmek eski baglantilari bozabilir.</p>
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-[12px] font-bold text-[#5B4839]">Aciklama</label>
+                  <textarea
+                    rows={3}
+                    value={detailForm.description}
+                    onChange={(event) => setDetailForm((form) => ({ ...form, description: event.target.value }))}
+                    placeholder="Urun aciklamasi..."
+                    className="w-full resize-none rounded-[9px] border border-[#ECE3D6] bg-white px-3 py-2 text-[12.5px] text-[#3D2B1F] outline-none placeholder:text-[#C4B5A5] focus:border-[#A89070] focus:ring-2 focus:ring-[#A89070]/20"
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => void handleSaveDetail()}
+                  disabled={savingDetail}
+                  className="w-full rounded-[10px] bg-[#C07B5A] px-4 py-2.5 text-[13px] font-bold text-white transition-colors hover:bg-[#A86849] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {savingDetail ? 'Kaydediliyor...' : 'Bilgileri Kaydet'}
+                </button>
+              </div>
+            )}
+          </div>
+
+          <div className="mt-4 rounded-[14px] border border-[#ECE3D6] bg-white p-4">
             <h3 className="text-[13px] font-bold text-[#3D2B1F]">Yayin durumu</h3>
             <p className="mt-1 text-[12.5px] leading-5 text-[#7A6656]">
               Pasife cekilen urun magazada gorunmez, ancak admin panelde kaydi, gorselleri ve varyantlari korunur.
@@ -1674,11 +1859,13 @@ export default function AdminProductsPage() {
       {managingProduct && (
         <ProductManagementDrawer
           product={managingProduct}
+          categories={categories}
           busyAction={busyAction}
           onClose={() => setManagingProduct(null)}
           onToggleActive={handleToggleProductActive}
           onDelete={handleDeleteProduct}
           onImagesChanged={refreshCatalog}
+          onUpdated={refreshCatalog}
         />
       )}
 
