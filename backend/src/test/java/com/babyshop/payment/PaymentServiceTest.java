@@ -24,10 +24,9 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 @ExtendWith(MockitoExtension.class)
 class PaymentServiceTest {
@@ -138,7 +137,7 @@ class PaymentServiceTest {
     }
 
     @Test
-    void shouldDecrementStockWhenPaymentSucceeds() {
+    void shouldNotDecrementStockWhenPaymentSucceeds() {
         Order order = buildOrder("ORD-ABC123DEF456", "PENDING_PAYMENT");
         OrderItem item = new OrderItem();
         item.setProductVariantId(10L);
@@ -148,7 +147,6 @@ class PaymentServiceTest {
 
         given(paymentRepository.findByTransactionIdForUpdate("TXN-123")).willReturn(Optional.of(payment));
         given(paymentRepository.save(any(Payment.class))).willAnswer(invocation -> invocation.getArgument(0));
-        given(productVariantRepository.decrementStockIfAvailable(10L, 2)).willReturn(1);
 
         paymentService = new PaymentService(orderRepository, paymentRepository, List.of(mockPaymentGateway), productVariantRepository, cartRepository);
         paymentService.processCallback("MOCK", new PaymentCallbackRequest(
@@ -160,8 +158,8 @@ class PaymentServiceTest {
         ));
 
         assertThat(order.getStatus()).isEqualTo("PAID");
-        verify(productVariantRepository).decrementStockIfAvailable(10L, 2);
-        verify(productVariantRepository, never()).clampStockToZero(anyLong());
+        // Stok checkout aninda rezerve edilir; odeme basarisinda TEKRAR dusulmez.
+        verifyNoInteractions(productVariantRepository);
     }
 
     @Test
@@ -192,32 +190,6 @@ class PaymentServiceTest {
         // sessionId serbest birakilmali ki ayni oturum sonraki istekte taze/bos sepet alsin.
         assertThat(cart.getSessionId()).isNull();
         verify(cartRepository).save(cart);
-    }
-
-    @Test
-    void shouldClampStockAndWarnWhenInsufficientOnPayment() {
-        Order order = buildOrder("ORD-ABC123DEF456", "PENDING_PAYMENT");
-        OrderItem item = new OrderItem();
-        item.setProductVariantId(10L);
-        item.setQuantity(2);
-        order.getItems().add(item);
-        Payment payment = buildPayment(order);
-
-        given(paymentRepository.findByTransactionIdForUpdate("TXN-123")).willReturn(Optional.of(payment));
-        given(paymentRepository.save(any(Payment.class))).willAnswer(invocation -> invocation.getArgument(0));
-        given(productVariantRepository.decrementStockIfAvailable(10L, 2)).willReturn(0);
-
-        paymentService = new PaymentService(orderRepository, paymentRepository, List.of(mockPaymentGateway), productVariantRepository, cartRepository);
-        paymentService.processCallback("MOCK", new PaymentCallbackRequest(
-                "TXN-123",
-                null,
-                "SUCCEEDED",
-                mockPaymentGateway.generateSignature("TXN-123", "MOCK-TXN-123", "SUCCEEDED"),
-                null
-        ));
-
-        assertThat(order.getStatus()).isEqualTo("PAID");
-        verify(productVariantRepository).clampStockToZero(10L);
     }
 
     @Test

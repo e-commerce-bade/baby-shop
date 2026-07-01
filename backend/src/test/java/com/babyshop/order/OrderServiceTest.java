@@ -38,6 +38,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 
@@ -64,6 +65,9 @@ class OrderServiceTest {
 
     @Mock
     private ProductImageRepository productImageRepository;
+
+    @Mock
+    private StockReservationService stockReservationService;
 
     @InjectMocks
     private OrderService orderService;
@@ -322,9 +326,9 @@ class OrderServiceTest {
         assertThat(response.totalAmount()).isEqualByComparingTo("1047.90");
         assertThat(response.createdAt()).isNull();
         assertThat(response.payment()).isNull();
-        // Stok ve sepet, siparis aninda degil odeme basariyla tamamlaninca degisir.
+        // Stok checkout aninda rezerve edilir; sepet ise odeme basariyla tamamlaninca CHECKED_OUT olur.
         assertThat(cart.getStatus()).isEqualTo("ACTIVE");
-        assertThat(variant.getStockQuantity()).isEqualTo(5);
+        verify(stockReservationService).reserve(any(Order.class));
     }
 
     @Test
@@ -349,6 +353,25 @@ class OrderServiceTest {
 
         // Ayni sepetten yeni siparis olusturulmaz; mevcut PENDING siparis (ayni numara) yeniden kullanilir.
         assertThat(response.orderNumber()).isEqualTo("ORD-EXISTING123");
+    }
+
+    @Test
+    void shouldRejectOrderWhenStockCannotBeReserved() {
+        Cart cart = buildCart("ACTIVE");
+        ProductVariant variant = buildVariant(10L, 5, true, true, "TRY");
+        cart.getItems().add(buildCartItem(cart, variant, 1));
+
+        CreateOrderRequest request = new CreateOrderRequest(
+                "session-1", "customer@example.com", "Ceren", "Yilmaz", "5551112233", null, addressRequest(), null);
+
+        given(cartRepository.findBySessionId("session-1")).willReturn(Optional.of(cart));
+        doThrow(new InvalidRequestException("'Test' için yeterli stok yok."))
+                .when(stockReservationService).reserve(any(Order.class));
+
+        // Stok checkout aninda rezerve edilemezse siparis olusturulmaz (oversell onlenir).
+        assertThatThrownBy(() -> orderService.createOrder(request, null))
+                .isInstanceOf(InvalidRequestException.class)
+                .hasMessageContaining("yeterli stok yok");
     }
 
     @Test
@@ -650,6 +673,20 @@ class OrderServiceTest {
 
         assertThat(response.status()).isEqualTo("SHIPPED");
         assertThat(order.getStatus()).isEqualTo("SHIPPED");
+    }
+
+    @Test
+    void shouldReleaseReservedStockWhenOrderCancelled() {
+        Order order = buildOrder("ORD-ABC123DEF456");
+        order.setStatus("PENDING_PAYMENT");
+        given(orderRepository.findByOrderNumber("ORD-ABC123DEF456")).willReturn(Optional.of(order));
+        given(orderRepository.save(any(Order.class))).willAnswer(invocation -> invocation.getArgument(0));
+
+        orderService.updateOrderStatus("ORD-ABC123DEF456", new OrderStatusUpdateRequest("CANCELLED"));
+
+        // Iptal edilen (rezerve durumdaki) siparisin stogu geri verilir.
+        verify(stockReservationService).release(order);
+        assertThat(order.getStatus()).isEqualTo("CANCELLED");
     }
 
     @Test

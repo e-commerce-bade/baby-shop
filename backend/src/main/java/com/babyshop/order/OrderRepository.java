@@ -28,6 +28,10 @@ public interface OrderRepository extends JpaRepository<Order, Long>, JpaSpecific
     @EntityGraph(attributePaths = {"items"})
     Optional<Order> findFirstByCartIdAndStatus(Long cartId, String status);
 
+    // Sure asimi temizligi: belli tarihten once guncellenen, verilen durumdaki siparisler.
+    @EntityGraph(attributePaths = {"items"})
+    List<Order> findAllByStatusAndUpdatedAtBefore(String status, OffsetDateTime cutoff);
+
     @EntityGraph(attributePaths = {"items"})
     List<Order> findAllByUserEmailIgnoreCaseOrderByCreatedAtDesc(String email);
 

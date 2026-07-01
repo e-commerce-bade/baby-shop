@@ -3,7 +3,6 @@ package com.babyshop.payment;
 import com.babyshop.common.exception.InvalidRequestException;
 import com.babyshop.common.exception.ResourceNotFoundException;
 import com.babyshop.order.Order;
-import com.babyshop.order.OrderItem;
 import com.babyshop.order.OrderStatusPolicy;
 import com.babyshop.order.OrderRepository;
 import com.babyshop.product.ProductVariantRepository;
@@ -54,6 +53,9 @@ public class PaymentService {
 
     @Autowired(required = false)
     private PaymentProperties paymentProperties;
+
+    @Autowired(required = false)
+    private com.babyshop.order.StockReservationService stockReservationService;
 
     @Transactional
     public PaymentResponse initiatePayment(PaymentInitiationRequest request, String clientIp) {
@@ -265,13 +267,19 @@ public class PaymentService {
         // ikinci kez duserdi (PAID->PAID gecisi no-op oldugundan validateTransition engellemez).
         // Bu durumda yalnizca bu odeme kaydini basarili olarak isaretleriz (idempotent).
         if (!OrderStatusPolicy.PENDING_PAYMENT.equalsIgnoreCase(order.getStatus())) {
+            if (OrderStatusPolicy.CANCELLED.equalsIgnoreCase(order.getStatus())) {
+                // Nadir yaris: siparis (orn. sure asimi) iptal edilmisken odeme basarili donerse; stok
+                // iade edilmis olabilir. Odeme kaydini isaretle ama manuel inceleme/iade gerekebilir.
+                log.warn("Iptal edilmis siparise ({}) ait odeme basarili dondu; manuel inceleme gerekebilir.",
+                        order.getOrderNumber());
+            }
             payment.setStatus(PAYMENT_STATUS_SUCCEEDED);
             payment.setPaidAt(java.time.OffsetDateTime.now());
             return paymentRepository.save(payment);
         }
 
+        // Stok checkout aninda rezerve edildi; odeme basarisinda TEKRAR dusulmez.
         OrderStatusPolicy.validateTransition(order.getStatus(), OrderStatusPolicy.PAID);
-        decrementStockForOrder(order);
         payment.setStatus(PAYMENT_STATUS_SUCCEEDED);
         payment.setPaidAt(java.time.OffsetDateTime.now());
         order.setStatus(OrderStatusPolicy.PAID);
@@ -295,25 +303,6 @@ public class PaymentService {
         }
     }
 
-    // Stok yalnizca odeme basariyla tamamlaninca dusulur. Atomik kosullu UPDATE ile lost-update
-    // yarisi onlenir; yeterli stok yoksa (es zamanli baska siparis son urunu almis olabilir)
-    // negatife dusmeden 0'a sabitlenir ve asiri satis log'a yazilarak gorunur kilinir (#6).
-    private void decrementStockForOrder(Order order) {
-        for (OrderItem item : order.getItems()) {
-            if (item.getProductVariantId() == null) {
-                continue;
-            }
-
-            int updated = productVariantRepository.decrementStockIfAvailable(
-                    item.getProductVariantId(), item.getQuantity());
-            if (updated == 0) {
-                productVariantRepository.clampStockToZero(item.getProductVariantId());
-                log.warn("Stok asiri satis: varyant {} icin {} adet istendi ama yeterli stok yok (siparis {}).",
-                        item.getProductVariantId(), item.getQuantity(), order.getOrderNumber());
-            }
-        }
-    }
-
     // Odeme basariyla tamamlaninca siparisi olusturan sepeti CHECKED_OUT yapar; boylece ayni
     // sepetten tekrar siparis/odeme yapilamaz (#8). Sepet bulunamazsa sessizce gecilir.
     private void consumeSourceCart(Order order) {
@@ -334,9 +323,16 @@ public class PaymentService {
     }
 
     private Payment completePaymentAsFailed(Payment payment) {
-        OrderStatusPolicy.validateTransition(payment.getOrder().getStatus(), OrderStatusPolicy.CANCELLED);
+        Order order = payment.getOrder();
+        boolean wasReserved = OrderStatusPolicy.PENDING_PAYMENT.equalsIgnoreCase(order.getStatus())
+                || OrderStatusPolicy.PAID.equalsIgnoreCase(order.getStatus());
+        OrderStatusPolicy.validateTransition(order.getStatus(), OrderStatusPolicy.CANCELLED);
         payment.setStatus(PAYMENT_STATUS_FAILED);
-        payment.getOrder().setStatus(OrderStatusPolicy.CANCELLED);
+        order.setStatus(OrderStatusPolicy.CANCELLED);
+        // Siparis iptal edildi: checkout aninda rezerve edilen stogu geri ver.
+        if (wasReserved && stockReservationService != null) {
+            stockReservationService.release(order);
+        }
         return paymentRepository.save(payment);
     }
 

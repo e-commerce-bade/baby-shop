@@ -25,6 +25,11 @@ public interface ProductVariantRepository extends JpaRepository<ProductVariant, 
     @Query("UPDATE ProductVariant v SET v.stockQuantity = 0 WHERE v.id = :id AND v.stockQuantity > 0")
     int clampStockToZero(@Param("id") Long id);
 
+    // Rezerve edilen stogu geri verir (iptal / basarisiz odeme / sure asimi).
+    @Modifying
+    @Query("UPDATE ProductVariant v SET v.stockQuantity = v.stockQuantity + :quantity WHERE v.id = :id")
+    int restoreStock(@Param("id") Long id, @Param("quantity") int quantity);
+
     List<ProductVariant> findAllByProductIdOrderBySizeLabelAscColorNameAsc(Long productId);
 
     Optional<ProductVariant> findByIdAndProductId(Long id, Long productId);

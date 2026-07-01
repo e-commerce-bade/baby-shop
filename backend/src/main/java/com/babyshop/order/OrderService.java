@@ -59,6 +59,7 @@ public class OrderService {
     private final PaymentRepository paymentRepository;
     private final StoreSettingService storeSettingService;
     private final ProductImageRepository productImageRepository;
+    private final StockReservationService stockReservationService;
 
     public List<OrderResponse> getAllOrders() {
         return orderRepository.findAllByOrderByCreatedAtDesc().stream()
@@ -223,7 +224,13 @@ public class OrderService {
         Order order = orderRepository.findByOrderNumber(normalizedOrderNumber)
                 .orElseThrow(() -> new ResourceNotFoundException("Order not found for order number: " + orderNumber));
 
+        // Rezerve durumdaki (PENDING/PAID) bir siparis iptal edilirse rezerve stok geri verilir.
+        boolean wasReserved = OrderStatusPolicy.PENDING_PAYMENT.equalsIgnoreCase(order.getStatus())
+                || OrderStatusPolicy.PAID.equalsIgnoreCase(order.getStatus());
         OrderStatusPolicy.validateTransition(order.getStatus(), normalizedStatus);
+        if (OrderStatusPolicy.CANCELLED.equalsIgnoreCase(normalizedStatus) && wasReserved) {
+            stockReservationService.release(order);
+        }
         order.setStatus(normalizedStatus);
         return toResponse(orderRepository.save(order));
     }
@@ -249,6 +256,11 @@ public class OrderService {
                 .orElseGet(Order::new);
         if (order.getOrderNumber() == null) {
             order.setOrderNumber(generateOrderNumber());
+        }
+        // Yeniden kullanilan bir siparisse onceki rezervasyonu geri ver; kalemler yeniden kurulup
+        // guncel miktarlara gore tekrar rezerve edilecek.
+        if (!order.getItems().isEmpty()) {
+            stockReservationService.release(order);
         }
         order.getItems().clear();
         resolveAuthenticatedUser(normalizedAuthenticatedEmail).ifPresent(order::setUser);
@@ -295,7 +307,11 @@ public class OrderService {
         order.setSubtotalAmount(subtotalAmount);
         order.setTotalAmount(subtotalAmount.add(shippingAmount).subtract(discountAmount));
 
-        // Stok düşümü ve sepet tüketimi (CHECKED_OUT) ödeme başarıyla tamamlanınca PaymentService'te yapılır.
+        // Stogu checkout aninda atomik olarak rezerve et (oversell'i onler). Yetersiz stokta istisna
+        // firlatir ve @Transactional oldugundan tum islem (rezervasyon dahil) geri alinir.
+        stockReservationService.reserve(order);
+
+        // Sepet tuketimi (CHECKED_OUT) odeme basariyla tamamlaninca PaymentService'te yapilir.
         return toResponse(orderRepository.save(order));
     }
 
