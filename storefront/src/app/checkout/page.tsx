@@ -124,6 +124,7 @@ export default function CheckoutPage() {
     register,
     handleSubmit,
     watch,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<CheckoutFormValues>({
     resolver: zodResolver(checkoutSchema),
@@ -133,13 +134,76 @@ export default function CheckoutPage() {
   const saveAddress = watch('saveAddress')
   const [isLoggedIn, setIsLoggedIn] = useState(false)
 
+  // Giris yapmis kullanicida iletisim bilgilerini ve kayitli varsayilan adresi forma onceden
+  // doldur; boylece profilde kaydedilen adres siparis ekraninda otomatik gelir.
   useEffect(() => {
     let active = true
-    fetch('/api/account/me', { cache: 'no-store', credentials: 'same-origin', headers: { Accept: 'application/json' } })
-      .then((res) => { if (active) setIsLoggedIn(res.ok) })
-      .catch(() => { if (active) setIsLoggedIn(false) })
+
+    async function loadAccount() {
+      try {
+        const meRes = await fetch('/api/account/me', {
+          cache: 'no-store',
+          credentials: 'same-origin',
+          headers: { Accept: 'application/json' },
+        })
+        if (!meRes.ok) {
+          if (active) setIsLoggedIn(false)
+          return
+        }
+        if (active) setIsLoggedIn(true)
+
+        const me = (await meRes.json().catch(() => null)) as
+          | { email?: string; firstName?: string; lastName?: string; phoneNumber?: string }
+          | null
+        if (active && me) {
+          if (me.email) setValue('customerEmail', me.email)
+          if (me.firstName) setValue('customerFirstName', me.firstName)
+          if (me.lastName) setValue('customerLastName', me.lastName)
+          if (me.phoneNumber) setValue('customerPhone', me.phoneNumber)
+        }
+
+        const addrRes = await fetch('/api/account/addresses', {
+          cache: 'no-store',
+          credentials: 'same-origin',
+          headers: { Accept: 'application/json' },
+        })
+        if (!addrRes.ok) return
+        const addresses = (await addrRes.json().catch(() => null)) as
+          | Array<{
+              recipientFirstName?: string
+              recipientLastName?: string
+              phoneNumber?: string
+              line1?: string
+              line2?: string
+              district?: string
+              city?: string
+              postalCode?: string
+              country?: string
+              defaultAddress?: boolean
+            }>
+          | null
+        if (!active || !Array.isArray(addresses) || addresses.length === 0) return
+
+        const preferred = addresses.find((a) => a.defaultAddress) ?? addresses[0]
+        if (!preferred) return
+
+        if (preferred.line1) setValue('line1', preferred.line1)
+        if (preferred.line2) setValue('line2', preferred.line2)
+        if (preferred.district) setValue('district', preferred.district)
+        if (preferred.city) setValue('city', preferred.city)
+        if (preferred.postalCode) setValue('postalCode', preferred.postalCode)
+        if (preferred.country) setValue('country', preferred.country)
+        if (preferred.phoneNumber) setValue('customerPhone', preferred.phoneNumber)
+        if (preferred.recipientFirstName) setValue('customerFirstName', preferred.recipientFirstName)
+        if (preferred.recipientLastName) setValue('customerLastName', preferred.recipientLastName)
+      } catch {
+        if (active) setIsLoggedIn(false)
+      }
+    }
+
+    void loadAccount()
     return () => { active = false }
-  }, [])
+  }, [setValue])
 
   useEffect(() => setMounted(true), [])
 

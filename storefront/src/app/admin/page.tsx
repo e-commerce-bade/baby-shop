@@ -547,7 +547,7 @@ export default function AdminDashboardPage() {
                         <td className="hidden px-4 py-3 text-[#B5A090] md:table-cell">{formatDate(order.createdAt)}</td>
                         <td className="px-4 py-3">
                           <span
-                            className="rounded-full px-2.5 py-1 text-[11px] font-bold"
+                            className="inline-block whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-bold"
                             style={{ background: s.bg, color: s.color }}
                           >
                             {s.label}

@@ -574,8 +574,8 @@ function printOrder(order: AdminOrder) {
   const rowsHtml = order.items
     .map((item) => {
       const thumb = item.imageUrl
-        ? `<img src="${escapeHtml(absoluteUrl(item.imageUrl))}" alt="" style="width:130px;height:160px;object-fit:cover;border-radius:8px;border:1px solid #ECE3D6;display:block;" />`
-        : '<div style="width:130px;height:160px;border-radius:8px;border:1px solid #ECE3D6;background:#F4EEE6;"></div>'
+        ? `<img src="${escapeHtml(absoluteUrl(item.imageUrl))}" alt="" style="width:260px;height:320px;object-fit:cover;border-radius:8px;border:1px solid #ECE3D6;display:block;" />`
+        : '<div style="width:260px;height:320px;border-radius:8px;border:1px solid #ECE3D6;background:#F4EEE6;"></div>'
       return `
         <tr>
           <td style="padding:12px 6px;vertical-align:top;">
