@@ -2007,12 +2007,6 @@ export default function AdminProductsPage() {
         <div className="flex items-center gap-2.5">
           <button
             type="button"
-            className="hidden rounded-[10px] border border-[#ECE3D6] bg-white px-4 py-2.5 text-[13px] font-semibold text-[#5B4839] hover:bg-[#FAF6F1] transition-colors sm:block"
-          >
-            İçe Aktar
-          </button>
-          <button
-            type="button"
             onClick={() => setShowAddDrawer(true)}
             className="flex items-center gap-2 rounded-[10px] bg-[#C07B5A] px-4 py-2.5 text-[13px] font-bold text-white transition-colors hover:bg-[#A86849]"
           >
