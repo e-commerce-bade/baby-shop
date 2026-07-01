@@ -55,6 +55,11 @@ app:
     store-name: ${MAIL_STORE_NAME:Bade Bebe}
     track-base-url: ${MAIL_TRACK_BASE_URL:https://badebebe.net}
     brevo-api-key: ${MAIL_BREVO_API_KEY:}
+  order:
+    # Odenmeden bekleyen (PENDING) siparisin gecerlilik suresi; asilinca iptal edilip stok iade edilir.
+    pending-expiry-minutes: ${ORDER_PENDING_EXPIRY_MINUTES:15}
+    # Sure asimi kontrolunun calisma araligi (ms).
+    expiry-check-interval-ms: ${ORDER_EXPIRY_CHECK_INTERVAL_MS:120000}
   payment:
     # Odeme sonrasi (iyzico callback) yonlendirilebilecek izinli origin'ler; acik yonlendirmeyi onler.
     allowed-redirect-origins: ${PAYMENT_ALLOWED_REDIRECT_ORIGINS:https://badebebe.net,https://www.badebebe.net,https://badebebe-frontend-production.up.railway.app,http://localhost:3000}

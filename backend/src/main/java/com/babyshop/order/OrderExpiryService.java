@@ -2,6 +2,7 @@ package com.babyshop.order;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,15 +21,17 @@ import java.util.List;
 @Slf4j
 public class OrderExpiryService {
 
-    private static final long EXPIRY_MINUTES = 30;
+    // Odenmeden bekleyen siparisin gecerlilik suresi (dk). Env ile ayarlanabilir.
+    @Value("${app.order.pending-expiry-minutes:15}")
+    private long expiryMinutes;
 
     private final OrderRepository orderRepository;
     private final StockReservationService stockReservationService;
 
-    @Scheduled(fixedDelay = 5 * 60 * 1000L)
+    @Scheduled(fixedDelayString = "${app.order.expiry-check-interval-ms:120000}")
     @Transactional
     public void expireStalePendingOrders() {
-        OffsetDateTime cutoff = OffsetDateTime.now().minus(EXPIRY_MINUTES, ChronoUnit.MINUTES);
+        OffsetDateTime cutoff = OffsetDateTime.now().minus(expiryMinutes, ChronoUnit.MINUTES);
         List<Order> stale = orderRepository.findAllByStatusAndUpdatedAtBefore(
                 OrderStatusPolicy.PENDING_PAYMENT, cutoff);
 
@@ -37,7 +40,7 @@ public class OrderExpiryService {
             order.setStatus(OrderStatusPolicy.CANCELLED);
             orderRepository.save(order);
             log.info("Sure asimi: {} dk odenmeden bekleyen siparis {} iptal edildi, stok iade edildi.",
-                    EXPIRY_MINUTES, order.getOrderNumber());
+                    expiryMinutes, order.getOrderNumber());
         }
     }
 }
