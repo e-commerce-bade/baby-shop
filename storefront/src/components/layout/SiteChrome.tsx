@@ -5,6 +5,7 @@ import AnnouncementBar from '@/components/layout/AnnouncementBar'
 import Header from '@/components/layout/Header'
 import Nav from '@/components/layout/Nav'
 import Footer from '@/components/layout/Footer'
+import WhatsAppButton from '@/components/layout/WhatsAppButton'
 import { AuthProvider } from '@/components/auth/AuthProvider'
 
 export default function SiteChrome({
@@ -40,6 +41,7 @@ export default function SiteChrome({
       <Nav categories={categories} />
       <main>{children}</main>
       <Footer />
+      <WhatsAppButton />
     </AuthProvider>
   )
 }
