@@ -5,7 +5,6 @@ import './globals.css'
 import CartSyncProvider from '@/components/cart/CartSyncProvider'
 import SiteChrome from '@/components/layout/SiteChrome'
 import NavigationProgress from '@/components/layout/NavigationProgress'
-import { fetchCategories } from '@/lib/api/catalog'
 
 const fraunces = Fraunces({
   subsets: ['latin'],
@@ -31,18 +30,11 @@ export const metadata: Metadata = {
   description: 'Küçükler için zamansız parçalar, sevgi ve özenle hazırlandı.',
 }
 
-export default async function RootLayout({
+export default function RootLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
-  // Aktif kategoriler navigasyon icin (60sn cache'li). Backend erisilemezse bos doner; Nav
-  // yine "Yeni Gelenler" + "İndirim" ile calisir.
-  const categories = await fetchCategories()
-  const navCategories = categories
-    .filter((category) => category.isActive)
-    .map((category) => ({ name: category.name, slug: category.slug }))
-
   return (
     <html lang="tr" className={`${fraunces.variable} ${mulish.variable}`}>
       <body>
@@ -50,7 +42,7 @@ export default async function RootLayout({
           <NavigationProgress />
         </Suspense>
         <CartSyncProvider />
-        <SiteChrome categories={navCategories}>{children}</SiteChrome>
+        <SiteChrome>{children}</SiteChrome>
       </body>
     </html>
   )

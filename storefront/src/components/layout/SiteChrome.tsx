@@ -3,17 +3,14 @@
 import { usePathname } from 'next/navigation'
 import AnnouncementBar from '@/components/layout/AnnouncementBar'
 import Header from '@/components/layout/Header'
-import Nav from '@/components/layout/Nav'
 import Footer from '@/components/layout/Footer'
 import WhatsAppButton from '@/components/layout/WhatsAppButton'
 import { AuthProvider } from '@/components/auth/AuthProvider'
 
 export default function SiteChrome({
   children,
-  categories,
 }: {
   children: React.ReactNode
-  categories: { name: string; slug: string }[]
 }) {
   const pathname = usePathname()
   const isAdminArea = pathname.startsWith('/admin')
@@ -38,7 +35,6 @@ export default function SiteChrome({
     <AuthProvider>
       <AnnouncementBar />
       <Header />
-      <Nav categories={categories} />
       <main>{children}</main>
       <Footer />
       <WhatsAppButton />
