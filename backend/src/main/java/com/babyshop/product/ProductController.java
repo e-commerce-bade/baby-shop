@@ -2,6 +2,7 @@ package com.babyshop.product;
 
 import com.babyshop.common.response.PageResponse;
 import com.babyshop.product.dto.ProductDetailResponse;
+import com.babyshop.product.dto.ProductFacetsResponse;
 import com.babyshop.product.dto.ProductSummaryResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -41,6 +42,11 @@ public class ProductController {
     ) {
         return ResponseEntity.ok(productService.searchActiveProducts(
                 categorySlug, q, productTypes, colors, sizes, price, sort, page, size));
+    }
+
+    @GetMapping("/facets")
+    public ResponseEntity<ProductFacetsResponse> getFacets() {
+        return ResponseEntity.ok(productService.getFacets());
     }
 
     @GetMapping("/{slug}")

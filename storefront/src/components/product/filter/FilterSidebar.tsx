@@ -6,16 +6,33 @@ import FilterGroup from './FilterGroup'
 import CheckboxFilter from './CheckboxFilter'
 import ChipFilter from './ChipFilter'
 import SwatchFilter from './SwatchFilter'
-import {
-  filterCategories,
-  filterProductTypes,
-  filterSizes,
-  filterColors,
-  filterPriceRanges,
-} from '@/lib/mock/filterData'
+import { filterPriceRanges } from '@/lib/mock/filterData'
 
 type FilterKey = 'category' | 'productType' | 'size' | 'color' | 'price'
 type FilterSetting = { key: FilterKey; enabled: boolean }
+
+type CategoryFacet = { slug: string; name: string }
+type Facets = {
+  categories: CategoryFacet[]
+  productTypes: string[]
+  colors: string[]
+  sizes: string[]
+}
+
+const EMPTY_FACETS: Facets = { categories: [], productTypes: [], colors: [], sizes: [] }
+
+// Bilinen renk adlari icin swatch rengi; bilinmeyenlerde notr bir ton gosterilir.
+const COLOR_HEX: Record<string, string> = {
+  Yulaf: '#DDCBB3', Pudra: '#E6BFBA', 'Gok Mavisi': '#BFD3E0', 'Gök Mavisi': '#BFD3E0',
+  Adacayi: '#C2D2AE', Adaçayı: '#C2D2AE', Vizon: '#D2BCA2', 'Acik Pembe': '#E3B9B4', 'Açık Pembe': '#E3B9B4',
+  Kahve: '#5B4839', Beyaz: '#FFFFFF', Siyah: '#2B2B2B', Kirmizi: '#C0392B', Kırmızı: '#C0392B',
+  Mavi: '#2E86DE', Lacivert: '#2C3E50', Yesil: '#27AE60', Yeşil: '#27AE60', Sari: '#F1C40F', Sarı: '#F1C40F',
+  Pembe: '#E75A88', Mor: '#8E44AD', Gri: '#95A5A6', Bej: '#E8DCC8', Turuncu: '#E67E22',
+}
+
+function colorHex(name: string): string {
+  return COLOR_HEX[name] ?? '#D9CFC2'
+}
 
 const defaultVisibleFilters: Record<FilterKey, boolean> = {
   category: true,
@@ -50,6 +67,7 @@ function countSelected(draft: ProductFilters): number {
 export default function FilterSidebar() {
   const { filters, applyFilters, clearAll } = useProductFilter()
   const [visibleFilters, setVisibleFilters] = useState(defaultVisibleFilters)
+  const [facets, setFacets] = useState<Facets>(EMPTY_FACETS)
   const [drawerOpen, setDrawerOpen] = useState(false)
 
   // Local draft: selections are staged here and only sent to the server when
@@ -99,6 +117,37 @@ export default function FilterSidebar() {
     }
   }, [])
 
+  // Filtre secenekleri gercek kataloqdan gelir (sabit liste degil); boylece her secim
+  // gercekten filtrelenebilir ve "urun bulunamadi" sonucu vermez.
+  useEffect(() => {
+    let active = true
+
+    async function loadFacets() {
+      try {
+        const res = await fetch('/api/products/facets', {
+          cache: 'no-store',
+          headers: { Accept: 'application/json' },
+        })
+        if (!res.ok) return
+        const data = (await res.json()) as Partial<Facets>
+        if (!active) return
+        setFacets({
+          categories: Array.isArray(data.categories) ? data.categories : [],
+          productTypes: Array.isArray(data.productTypes) ? data.productTypes : [],
+          colors: Array.isArray(data.colors) ? data.colors : [],
+          sizes: Array.isArray(data.sizes) ? data.sizes : [],
+        })
+      } catch {
+        // Facet yuklenemezse gruplar bos kalir (sessizce gizlenir).
+      }
+    }
+
+    void loadFacets()
+    return () => {
+      active = false
+    }
+  }, [])
+
   const selectedCount = countSelected(draft)
   const isDirty = JSON.stringify(draft) !== appliedKey
 
@@ -126,18 +175,18 @@ export default function FilterSidebar() {
 
   const groups = (
     <>
-      {visibleFilters.category ? (
+      {visibleFilters.category && facets.categories.length > 0 ? (
         <FilterGroup title="Kategori">
           <div className="space-y-0">
-            {filterCategories.map((cat) => (
+            {facets.categories.map((cat) => (
               <CheckboxFilter
-                key={cat.value}
-                label={cat.label}
-                checked={draft.categorySlug === cat.value}
+                key={cat.slug}
+                label={cat.name}
+                checked={draft.categorySlug === cat.slug}
                 onChange={() =>
                   setDraft((d) => ({
                     ...d,
-                    categorySlug: d.categorySlug === cat.value ? null : cat.value,
+                    categorySlug: d.categorySlug === cat.slug ? null : cat.slug,
                   }))
                 }
               />
@@ -146,10 +195,10 @@ export default function FilterSidebar() {
         </FilterGroup>
       ) : null}
 
-      {visibleFilters.productType ? (
+      {visibleFilters.productType && facets.productTypes.length > 0 ? (
         <FilterGroup title="Ürün Tipi">
           <div className="space-y-0">
-            {filterProductTypes.map((type) => (
+            {facets.productTypes.map((type) => (
               <CheckboxFilter
                 key={type}
                 label={type}
@@ -163,10 +212,10 @@ export default function FilterSidebar() {
         </FilterGroup>
       ) : null}
 
-      {visibleFilters.size ? (
+      {visibleFilters.size && facets.sizes.length > 0 ? (
         <FilterGroup title="Beden">
           <div className="flex flex-wrap gap-2">
-            {filterSizes.map((size) => (
+            {facets.sizes.map((size) => (
               <ChipFilter
                 key={size}
                 label={size}
@@ -178,16 +227,16 @@ export default function FilterSidebar() {
         </FilterGroup>
       ) : null}
 
-      {visibleFilters.color ? (
+      {visibleFilters.color && facets.colors.length > 0 ? (
         <FilterGroup title="Renk">
           <div className="flex flex-wrap gap-2.5">
-            {filterColors.map((color) => (
+            {facets.colors.map((color) => (
               <SwatchFilter
-                key={color.name}
-                name={color.name}
-                hex={color.hex}
-                selected={draft.colors.includes(color.name)}
-                onToggle={() => setDraft((d) => ({ ...d, colors: toggleValue(d.colors, color.name) }))}
+                key={color}
+                name={color}
+                hex={colorHex(color)}
+                selected={draft.colors.includes(color)}
+                onToggle={() => setDraft((d) => ({ ...d, colors: toggleValue(d.colors, color) }))}
               />
             ))}
           </div>

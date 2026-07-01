@@ -7,6 +7,7 @@ import com.babyshop.common.exception.DuplicateResourceException;
 import com.babyshop.common.response.PageResponse;
 import com.babyshop.product.dto.ProductDetailResponse;
 import com.babyshop.product.dto.ProductAdminRequest;
+import com.babyshop.product.dto.ProductFacetsResponse;
 import com.babyshop.product.dto.ProductImageResponse;
 import com.babyshop.product.dto.ProductSummaryResponse;
 import com.babyshop.product.dto.ProductVariantResponse;
@@ -22,7 +23,11 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 
 @Service
 @RequiredArgsConstructor
@@ -94,6 +99,50 @@ public class ProductService {
                 .map(String::trim)
                 .filter(part -> !part.isEmpty())
                 .toList();
+    }
+
+    // Filtre kenar cubugu secenekleri: yalnizca aktif urunlerden/varyantlardan turetilir; boylece
+    // gosterilen her kategori/tip/renk/beden gercekten filtrelenebilir ve bos sonuc vermez.
+    public ProductFacetsResponse getFacets() {
+        List<Product> products = productRepository.findAllByActiveTrueOrderByCreatedAtDesc();
+
+        Map<String, String> categoryNameBySlug = new LinkedHashMap<>();
+        Set<String> productTypes = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
+        Set<String> colors = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
+        Set<String> sizes = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
+
+        for (Product product : products) {
+            Category category = product.getCategory();
+            if (category != null && hasText(category.getSlug())) {
+                categoryNameBySlug.putIfAbsent(category.getSlug().trim(), category.getName());
+            }
+            if (hasText(product.getProductType())) {
+                productTypes.add(product.getProductType().trim());
+            }
+            for (ProductVariant variant : product.getVariants()) {
+                if (!variant.isActive()) {
+                    continue;
+                }
+                if (hasText(variant.getColorName())) {
+                    colors.add(variant.getColorName().trim());
+                }
+                if (hasText(variant.getSizeLabel())) {
+                    sizes.add(variant.getSizeLabel().trim());
+                }
+            }
+        }
+
+        List<ProductFacetsResponse.CategoryFacet> categories = categoryNameBySlug.entrySet().stream()
+                .map(entry -> new ProductFacetsResponse.CategoryFacet(entry.getKey(), entry.getValue()))
+                .sorted(Comparator.comparing(ProductFacetsResponse.CategoryFacet::name, String.CASE_INSENSITIVE_ORDER))
+                .toList();
+
+        return new ProductFacetsResponse(
+                categories,
+                List.copyOf(productTypes),
+                List.copyOf(colors),
+                List.copyOf(sizes)
+        );
     }
 
     public List<ProductSummaryResponse> getAllProductsForAdmin() {
