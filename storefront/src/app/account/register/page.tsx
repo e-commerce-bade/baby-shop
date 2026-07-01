@@ -83,7 +83,8 @@ function RegisterLayout() {
       }
 
       await refresh()
-      router.replace(nextPath.startsWith('/') ? nextPath : '/account')
+      // Protocol-relative (//evil.com) URL'leri reddet; aksi halde acik yonlendirme (open redirect).
+      router.replace(nextPath.startsWith('/') && !nextPath.startsWith('//') ? nextPath : '/account')
       router.refresh()
     } catch (error) {
       setSubmitError(error instanceof Error ? error.message : 'Hesap oluşturulamadı.')
