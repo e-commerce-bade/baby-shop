@@ -35,6 +35,7 @@ interface TrackedOrder {
   currency: string
   createdAt: string | null
   shippingAddress: OrderAddress | null
+  notes: string | null
   items: OrderItem[]
 }
 
@@ -264,6 +265,13 @@ function TrackContent() {
                   .join(', ')}
                 {order.shippingAddress.country ? ` · ${order.shippingAddress.country}` : ''}
               </p>
+            </div>
+          )}
+
+          {order.notes && order.notes.trim() && (
+            <div className="rounded-panel border border-line bg-white p-5">
+              <h2 className="mb-2 font-serif text-[16px] font-semibold text-brown">Sipariş Notu</h2>
+              <p className="whitespace-pre-line text-[13.5px] leading-relaxed text-brown-2">{order.notes}</p>
             </div>
           )}
         </div>

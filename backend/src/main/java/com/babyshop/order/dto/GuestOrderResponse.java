@@ -21,6 +21,7 @@ public record GuestOrderResponse(
         String currency,
         OffsetDateTime createdAt,
         OrderAddressResponse shippingAddress,
+        String notes,
         List<OrderItemResponse> items
 ) {
 }

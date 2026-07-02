@@ -67,6 +67,14 @@ public class OrderEmailService {
                 order.getShippingCountry()
         );
 
+        String notes = order.getNotes();
+        String notesHtml = (notes == null || notes.isBlank()) ? "" : """
+                <div style="margin-top:18px;">
+                  <div style="font-size:12px;color:#9A8A78;margin-bottom:4px;">Sipariş Notu</div>
+                  <div style="font-size:13px;color:#6B5747;line-height:1.5;">%s</div>
+                </div>
+                """.formatted(escape(notes));
+
         return """
                 <div style="background:#FAF6F1;padding:24px;font-family:Arial,Helvetica,sans-serif;">
                   <div style="max-width:560px;margin:0 auto;background:#ffffff;border:1px solid #ECE3D6;border-radius:16px;overflow:hidden;">
@@ -92,6 +100,7 @@ public class OrderEmailService {
                         <div style="font-size:12px;color:#9A8A78;margin-bottom:4px;">Teslimat Adresi</div>
                         <div style="font-size:13px;color:#6B5747;line-height:1.5;">%s</div>
                       </div>
+                      %s
                       <div style="margin-top:24px;text-align:center;">
                         <a href="%s" style="display:inline-block;background:#C07B5A;color:#ffffff;text-decoration:none;font-weight:700;font-size:14px;padding:12px 26px;border-radius:12px;">Siparişini Takip Et</a>
                       </div>
@@ -110,6 +119,7 @@ public class OrderEmailService {
                 shipping(order.getShippingAmount(), currency),
                 money(order.getTotalAmount(), currency),
                 address.isBlank() ? "—" : escape(address),
+                notesHtml,
                 trackUrl,
                 escape(mailProperties.storeName())
         );

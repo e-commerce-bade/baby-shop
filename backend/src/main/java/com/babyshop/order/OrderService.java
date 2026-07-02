@@ -151,6 +151,7 @@ public class OrderService {
                         order.getShippingPostalCode(),
                         order.getShippingCountry()
                 ),
+                order.getNotes(),
                 order.getItems().stream()
                         .map(item -> toItemResponse(item, imageUrls))
                         .toList()
