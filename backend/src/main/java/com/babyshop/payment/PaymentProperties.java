@@ -24,7 +24,10 @@ public record PaymentProperties(
             java.util.List<Integer> enabledInstallments,
             Integer forceThreeDS,
             String defaultBuyerIdentityNumber,
-            String defaultBuyerIp
+            String defaultBuyerIp,
+            // true ise callback'te imza YOKSA odeme reddedilir. iyzico hesabinin her callback'te
+            // imza dondurdugu teyit edildikten sonra acilmali (aksi halde odemeler kirilabilir).
+            Boolean requireCallbackSignature
     ) {
     }
 }

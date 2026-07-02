@@ -18,6 +18,7 @@ import com.iyzipay.model.PaymentGroup;
 import com.iyzipay.model.Status;
 import com.iyzipay.request.CreateCheckoutFormInitializeRequest;
 import com.iyzipay.request.RetrieveCheckoutFormRequest;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
@@ -25,6 +26,7 @@ import java.math.RoundingMode;
 import java.util.List;
 
 @Component
+@Slf4j
 public class IyzicoPaymentGateway implements PaymentGateway {
 
     private static final String PROVIDER_CODE = "IYZICO";
@@ -103,7 +105,7 @@ public class IyzicoPaymentGateway implements PaymentGateway {
 
         CheckoutForm checkoutForm = iyzicoClient.retrieveCheckoutForm(retrieveRequest, options(properties()));
         validateSuccess(checkoutForm.getStatus(), checkoutForm.getErrorMessage(), "iyzico checkout form retrieve failed");
-        verifySignatureIfPresent(checkoutForm);
+        verifyCallbackSignature(checkoutForm);
 
         String status = IYZICO_PAYMENT_STATUS_SUCCESS.equalsIgnoreCase(checkoutForm.getPaymentStatus())
                 ? PAYMENT_STATUS_SUCCEEDED
@@ -245,11 +247,26 @@ public class IyzicoPaymentGateway implements PaymentGateway {
         }
     }
 
-    private void verifySignatureIfPresent(CheckoutForm response) {
-        if (response.getSignature() != null && !response.getSignature().isBlank()
-                && !response.verifySignature(required(properties().secretKey(), "iyzico secret key must be configured"))) {
+    // Callback imza dogrulamasi. Imza varsa gecerliligi kontrol edilir (gecersizse reddedilir).
+    // Imza yoksa: require-callback-signature true ise reddedilir, degilse (varsayilan) log'lanip
+    // gecilir -- asil koruma sunucu-sunucu retrieve + tutar/sepet dogrulamasidir. Imza varliginin
+    // log'lanmasi, ilerde zorunlu hale getirmeden once teyit icindir.
+    private void verifyCallbackSignature(CheckoutForm response) {
+        String signature = response.getSignature();
+        boolean present = signature != null && !signature.isBlank();
+
+        if (!present) {
+            if (Boolean.TRUE.equals(properties().requireCallbackSignature())) {
+                throw new InvalidRequestException("iyzico callback signature is missing");
+            }
+            log.warn("iyzico callback imzasi GELMEDI (dogrulama retrieve + tutar/sepet ile yapildi).");
+            return;
+        }
+
+        if (!response.verifySignature(required(properties().secretKey(), "iyzico secret key must be configured"))) {
             throw new InvalidRequestException("Invalid iyzico checkout form callback signature");
         }
+        log.info("iyzico callback imzasi GELDI ve dogrulandi.");
     }
 
     private String required(String value, String message) {

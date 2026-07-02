@@ -104,7 +104,8 @@ class IyzicoPaymentGatewayTest {
                         List.of(1),
                         0,
                         "11111111111",
-                        "127.0.0.1"
+                        "127.0.0.1",
+                        false
                 ),
                 List.of()
         );
@@ -206,7 +207,8 @@ class IyzicoPaymentGatewayTest {
                         List.of(1),
                         0,
                         "11111111111",
-                        "127.0.0.1"
+                        "127.0.0.1",
+                        false
                 ),
                 List.of()
         );

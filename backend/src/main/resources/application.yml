@@ -75,6 +75,9 @@ app:
       force-three-ds: ${IYZICO_FORCE_THREE_DS:0}
       default-buyer-identity-number: ${IYZICO_DEFAULT_BUYER_IDENTITY_NUMBER:11111111111}
       default-buyer-ip: ${IYZICO_DEFAULT_BUYER_IP:127.0.0.1}
+      # Callback imzasi yoksa odemeyi reddet. iyzico'nun her zaman imza dondurdugu teyit edilince
+      # (loglardan) true yapilmali; varsayilan false ile mevcut (guvenli) davranis korunur.
+      require-callback-signature: ${IYZICO_REQUIRE_CALLBACK_SIGNATURE:false}
   security:
     # Asagidaki degerlerin commit'li bir varsayilani YOKTUR; ortam degiskeniyle saglanmalidir.
     # JWT secret en az 32 bayt olmali (SecurityConfig dogrular) ve verilmezse uygulama baslamaz.
