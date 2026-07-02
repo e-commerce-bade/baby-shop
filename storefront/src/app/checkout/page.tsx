@@ -17,7 +17,8 @@ const checkoutSchema = z
     customerEmail:     z.string().trim().email('Geçerli bir e-posta adresi girin.'),
     customerFirstName: z.string().trim().max(100).optional(),
     customerLastName:  z.string().trim().max(100).optional(),
-    customerPhone:     z.string().trim().max(30).optional(),
+    customerPhone:     z.string().trim().min(1, 'Telefon numarası zorunludur.').max(30)
+      .refine((v) => v.replace(/\D/g, '').length >= 10, 'Geçerli bir telefon numarası girin.'),
     line1:     z.string().trim().min(1, 'Adres zorunludur.').max(255),
     line2:     z.string().trim().max(255).optional(),
     district:  z.string().trim().min(1, 'İlçe zorunludur.').max(120),
@@ -518,7 +519,7 @@ export default function CheckoutPage() {
                 <Field label="E-posta" required error={errors.customerEmail?.message}>
                   <input {...register('customerEmail')} type="email" placeholder="ornek@email.com" className={inputCls} />
                 </Field>
-                <Field label="Telefon" error={errors.customerPhone?.message}>
+                <Field label="Telefon" required error={errors.customerPhone?.message}>
                   <input {...register('customerPhone')} type="tel" placeholder="+90 555 000 00 00" className={inputCls} />
                 </Field>
               </div>
