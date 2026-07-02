@@ -5,6 +5,10 @@ import { persist, createJSONStorage } from 'zustand/middleware'
 import type { CartLineItem, CartState, CheckoutSummary } from '@/types/cart'
 
 let latestCartRequestToken = 0
+// Ozet yenileme, sepet mutasyon token'indan AYRI izlenir; boylece hydrateCart gibi eszamanli bir
+// sepet islemini gecersiz kilmaz (aksi halde hydrate yarim kalir, isSyncing takilir ve checkout
+// bos ekran gosterirdi).
+let latestSummaryToken = 0
 
 // Adet degisikliklerinde ardisik +/- tiklamalarini urun basina tek PATCH'te birlestirmek icin.
 const quantitySyncTimers = new Map<string, ReturnType<typeof setTimeout>>()
@@ -124,9 +128,11 @@ export const useCartStore = create<CartState>()(
       clearCartError: () => set({ cartError: null }),
 
       refreshCheckoutSummary: async () => {
-        const requestToken = beginCartRequest()
+        // Sepet mutasyonlarindan ayri token: bu cagri hydrateCart/addItem gibi islemleri
+        // gecersiz kilmamali (yoksa onlar yarim kalir ve isSyncing takilir -> bos checkout).
+        const summaryToken = ++latestSummaryToken
         const summary = await fetchCheckoutSummary(get().sessionId)
-        if (!isLatestCartRequest(requestToken)) return
+        if (summaryToken !== latestSummaryToken) return
         set({ checkoutSummary: summary })
       },
 
