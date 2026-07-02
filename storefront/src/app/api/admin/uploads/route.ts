@@ -3,7 +3,7 @@ import path from 'node:path'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 import { AUTH_COOKIE_NAME } from '@/lib/api/auth-cookie'
-import { isAdminToken } from '@/lib/api/jwt'
+import { buildBackendUrl } from '@/lib/api/backend'
 import { getProductUploadDir, getProductUploadUrl, safeFilePart } from '@/lib/server/product-uploads'
 
 const MAX_UPLOAD_SIZE = 5 * 1024 * 1024
@@ -20,7 +20,25 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: 'Authentication required' }, { status: 401 })
   }
 
-  if (!isAdminToken(token)) {
+  // Bu route dosyayi backend'e uğramadan yerel diske yazdigindan, yetkiyi backend'e IMZA
+  // dogrulatarak kontrol ederiz. isAdminToken() token'i imzasiz cozdugu icin tek basina yeterli
+  // degil (sahte "roles: ADMIN" token'i ile yukleme yapilabilirdi). Backend gecersiz imzada 401 doner.
+  let meResponse: Response
+  try {
+    meResponse = await fetch(buildBackendUrl('/api/v1/me'), {
+      cache: 'no-store',
+      headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
+    })
+  } catch {
+    return NextResponse.json({ message: 'Yetki doğrulanamadı. Lütfen tekrar deneyin.' }, { status: 503 })
+  }
+
+  if (!meResponse.ok) {
+    return NextResponse.json({ message: 'Admin privileges required' }, { status: 403 })
+  }
+
+  const profile = (await meResponse.json().catch(() => null)) as { roles?: string[] } | null
+  if (!Array.isArray(profile?.roles) || !profile.roles.includes('ADMIN')) {
     return NextResponse.json({ message: 'Admin privileges required' }, { status: 403 })
   }
 

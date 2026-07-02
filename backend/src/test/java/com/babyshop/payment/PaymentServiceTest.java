@@ -254,6 +254,28 @@ class PaymentServiceTest {
     }
 
     @Test
+    void shouldNotCancelAlreadyPaidOrderOnLateFailedCallback() {
+        // Ayni siparise ait ikinci (INITIATED) bir odemenin gec gelen FAILED callback'i.
+        Order order = buildOrder("ORD-ABC123DEF456", "PAID");
+        Payment payment = buildPayment(order);
+        given(paymentRepository.findByTransactionIdForUpdate("TXN-123")).willReturn(Optional.of(payment));
+        given(paymentRepository.save(any(Payment.class))).willAnswer(invocation -> invocation.getArgument(0));
+
+        paymentService = new PaymentService(orderRepository, paymentRepository, List.of(mockPaymentGateway), productVariantRepository, cartRepository);
+        var response = paymentService.processCallback("MOCK", new PaymentCallbackRequest(
+                "TXN-123",
+                null,
+                "FAILED",
+                mockPaymentGateway.generateSignature("TXN-123", "MOCK-TXN-123", "FAILED"),
+                null
+        ));
+
+        // Odenmis siparis iptal EDILMEMELI; yalnizca ilgili odeme FAILED olur.
+        assertThat(response.paymentStatus()).isEqualTo("FAILED");
+        assertThat(order.getStatus()).isEqualTo("PAID");
+    }
+
+    @Test
     void shouldRejectCallbackWithProviderMismatch() {
         Order order = buildOrder("ORD-ABC123DEF456", "PENDING_PAYMENT");
         Payment payment = buildPayment(order);

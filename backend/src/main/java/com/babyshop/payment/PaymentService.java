@@ -324,13 +324,20 @@ public class PaymentService {
 
     private Payment completePaymentAsFailed(Payment payment) {
         Order order = payment.getOrder();
-        boolean wasReserved = OrderStatusPolicy.PENDING_PAYMENT.equalsIgnoreCase(order.getStatus())
-                || OrderStatusPolicy.PAID.equalsIgnoreCase(order.getStatus());
-        OrderStatusPolicy.validateTransition(order.getStatus(), OrderStatusPolicy.CANCELLED);
+
+        // Siparis artik PENDING_PAYMENT degilse (orn. baska bir odeme ile zaten PAID olmus), basarisiz
+        // bir callback siparisi iptal ETMEMELI ve stogu geri VERMEMELI; yalnizca bu odeme kaydini FAILED
+        // olarak isaretler. Aksi halde eski/ikinci bir odemenin FAILED callback'i odenmis siparisi iptal
+        // edip stogu serbest birakirdi (PAID -> CANCELLED gecisine izin verildiginden).
+        if (!OrderStatusPolicy.PENDING_PAYMENT.equalsIgnoreCase(order.getStatus())) {
+            payment.setStatus(PAYMENT_STATUS_FAILED);
+            return paymentRepository.save(payment);
+        }
+
         payment.setStatus(PAYMENT_STATUS_FAILED);
         order.setStatus(OrderStatusPolicy.CANCELLED);
         // Siparis iptal edildi: checkout aninda rezerve edilen stogu geri ver.
-        if (wasReserved && stockReservationService != null) {
+        if (stockReservationService != null) {
             stockReservationService.release(order);
         }
         return paymentRepository.save(payment);
