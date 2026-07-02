@@ -131,7 +131,7 @@ const categoryDecorators: Record<
     backgroundColor: '#EFE6DC',
     imageUrl: '/images/category_pajamas.png',
   },
-  'mayo-havlu': {
+  'mayo-ve-havlu': {
     emoji: '🏖️',
     backgroundColor: '#E7E1D3',
     imageUrl: '/images/category_swim.png',
