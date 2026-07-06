@@ -63,13 +63,6 @@ export default async function ProductsPage({
     sort: params.sort,
   }
 
-  const activeCount =
-    (categorySlug ? 1 : 0) +
-    (params.productTypes?.split(',').filter(Boolean).length ?? 0) +
-    (params.colors?.split(',').filter(Boolean).length ?? 0) +
-    (params.sizes?.split(',').filter(Boolean).length ?? 0) +
-    (params.price ? 1 : 0)
-
   return (
     <div className="px-[38px] py-5 max-[980px]:px-6 max-[680px]:px-5">
       <div className="mb-6 flex items-center gap-3">
@@ -98,13 +91,6 @@ export default async function ProductsPage({
           <h1 className="font-serif text-[28px] font-semibold text-brown">
             {params.q ? `"${params.q}" için sonuçlar` : categoryName ?? 'Tüm Ürünler'}
           </h1>
-          {/* Kategori sayfasında ürün sayısı/filtre satırı gösterilmez; başlık kategori adıdır. */}
-          {!categoryName && (
-            <p className="mt-1 text-sm text-muted">
-              {result.totalElements} ürün
-              {activeCount > 0 && ` · ${activeCount} filtre aktif`}
-            </p>
-          )}
         </div>
       </div>
 
