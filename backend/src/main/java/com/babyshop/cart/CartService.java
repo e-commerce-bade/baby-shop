@@ -237,11 +237,11 @@ public class CartService {
 
     private void validateVariantAvailability(ProductVariant variant, int quantity) {
         if (!variant.isActive()) {
-            throw new InvalidRequestException("Product variant is not active for id: " + variant.getId());
+            throw new InvalidRequestException("Bu ürün seçeneği şu anda satışta değil.");
         }
 
         if (!variant.getProduct().isActive()) {
-            throw new InvalidRequestException("Product is not active for variant id: " + variant.getId());
+            throw new InvalidRequestException("Bu ürün şu anda satışta değil.");
         }
 
         validateStockLimit(variant, quantity);
@@ -249,8 +249,17 @@ public class CartService {
 
     private void validateStockLimit(ProductVariant variant, int requestedQuantity) {
         if (requestedQuantity > variant.getStockQuantity()) {
-            throw new InvalidRequestException("Requested quantity exceeds available stock for variant id: " + variant.getId());
+            throw new InvalidRequestException(stockMessage(variant));
         }
+    }
+
+    // Kullaniciya gosterilecek Turkce stok mesaji; kalan stok adedini icerir.
+    static String stockMessage(ProductVariant variant) {
+        int stock = variant.getStockQuantity();
+        if (stock <= 0) {
+            return "Üzgünüz, bu ürün seçeneği tükendi.";
+        }
+        return "Üzgünüz, bu üründen stokta yalnızca " + stock + " adet kaldı. Lütfen adedi azaltın.";
     }
 
     private String normalizeRequiredSessionId(String sessionId) {

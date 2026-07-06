@@ -521,15 +521,19 @@ public class OrderService {
 
     private void validateVariantForOrder(ProductVariant variant, int quantity) {
         if (!variant.isActive()) {
-            throw new InvalidRequestException("Product variant is not active for id: " + variant.getId());
+            throw new InvalidRequestException("Bu ürün seçeneği şu anda satışta değil.");
         }
 
         if (!variant.getProduct().isActive()) {
-            throw new InvalidRequestException("Product is not active for variant id: " + variant.getId());
+            throw new InvalidRequestException("Bu ürün şu anda satışta değil.");
         }
 
         if (quantity > variant.getStockQuantity()) {
-            throw new InvalidRequestException("Requested quantity exceeds available stock for variant id: " + variant.getId());
+            int stock = variant.getStockQuantity();
+            throw new InvalidRequestException(stock <= 0
+                    ? ("\"" + variant.getProduct().getName() + "\" ürününden stok kalmadı; siparişiniz tamamlanamadı.")
+                    : ("\"" + variant.getProduct().getName() + "\" ürününden stokta yalnızca " + stock
+                            + " adet kaldı. Lütfen sepetteki adedi güncelleyin."));
         }
     }
 

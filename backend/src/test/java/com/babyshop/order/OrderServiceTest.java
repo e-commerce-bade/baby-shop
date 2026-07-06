@@ -459,7 +459,7 @@ class OrderServiceTest {
 
         assertThatThrownBy(() -> orderService.createOrder(request, null))
                 .isInstanceOf(InvalidRequestException.class)
-                .hasMessage("Product variant is not active for id: 10");
+                .hasMessage("Bu ürün seçeneği şu anda satışta değil.");
     }
 
     @Test
@@ -483,7 +483,7 @@ class OrderServiceTest {
 
         assertThatThrownBy(() -> orderService.createOrder(request, null))
                 .isInstanceOf(InvalidRequestException.class)
-                .hasMessage("Product is not active for variant id: 10");
+                .hasMessage("Bu ürün şu anda satışta değil.");
     }
 
     @Test
@@ -507,7 +507,7 @@ class OrderServiceTest {
 
         assertThatThrownBy(() -> orderService.createOrder(request, null))
                 .isInstanceOf(InvalidRequestException.class)
-                .hasMessage("Requested quantity exceeds available stock for variant id: 10");
+                .hasMessage("\"Baby Dress\" ürününden stokta yalnızca 1 adet kaldı. Lütfen sepetteki adedi güncelleyin.");
     }
 
     @Test

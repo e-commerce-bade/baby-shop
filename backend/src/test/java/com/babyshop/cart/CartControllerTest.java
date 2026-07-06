@@ -142,7 +142,7 @@ class CartControllerTest {
     @Test
     void shouldReturnBadRequestWhenStockExceeded() throws Exception {
         given(cartService.addCartItem(anyString(), anyLong(), anyInt(), isNull()))
-                .willThrow(new InvalidRequestException("Requested quantity exceeds available stock for variant id: 10"));
+                .willThrow(new InvalidRequestException("Üzgünüz, bu üründen stokta yalnızca 3 adet kaldı. Lütfen adedi azaltın."));
 
         CartItemRequest request = new CartItemRequest(10L, 999);
 
@@ -150,7 +150,7 @@ class CartControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message").value("Requested quantity exceeds available stock for variant id: 10"));
+                .andExpect(jsonPath("$.message").value("Üzgünüz, bu üründen stokta yalnızca 3 adet kaldı. Lütfen adedi azaltın."));
     }
 
     @Test

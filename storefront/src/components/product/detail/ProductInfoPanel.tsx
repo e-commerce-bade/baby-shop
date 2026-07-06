@@ -142,14 +142,26 @@ export default function ProductInfoPanel({
         />
       </div>
 
-      <div className="flex items-center gap-2 text-[13px] font-semibold text-brown-2">
-        <span
-          className={`h-2 w-2 shrink-0 rounded-full ${inStock ? 'bg-[#6DB584]' : 'bg-rose-dk'}`}
-        />
-        {inStock
-          ? 'Stokta var - 1-2 iş günü içinde kargoya verilir'
-          : 'Bu beden stokta yok'}
-      </div>
+      {(() => {
+        const stock = currentVariant?.stockQuantity
+        // Beden seçilmeden önce stok adedi bilinemez (varyant belirsiz).
+        const noSizeSelected = currentVariant == null
+        const outOfStock = !noSizeSelected && (stock ?? 0) <= 0
+        const lowStock = !noSizeSelected && (stock ?? 0) > 0 && (stock ?? 0) <= 5
+        const dotColor = outOfStock ? 'bg-rose-dk' : lowStock ? 'bg-[#D4A017]' : 'bg-[#6DB584]'
+        return (
+          <div className="flex items-center gap-2 text-[13px] font-semibold text-brown-2">
+            <span className={`h-2 w-2 shrink-0 rounded-full ${dotColor}`} />
+            {noSizeSelected
+              ? 'Stok durumu için beden seçin'
+              : outOfStock
+                ? 'Bu beden stokta yok'
+                : lowStock
+                  ? `Son ${stock} ürün — 1-2 iş günü içinde kargoya verilir`
+                  : `Stokta ${stock} adet — 1-2 iş günü içinde kargoya verilir`}
+          </div>
+        )
+      })()}
 
       <div className="space-y-2.5">
         <p className="text-[13.5px] font-bold text-brown">Adet</p>

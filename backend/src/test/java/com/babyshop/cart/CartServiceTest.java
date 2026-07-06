@@ -248,7 +248,7 @@ class CartServiceTest {
 
         assertThatThrownBy(() -> cartService.addCartItem("session-1", 10L, 4))
                 .isInstanceOf(InvalidRequestException.class)
-                .hasMessage("Requested quantity exceeds available stock for variant id: 10");
+                .hasMessage("Üzgünüz, bu üründen stokta yalnızca 3 adet kaldı. Lütfen adedi azaltın.");
     }
 
     @Test
@@ -261,7 +261,7 @@ class CartServiceTest {
 
         assertThatThrownBy(() -> cartService.addCartItem("session-1", 10L, 1))
                 .isInstanceOf(InvalidRequestException.class)
-                .hasMessage("Product variant is not active for id: 10");
+                .hasMessage("Bu ürün seçeneği şu anda satışta değil.");
     }
 
     @Test
