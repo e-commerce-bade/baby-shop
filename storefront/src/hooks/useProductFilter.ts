@@ -41,7 +41,9 @@ export function useProductFilter() {
       // Filtre degisince ilk sayfaya don (eski sayfa numarasi yeni sonuc kumesinde bos olabilir).
       params.delete('page')
       const qs = params.toString()
-      router.push(qs ? `${pathname}?${qs}` : pathname)
+      // replace: liste içi filtre/sayfalama değişiklikleri geçmişe yeni kayıt eklemez; "Geri"
+      // tuşu liste içinde takılmadan önceki sayfaya (kategorilerin göründüğü yere) döner.
+      router.replace(qs ? `${pathname}?${qs}` : pathname)
     },
     [router, pathname, searchParams],
   )
@@ -85,12 +87,12 @@ export function useProductFilter() {
       if (draft.sizes.length) params.set('sizes', draft.sizes.join(','))
       if (draft.priceRange) params.set('price', draft.priceRange)
       const qs = params.toString()
-      router.push(qs ? `${pathname}?${qs}` : pathname)
+      router.replace(qs ? `${pathname}?${qs}` : pathname)
     },
     [router, pathname, searchParams],
   )
 
-  const clearAll = useCallback(() => router.push(pathname), [router, pathname])
+  const clearAll = useCallback(() => router.replace(pathname), [router, pathname])
 
   const hasActiveFilters =
     filters.categorySlug !== null ||

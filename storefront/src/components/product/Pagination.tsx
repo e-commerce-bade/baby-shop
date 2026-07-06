@@ -43,8 +43,11 @@ export default function Pagination({ page, totalPages, baseParams }: Props) {
 
   return (
     <nav className="mt-8 flex items-center justify-center gap-2" aria-label="Sayfalama">
+      {/* Sayfalama geçmişe yeni kayıt eklemez (replace); böylece "Geri" sayfa sayfa gezinmek
+          yerine kategorilerin göründüğü önceki sayfaya (ör. ana sayfa) döner. */}
       <Link
         href={hrefFor(page - 1, baseParams)}
+        replace
         aria-label="Önceki sayfa"
         aria-disabled={page <= 0}
         className={`${linkClass} ${page <= 0 ? disabled : inactive}`}
@@ -56,6 +59,7 @@ export default function Pagination({ page, totalPages, baseParams }: Props) {
         <Link
           key={p}
           href={hrefFor(p, baseParams)}
+          replace
           aria-current={p === page ? 'page' : undefined}
           className={`${linkClass} ${p === page ? active : inactive}`}
         >
@@ -65,6 +69,7 @@ export default function Pagination({ page, totalPages, baseParams }: Props) {
 
       <Link
         href={hrefFor(page + 1, baseParams)}
+        replace
         aria-label="Sonraki sayfa"
         aria-disabled={page >= totalPages - 1}
         className={`${linkClass} ${page >= totalPages - 1 ? disabled : inactive}`}
