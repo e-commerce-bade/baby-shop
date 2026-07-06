@@ -25,6 +25,10 @@ public record CreateOrderRequest(
         @Valid
         OrderAddressRequest shippingAddress,
         @Size(max = 2000, message = "Order notes must be at most 2000 characters")
-        String notes
+        String notes,
+        @Size(max = 20, message = "Payment method must be at most 20 characters")
+        String paymentMethod,
+        @Size(max = 80, message = "Shipping carrier must be at most 80 characters")
+        String shippingCarrier
 ) {
 }

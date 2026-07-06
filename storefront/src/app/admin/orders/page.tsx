@@ -22,6 +22,9 @@ interface AdminOrder {
   customerPhone: string | null
   totalAmount: number | string
   currency: string
+  paymentMethod: string | null
+  shippingCarrier: string | null
+  codSurcharge: number | string | null
   createdAt: string | null
   shippingAddress: {
     line1: string
@@ -57,7 +60,7 @@ const PAGE_SIZE = 20
 
 const STATUS_CONFIG = {
   PENDING_PAYMENT: { label: 'Ödeme Bekliyor', bg: '#FFF8EC', color: '#9A7020', dotColor: '#D4A017' },
-  PAID: { label: 'Ödendi', bg: '#EDF7F1', color: '#1A6640', dotColor: '#27AE60' },
+  PAID: { label: 'Sipariş Alındı', bg: '#EDF7F1', color: '#1A6640', dotColor: '#27AE60' },
   PREPARING: { label: 'Hazırlanıyor', bg: '#FFF8EC', color: '#9A7020', dotColor: '#D4A017' },
   SHIPPED: { label: 'Kargoda', bg: '#EBF4FF', color: '#1A4E8A', dotColor: '#2E86DE' },
   DELIVERED: { label: 'Teslim Edildi', bg: '#EDF7F1', color: '#1A6640', dotColor: '#27AE60' },
@@ -70,7 +73,7 @@ type StatusKey = 'all' | OrderStatus
 const STATUS_TABS: Array<{ key: StatusKey; label: string }> = [
   { key: 'all', label: 'Tümü' },
   { key: 'PENDING_PAYMENT', label: 'Ödeme Bekliyor' },
-  { key: 'PAID', label: 'Ödendi' },
+  { key: 'PAID', label: 'Sipariş Alındı' },
   { key: 'PREPARING', label: 'Hazırlanıyor' },
   { key: 'SHIPPED', label: 'Kargoda' },
   { key: 'DELIVERED', label: 'Teslim' },
@@ -95,6 +98,17 @@ function getStatus(status: string) {
     color: '#5B4839',
     dotColor: '#A89070',
   }
+}
+
+const PAYMENT_METHOD_LABELS: Record<string, string> = {
+  CARD: 'Kredi / Banka Kartı',
+  COD: 'Kapıda Nakit Ödeme',
+  EFT: 'EFT / Havale',
+}
+
+function paymentMethodLabel(method: string | null | undefined) {
+  if (!method) return 'Kredi / Banka Kartı'
+  return PAYMENT_METHOD_LABELS[method.toUpperCase()] ?? method
 }
 
 function formatDate(iso: string | null | undefined) {
@@ -131,7 +145,8 @@ export default function AdminOrdersPage() {
   const [forbidden, setForbidden] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [currentPage, setCurrentPage] = useState(0)
-  const [statusFilter, setStatusFilter] = useState<StatusKey>('all')
+  // Siparişler sayfası varsayılan olarak "Sipariş Alındı" (PAID) filtresiyle açılır.
+  const [statusFilter, setStatusFilter] = useState<StatusKey>('PAID')
   const [search, setSearch] = useState('')
   const [selectedOrder, setSelectedOrder] = useState<AdminOrder | null>(null)
   const [updatingOrderNumber, setUpdatingOrderNumber] = useState<string | null>(null)
@@ -759,6 +774,22 @@ function OrderDetailsDrawer({ order, onClose }: { order: AdminOrder; onClose: ()
               <span className="text-[13px] text-[#8C7A6A]">Durum</span>
               <StatusBadge status={order.status} />
             </div>
+            <div className="mt-3 flex items-center justify-between">
+              <span className="text-[13px] text-[#8C7A6A]">Ödeme Yöntemi</span>
+              <span className="text-[13px] font-semibold text-[#3D2B1F]">{paymentMethodLabel(order.paymentMethod)}</span>
+            </div>
+            {order.shippingCarrier ? (
+              <div className="mt-3 flex items-center justify-between">
+                <span className="text-[13px] text-[#8C7A6A]">Kargo Firması</span>
+                <span className="text-[13px] font-semibold text-[#3D2B1F]">{order.shippingCarrier}</span>
+              </div>
+            ) : null}
+            {Number(order.codSurcharge) > 0 ? (
+              <div className="mt-3 flex items-center justify-between">
+                <span className="text-[13px] text-[#8C7A6A]">Kapıda Ödeme Farkı</span>
+                <span className="text-[13px] font-semibold text-[#3D2B1F]">{formatPrice(order.codSurcharge ?? 0, order.currency)}</span>
+              </div>
+            ) : null}
             <div className="mt-3 flex items-center justify-between">
               <span className="text-[13px] text-[#8C7A6A]">Toplam</span>
               <span className="font-bold text-[#3D2B1F]">{formatPrice(order.totalAmount, order.currency)}</span>

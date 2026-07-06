@@ -8,10 +8,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.Arrays;
+import java.util.List;
 
 /**
- * Mağaza ayarlarını (kargo ücreti / ücretsiz kargo eşiği) okur, günceller ve
- * sepet ara toplamına göre kargo ücretini hesaplar. Tek satırlık ayar kaydını yönetir.
+ * Mağaza ayarlarını (kargo ücreti / ücretsiz kargo eşiği / minimum sepet tutarı / ödeme
+ * seçenekleri / kargo firmaları) okur, günceller ve sepet ara toplamına göre kargo ücretini
+ * hesaplar. Tek satırlık ayar kaydını yönetir.
  */
 @Service
 @RequiredArgsConstructor
@@ -31,11 +34,46 @@ public class StoreSettingService {
         StoreSetting setting = loadSettings();
         setting.setFreeShippingThreshold(request.freeShippingThreshold());
         setting.setShippingFee(request.shippingFee());
+        setting.setMinimumOrderAmount(request.minimumOrderAmount());
+        setting.setCardEnabled(request.cardEnabled());
+        setting.setCodEnabled(request.codEnabled());
+        setting.setCodSurcharge(request.codSurcharge());
+        setting.setBankTransferEnabled(request.bankTransferEnabled());
+        setting.setBankTransferIban(trimToNull(request.bankTransferIban()));
+        setting.setBankTransferAccountName(trimToNull(request.bankTransferAccountName()));
+        setting.setBankTransferBankName(trimToNull(request.bankTransferBankName()));
+        setting.setShippingCarriers(normalizeCarriers(request.shippingCarriers()));
         return toResponse(repository.save(setting));
     }
 
     public BigDecimal getFreeShippingThreshold() {
         return loadSettings().getFreeShippingThreshold();
+    }
+
+    public BigDecimal getMinimumOrderAmount() {
+        BigDecimal value = loadSettings().getMinimumOrderAmount();
+        return value == null ? BigDecimal.ZERO : value;
+    }
+
+    public boolean isCardEnabled() {
+        return loadSettings().isCardEnabled();
+    }
+
+    public boolean isCodEnabled() {
+        return loadSettings().isCodEnabled();
+    }
+
+    public boolean isBankTransferEnabled() {
+        return loadSettings().isBankTransferEnabled();
+    }
+
+    public BigDecimal getCodSurcharge() {
+        BigDecimal value = loadSettings().getCodSurcharge();
+        return value == null ? BigDecimal.ZERO : value;
+    }
+
+    public List<String> getShippingCarriers() {
+        return parseCarriers(loadSettings().getShippingCarriers());
     }
 
     /**
@@ -61,8 +99,49 @@ public class StoreSettingService {
         return new StoreSettingResponse(
                 setting.getFreeShippingThreshold(),
                 setting.getShippingFee(),
+                setting.getMinimumOrderAmount(),
+                setting.isCardEnabled(),
+                setting.isCodEnabled(),
+                setting.getCodSurcharge(),
+                setting.isBankTransferEnabled(),
+                setting.getBankTransferIban(),
+                setting.getBankTransferAccountName(),
+                setting.getBankTransferBankName(),
+                parseCarriers(setting.getShippingCarriers()),
                 CURRENCY,
                 setting.getUpdatedAt()
         );
+    }
+
+    /** CSV kargo firmasi listesini temizler; her satiri trim eder, boslari ve tekrarlari atar. */
+    private List<String> parseCarriers(String csv) {
+        if (csv == null || csv.isBlank()) {
+            return List.of();
+        }
+        return Arrays.stream(csv.split(","))
+                .map(String::trim)
+                .filter(value -> !value.isEmpty())
+                .distinct()
+                .toList();
+    }
+
+    /** Admin girisini (satir/virgul karisik olabilir) normalize edilmis CSV'ye cevirir. */
+    private String normalizeCarriers(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return "";
+        }
+        List<String> carriers = Arrays.stream(raw.split("[,\\n]"))
+                .map(String::trim)
+                .filter(value -> !value.isEmpty())
+                .distinct()
+                .toList();
+        return String.join(",", carriers);
+    }
+
+    private String trimToNull(String value) {
+        if (value == null || value.trim().isEmpty()) {
+            return null;
+        }
+        return value.trim();
     }
 }

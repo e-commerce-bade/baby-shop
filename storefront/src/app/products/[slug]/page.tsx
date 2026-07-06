@@ -5,6 +5,7 @@ import ProductDetailExperience from '@/components/product/detail/ProductDetailEx
 import ProductAccordion from '@/components/product/detail/ProductAccordion'
 import FeaturesPanel from '@/components/product/detail/FeaturesPanel'
 import RelatedProducts from '@/components/product/detail/RelatedProducts'
+import BackButton from '@/components/common/BackButton'
 import { fetchProductBySlug, fetchProducts } from '@/lib/api/catalog'
 import { formatFreeShippingThreshold } from '@/lib/shipping'
 
@@ -80,17 +81,20 @@ export default async function ProductDetailPage({
 
   return (
     <div className="px-[38px] py-5 max-[980px]:px-6 max-[680px]:px-5 max-[680px]:pb-24">
-      <nav className="mb-7 flex flex-wrap items-center gap-1.5 text-[12.5px] font-semibold text-muted">
-        <Link href="/" className="text-brown-2 transition-colors hover:text-rose-dk">
-          Ana Sayfa
-        </Link>
-        <span className="text-muted-2">›</span>
-        <Link href="/products" className="text-brown-2 transition-colors hover:text-rose-dk">
-          Ürünler
-        </Link>
-        <span className="text-muted-2">›</span>
-        <span className="text-brown">{product.name}</span>
-      </nav>
+      <div className="mb-7 flex flex-wrap items-center gap-3">
+        <BackButton fallbackHref="/products" />
+        <nav className="flex flex-wrap items-center gap-1.5 text-[12.5px] font-semibold text-muted">
+          <Link href="/" className="text-brown-2 transition-colors hover:text-rose-dk">
+            Ana Sayfa
+          </Link>
+          <span className="text-muted-2">›</span>
+          <Link href="/products" className="text-brown-2 transition-colors hover:text-rose-dk">
+            Ürünler
+          </Link>
+          <span className="text-muted-2">›</span>
+          <span className="text-brown">{product.name}</span>
+        </nav>
+      </div>
 
       <div className="grid grid-cols-[minmax(0,560px)_minmax(360px,1fr)] gap-10 max-[980px]:grid-cols-1 max-[980px]:gap-8">
         <ProductDetailExperience

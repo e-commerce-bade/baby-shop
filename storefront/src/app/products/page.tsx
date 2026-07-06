@@ -5,6 +5,7 @@ import FilterSidebar from '@/components/product/filter/FilterSidebar'
 import FilterSidebarSkeleton from '@/components/product/filter/FilterSidebarSkeleton'
 import ProductGrid from '@/components/product/ProductGrid'
 import Pagination from '@/components/product/Pagination'
+import BackButton from '@/components/common/BackButton'
 import { fetchProductsPage } from '@/lib/api/catalog'
 
 export const dynamic = 'force-dynamic'
@@ -66,13 +67,16 @@ export default async function ProductsPage({
 
   return (
     <div className="px-[38px] py-5 max-[980px]:px-6 max-[680px]:px-5">
-      <nav className="mb-6 flex items-center gap-1.5 text-[12.5px] font-semibold text-muted">
-        <Link href="/" className="text-brown-2 transition-colors hover:text-rose-dk">
-          Ana Sayfa
-        </Link>
-        <span className="text-muted-2">›</span>
-        <span className="text-brown">Ürünler</span>
-      </nav>
+      <div className="mb-6 flex items-center gap-3">
+        <BackButton fallbackHref="/" />
+        <nav className="flex items-center gap-1.5 text-[12.5px] font-semibold text-muted">
+          <Link href="/" className="text-brown-2 transition-colors hover:text-rose-dk">
+            Ana Sayfa
+          </Link>
+          <span className="text-muted-2">›</span>
+          <span className="text-brown">Ürünler</span>
+        </nav>
+      </div>
 
       <div className="mb-5 flex items-end justify-between">
         <div>

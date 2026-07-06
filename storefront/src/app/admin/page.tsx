@@ -73,7 +73,9 @@ type SalesWindow = 7 | 30
 
 const STATUS_MAP: Record<string, { label: string; bg: string; color: string }> = {
   PENDING: { label: 'Beklemede', bg: '#FFF8EC', color: '#9A7020' },
-  PAID: { label: 'Ödendi', bg: '#EDF7F1', color: '#1A6640' },
+  PENDING_PAYMENT: { label: 'Ödeme Bekliyor', bg: '#FFF8EC', color: '#9A7020' },
+  PAID: { label: 'Sipariş Alındı', bg: '#EDF7F1', color: '#1A6640' },
+  PREPARING: { label: 'Hazırlanıyor', bg: '#FFF8EC', color: '#9A7020' },
   PROCESSING: { label: 'Hazırlanıyor', bg: '#FFF8EC', color: '#9A7020' },
   SHIPPED: { label: 'Kargoda', bg: '#EBF4FF', color: '#1A4E8A' },
   DELIVERED: { label: 'Teslim Edildi', bg: '#EDF7F1', color: '#1A6640' },
@@ -327,7 +329,7 @@ export default function AdminDashboardPage() {
         const [catRes, prodRes, ordRes] = await Promise.all([
           fetch('/api/admin/categories', { cache: 'no-store', headers: { Accept: 'application/json' } }),
           fetch('/api/admin/products', { cache: 'no-store', headers: { Accept: 'application/json' } }),
-          fetch('/api/admin/orders?page=0&size=5', { cache: 'no-store', headers: { Accept: 'application/json' } }),
+          fetch('/api/admin/orders?page=0&size=20', { cache: 'no-store', headers: { Accept: 'application/json' } }),
         ])
 
         if (!catRes.ok || !prodRes.ok || !ordRes.ok) {
@@ -419,7 +421,11 @@ export default function AdminDashboardPage() {
 
   const categories = data?.categories ?? []
   const products = data?.products ?? []
-  const orders = data?.orders.content ?? []
+  // "Aktif sipariş": işlemde olan siparişler — ödeme bekleyen, tamamlanan (teslim) ve iptaller hariç.
+  const ACTIVE_ORDER_STATUSES = new Set(['PAID', 'PREPARING', 'SHIPPED'])
+  const orders = (data?.orders.content ?? [])
+    .filter((o) => ACTIVE_ORDER_STATUSES.has((o.status ?? '').toUpperCase()))
+    .slice(0, 5)
   const activeProducts = products.filter((p) => p.active).length
   const lowStockItems = computeLowStock(products)
 
@@ -555,8 +561,8 @@ export default function AdminDashboardPage() {
         <div className="rounded-[16px] border border-[#ECE3D6] bg-white p-5">
           <div className="mb-4 flex items-center justify-between">
             <div>
-              <h2 className="text-[16px] font-bold text-[#3D2B1F]">Son Siparişler</h2>
-              <p className="text-[12px] text-[#C4B5A5]">Son 5 kayıt</p>
+              <h2 className="text-[16px] font-bold text-[#3D2B1F]">Son 5 Aktif Sipariş</h2>
+              <p className="text-[12px] text-[#C4B5A5]">İşlemde olan son siparişler</p>
             </div>
             <Link href="/admin/orders" className="text-[12px] font-semibold text-[#C07B5A] hover:underline">
               Tümünü Gör
@@ -606,7 +612,7 @@ export default function AdminDashboardPage() {
             </div>
           ) : (
             <div className="rounded-[12px] border border-dashed border-[#D5C9BA] bg-[#FAF6F1] px-5 py-10 text-center">
-              <p className="text-[13px] text-[#B5A090]">Henüz sipariş bulunmuyor.</p>
+              <p className="text-[13px] text-[#B5A090]">Aktif sipariş bulunmuyor.</p>
             </div>
           )}
         </div>

@@ -20,9 +20,11 @@ const PALETTES = [
 
 interface Props {
   isSubmitting: boolean
+  paymentMethod?: 'CARD' | 'COD' | 'EFT'
+  codSurcharge?: number
 }
 
-export default function CheckoutOrderSummary({ isSubmitting }: Props) {
+export default function CheckoutOrderSummary({ isSubmitting, paymentMethod = 'CARD', codSurcharge = 0 }: Props) {
   const items   = useCartStore((s) => s.items)
   const summary = useCartStore((s) => s.checkoutSummary)
   const currency = summary?.currency ?? items[0]?.currency ?? 'TRY'
@@ -30,7 +32,15 @@ export default function CheckoutOrderSummary({ isSubmitting }: Props) {
   const subtotal = toNum(summary?.subtotal)
   const shipping = toNum(summary?.shippingAmount)
   const discount = toNum(summary?.discountAmount)
-  const total    = toNum(summary?.totalAmount)
+  // Kapıda ödeme farkı yalnızca COD seçiliyken toplama eklenir.
+  const surcharge = paymentMethod === 'COD' ? codSurcharge : 0
+  const total    = toNum(summary?.totalAmount) + surcharge
+  // Kart dışı yöntemlerde ödeme çevrimiçi alınmaz; buton "Siparişi Tamamla" olur.
+  const ctaLabel = isSubmitting
+    ? 'Hazırlanıyor...'
+    : paymentMethod === 'CARD'
+      ? 'Ödemeye Geç'
+      : 'Siparişi Tamamla'
 
   return (
     <aside className="flex flex-col gap-4 lg:sticky lg:top-6">
@@ -116,6 +126,13 @@ export default function CheckoutOrderSummary({ isSubmitting }: Props) {
             </span>
           </div>
 
+          {surcharge > 0 && (
+            <div className="flex justify-between text-brown-2">
+              <span>Kapıda Ödeme Farkı</span>
+              <span className="font-semibold text-brown">{formatPrice(surcharge, currency)}</span>
+            </div>
+          )}
+
           <div className="flex justify-between border-t border-line pt-3 font-bold text-brown">
             <span className="text-[14.5px]">Sipariş Toplamı</span>
             <span className="font-serif text-[19px] text-rose-dk">{formatPrice(total, currency)}</span>
@@ -133,7 +150,7 @@ export default function CheckoutOrderSummary({ isSubmitting }: Props) {
             <rect x="5" y="11" width="14" height="9" rx="2" />
             <path d="M8 11V8a4 4 0 018 0v3" />
           </svg>
-          {isSubmitting ? 'Hazırlanıyor...' : 'Ödemeye Geç'}
+          {ctaLabel}
         </button>
 
         <p className="mt-3 text-center text-[11px] text-muted">

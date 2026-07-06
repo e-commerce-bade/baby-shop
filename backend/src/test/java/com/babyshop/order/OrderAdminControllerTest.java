@@ -154,8 +154,11 @@ class OrderAdminControllerTest {
                 new BigDecimal("998.00"),
                 BigDecimal.ZERO,
                 BigDecimal.ZERO,
+                BigDecimal.ZERO,
                 new BigDecimal("998.00"),
                 "TRY",
+                "CARD",
+                null,
                 OffsetDateTime.parse("2026-06-01T12:00:00+03:00"),
                 new OrderAddressResponse(
                         "Ataturk Cd. No:10",

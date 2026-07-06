@@ -386,7 +386,7 @@ function WorkingAddProductDrawer({
   const [basePrice, setBasePrice] = useState('')
   const [baseStock, setBaseStock] = useState('0')
   const [variants, setVariants] = useState<ProductVariantDraft[]>([])
-  const [colorImages, setColorImages] = useState<Record<string, ColorImageDraft>>({})
+  const [colorImages, setColorImages] = useState<Record<string, ColorImageDraft[]>>({})
   const [saving, setSaving] = useState(false)
   const [uploadingColor, setUploadingColor] = useState<string | null>(null)
   const [formError, setFormError] = useState<string | null>(null)
@@ -436,15 +436,24 @@ function WorkingAddProductDrawer({
     setVariants([])
   }
 
-  function updateColorImage(color: string, patch: Partial<ColorImageDraft>) {
+  function addColorImage(color: string, draft: ColorImageDraft) {
     setColorImages((prev) => ({
       ...prev,
-      [color]: {
-        imageUrl: prev[color]?.imageUrl ?? '',
-        fileName: prev[color]?.fileName ?? '',
-        altText: prev[color]?.altText ?? `${name.trim() || 'Urun'} ${color}`.trim(),
-        ...patch,
-      },
+      [color]: [...(prev[color] ?? []), draft],
+    }))
+  }
+
+  function updateColorImageAt(color: string, index: number, patch: Partial<ColorImageDraft>) {
+    setColorImages((prev) => ({
+      ...prev,
+      [color]: (prev[color] ?? []).map((item, i) => (i === index ? { ...item, ...patch } : item)),
+    }))
+  }
+
+  function removeColorImageAt(color: string, index: number) {
+    setColorImages((prev) => ({
+      ...prev,
+      [color]: (prev[color] ?? []).filter((_, i) => i !== index),
     }))
   }
 
@@ -506,30 +515,32 @@ function WorkingAddProductDrawer({
     setVariants(nextVariants)
   }
 
-  async function handleColorImageUpload(color: string, file: File | null) {
+  async function handleColorImageUpload(color: string, files: FileList | null) {
     setFormError(null)
-    if (!file) return
+    if (!files || files.length === 0) return
 
     setUploadingColor(color)
     try {
-      const formData = new FormData()
-      formData.append('file', file)
+      for (const file of Array.from(files)) {
+        const formData = new FormData()
+        formData.append('file', file)
 
-      const res = await fetch('/api/admin/uploads', {
-        method: 'POST',
-        body: formData,
-      })
+        const res = await fetch('/api/admin/uploads', {
+          method: 'POST',
+          body: formData,
+        })
 
-      if (!res.ok) {
-        throw new Error(await readApiError(res, 'Gorsel yuklenemedi.'))
+        if (!res.ok) {
+          throw new Error(await readApiError(res, 'Gorsel yuklenemedi.'))
+        }
+
+        const payload = (await res.json()) as { imageUrl: string }
+        addColorImage(color, {
+          imageUrl: payload.imageUrl,
+          fileName: file.name,
+          altText: `${name.trim() || file.name.replace(/\.[^.]+$/, '')} ${color}`.trim(),
+        })
       }
-
-      const payload = (await res.json()) as { imageUrl: string }
-      updateColorImage(color, {
-        imageUrl: payload.imageUrl,
-        fileName: file.name,
-        altText: colorImages[color]?.altText?.trim() || `${name.trim() || file.name.replace(/\.[^.]+$/, '')} ${color}`.trim(),
-      })
     } catch (e) {
       setFormError(e instanceof Error ? e.message : 'Gorsel yuklenirken hata olustu.')
     } finally {
@@ -615,9 +626,11 @@ function WorkingAddProductDrawer({
         }, 'Urun varyanti olusturulamadi.')
       }
 
-      const uploadedImages = colors
-        .map((color) => ({ color, image: colorImages[color] }))
-        .filter((item): item is { color: string; image: ColorImageDraft } => Boolean(item.image?.imageUrl.trim()))
+      const uploadedImages = colors.flatMap((color) =>
+        (colorImages[color] ?? [])
+          .filter((image) => image.imageUrl.trim())
+          .map((image) => ({ color, image })),
+      )
 
       for (const [index, item] of uploadedImages.entries()) {
         await postJson(`/api/admin/products/${created.id}/images`, {
@@ -1015,12 +1028,12 @@ function WorkingAddProductDrawer({
                   <div className="rounded-[12px] border border-[#ECE3D6] bg-[#FAF6F1] px-4 py-3">
                     <p className="text-[12px] font-bold text-[#5B4839]">Renk bazli gorseller</p>
                     <p className="mt-1 text-[11.5px] text-[#B5A090]">
-                      Her renk icin ayri gorsel yukleyin. Ilk yuklenen renk ana gorsel olur.
+                      Her renk icin birden fazla gorsel yukleyebilirsiniz (on, arka/sirt baskisi vb.). Ilk yuklenen gorsel urunun ana gorseli olur.
                     </p>
                   </div>
 
                   {colors.map((color) => {
-                    const image = colorImages[color]
+                    const images = colorImages[color] ?? []
                     const inputId = `product-image-upload-${toSlug(color)}`
                     return (
                       <div key={color} className="rounded-[12px] border border-[#ECE3D6] bg-white p-3">
@@ -1028,43 +1041,68 @@ function WorkingAddProductDrawer({
                           <div>
                             <p className="text-[13px] font-bold text-[#3D2B1F]">{color}</p>
                             <p className="text-[11.5px] text-[#B5A090]">
-                              {uploadingColor === color ? 'Gorsel yukleniyor...' : image?.fileName || 'JPG, PNG veya WEBP - max 5MB'}
+                              {uploadingColor === color
+                                ? 'Gorsel yukleniyor...'
+                                : `${images.length} gorsel - JPG, PNG veya WEBP - max 5MB`}
                             </p>
                           </div>
                           <input
                             id={inputId}
                             type="file"
+                            multiple
                             accept="image/jpeg,image/png,image/webp"
                             className="sr-only"
-                            onChange={(e) => void handleColorImageUpload(color, e.target.files?.[0] ?? null)}
+                            onChange={(e) => {
+                              void handleColorImageUpload(color, e.target.files)
+                              e.target.value = ''
+                            }}
                           />
                           <label
                             htmlFor={inputId}
                             className="shrink-0 cursor-pointer rounded-[10px] bg-[#FAF6F1] px-3 py-2 text-[12px] font-bold text-[#C07B5A] ring-1 ring-[#ECE3D6] hover:bg-[#FFFDFC]"
                           >
-                            {image?.imageUrl ? 'Degistir' : 'Sec'}
+                            {images.length > 0 ? 'Gorsel Ekle' : 'Sec'}
                           </label>
                         </div>
 
-                        {image?.imageUrl ? (
-                          <img
-                            src={image.imageUrl}
-                            alt={image.altText || `${name} ${color}`}
-                            className="mb-3 h-32 w-full rounded-[10px] object-cover"
-                          />
+                        {images.length > 0 ? (
+                          <div className="space-y-3">
+                            {images.map((image, index) => (
+                              <div key={`${color}-${index}`} className="rounded-[10px] border border-[#F0E8DD] bg-[#FFFDFC] p-2.5">
+                                <div className="flex gap-3">
+                                  <img
+                                    src={image.imageUrl}
+                                    alt={image.altText || `${name} ${color}`}
+                                    className="h-24 w-24 shrink-0 rounded-[10px] object-cover"
+                                  />
+                                  <div className="min-w-0 flex-1">
+                                    <div className="mb-1.5 flex items-center justify-between gap-2">
+                                      <p className="truncate text-[11.5px] font-semibold text-[#5B4839]">{image.fileName}</p>
+                                      <button
+                                        type="button"
+                                        onClick={() => removeColorImageAt(color, index)}
+                                        className="shrink-0 text-[11.5px] font-bold text-[#C0392B] hover:underline"
+                                      >
+                                        Sil
+                                      </button>
+                                    </div>
+                                    <label className="mb-1 block text-[11.5px] font-bold text-[#5B4839]">Alt Metin</label>
+                                    <input
+                                      type="text"
+                                      value={image.altText}
+                                      onChange={(e) => updateColorImageAt(color, index, { altText: e.target.value })}
+                                      className="w-full rounded-[8px] border border-[#ECE3D6] bg-white px-3 py-2 text-[12.5px] text-[#3D2B1F] placeholder:text-[#C4B5A5] focus:border-[#A89070] focus:outline-none"
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
                         ) : (
-                          <div className="mb-3 flex h-24 items-center justify-center rounded-[10px] border-2 border-dashed border-[#ECE3D6] bg-[#FAF6F1]">
+                          <div className="flex h-24 items-center justify-center rounded-[10px] border-2 border-dashed border-[#ECE3D6] bg-[#FAF6F1]">
                             <svg className="h-5 w-5 text-[#C07B5A]" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"><path d="M4 16l4-4 3 3 4-5 3 3" /><rect x="2" y="4" width="16" height="12" rx="2" /></svg>
                           </div>
                         )}
-
-                        <label className="mb-1.5 block text-[12px] font-bold text-[#5B4839]">Alt Metin</label>
-                        <input
-                          type="text"
-                          value={image?.altText ?? `${name.trim() || 'Urun'} ${color}`.trim()}
-                          onChange={(e) => updateColorImage(color, { altText: e.target.value })}
-                          className="w-full rounded-[10px] border border-[#ECE3D6] bg-white px-3.5 py-2.5 text-[13px] text-[#3D2B1F] placeholder:text-[#C4B5A5] focus:border-[#A89070] focus:outline-none"
-                        />
                       </div>
                     )
                   })}

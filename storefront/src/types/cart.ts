@@ -42,6 +42,8 @@ export interface CheckoutSummary {
   freeShippingThreshold: number | string | null
   remainingAmountForFreeShipping: number | string | null
   eligibleForFreeShipping: boolean
+  // Minimum sepet tutarı (bu tutarın altında ödemeye geçilemez)
+  minimumOrderAmount: number | string | null
   // Checkout durumu
   readyForCheckout: boolean
   checkoutBlockedReason: string | null

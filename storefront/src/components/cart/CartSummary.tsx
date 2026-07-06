@@ -15,6 +15,7 @@ const BLOCKED_MESSAGES: Record<string, string> = {
   CART_EMPTY:    '', // Boş sepet zaten ayrı görünüm ile yönetiliyor
   OUT_OF_STOCK:  'Sepetinizdeki bazı ürünler stokta yok. Lütfen kontrol edin.',
   INVALID_ITEMS: 'Sepetinizdeki bazı ürünler artık mevcut değil.',
+  MIN_ORDER_NOT_MET: 'Minimum sepet tutarına ulaşılmadı.',
 }
 
 interface Props {
@@ -38,9 +39,19 @@ export default function CartSummary({ onCheckout }: Props) {
   const isFree   = shipping === 0
 
   const blockedReason  = summary?.checkoutBlockedReason ?? null
-  const blockedMessage = blockedReason && blockedReason !== 'CART_EMPTY'
-    ? (BLOCKED_MESSAGES[blockedReason] ?? 'Siparişiniz tamamlanmadan önce bir sorun giderilmeli.')
-    : null
+  const minimumOrder   = toNum(summary?.minimumOrderAmount)
+  // Minimum sepet tutarı engeli için dinamik, ne kadar eksik olduğunu belirten mesaj.
+  const blockedMessage = (() => {
+    if (!blockedReason || blockedReason === 'CART_EMPTY') return null
+    if (blockedReason === 'MIN_ORDER_NOT_MET' && minimumOrder > 0) {
+      const missing = Math.max(minimumOrder - sub, 0)
+      return `Minimum sepet tutarı ${formatPrice(minimumOrder, cur)}. Ödemeye geçmek için ${formatPrice(missing, cur)} tutarında daha ürün ekleyin.`
+    }
+    return BLOCKED_MESSAGES[blockedReason] ?? 'Siparişiniz tamamlanmadan önce bir sorun giderilmeli.'
+  })()
+
+  // Ödemeye geçiş yalnızca sepet hazırsa mümkün (backend readyForCheckout=false ise engellenir).
+  const notReady = summary?.readyForCheckout === false
 
   const address = summary?.defaultShippingAddress ?? null
 
@@ -100,7 +111,16 @@ export default function CartSummary({ onCheckout }: Props) {
       )}
 
       {/* CTA */}
-      {onCheckout ? (
+      {notReady ? (
+        <button
+          type="button"
+          disabled
+          className="flex w-full cursor-not-allowed items-center justify-center gap-2 rounded-[14px] bg-line py-4 text-center text-[15px] font-bold text-muted"
+        >
+          <LockIcon />
+          Siparişi Tamamla
+        </button>
+      ) : onCheckout ? (
         <Link
           href="/checkout"
           onClick={onCheckout}

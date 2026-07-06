@@ -304,7 +304,9 @@ class OrderServiceTest {
                 "5551112233",
                 null,
                 addressRequest(),
-                "Leave at the door"
+                "Leave at the door",
+                null,
+                null
         );
 
         given(cartRepository.findBySessionId("session-1")).willReturn(Optional.of(cart));
@@ -343,7 +345,7 @@ class OrderServiceTest {
         existing.setStatus("PENDING_PAYMENT");
 
         CreateOrderRequest request = new CreateOrderRequest(
-                "session-1", "customer@example.com", "Ceren", "Yilmaz", "5551112233", null, addressRequest(), null);
+                "session-1", "customer@example.com", "Ceren", "Yilmaz", "5551112233", null, addressRequest(), null, null, null);
 
         given(cartRepository.findBySessionId("session-1")).willReturn(Optional.of(cart));
         given(orderRepository.findFirstByCartIdAndStatus(1L, "PENDING_PAYMENT")).willReturn(Optional.of(existing));
@@ -362,7 +364,7 @@ class OrderServiceTest {
         cart.getItems().add(buildCartItem(cart, variant, 1));
 
         CreateOrderRequest request = new CreateOrderRequest(
-                "session-1", "customer@example.com", "Ceren", "Yilmaz", "5551112233", null, addressRequest(), null);
+                "session-1", "customer@example.com", "Ceren", "Yilmaz", "5551112233", null, addressRequest(), null, null, null);
 
         given(cartRepository.findBySessionId("session-1")).willReturn(Optional.of(cart));
         doThrow(new InvalidRequestException("'Test' için yeterli stok yok."))
@@ -377,7 +379,7 @@ class OrderServiceTest {
     @Test
     void shouldRejectEmptyCart() {
         Cart cart = buildCart("ACTIVE");
-        CreateOrderRequest request = new CreateOrderRequest("session-1", "customer@example.com", null, null, null, null, addressRequest(), null);
+        CreateOrderRequest request = new CreateOrderRequest("session-1", "customer@example.com", null, null, null, null, addressRequest(), null, null, null);
         given(cartRepository.findBySessionId("session-1")).willReturn(Optional.of(cart));
 
         assertThatThrownBy(() -> orderService.createOrder(request, null))
@@ -391,7 +393,7 @@ class OrderServiceTest {
         ProductVariant variant = buildVariant(10L, 5, true, true, "TRY");
         cart.getItems().add(buildCartItem(cart, variant, 1));
 
-        CreateOrderRequest request = new CreateOrderRequest("session-1", "customer@example.com", null, null, null, null, addressRequest(), null);
+        CreateOrderRequest request = new CreateOrderRequest("session-1", "customer@example.com", null, null, null, null, addressRequest(), null, null, null);
         given(cartRepository.findBySessionId("session-1")).willReturn(Optional.of(cart));
 
         assertThatThrownBy(() -> orderService.createOrder(request, null))
@@ -405,7 +407,7 @@ class OrderServiceTest {
         cart.getItems().add(buildCartItem(cart, buildVariant(10L, 5, true, true, "TRY"), 1));
         cart.getItems().add(buildCartItem(cart, buildVariant(11L, 5, true, true, "USD"), 1));
 
-        CreateOrderRequest request = new CreateOrderRequest("session-1", "customer@example.com", null, null, null, null, addressRequest(), null);
+        CreateOrderRequest request = new CreateOrderRequest("session-1", "customer@example.com", null, null, null, null, addressRequest(), null, null, null);
         given(cartRepository.findBySessionId("session-1")).willReturn(Optional.of(cart));
 
         assertThatThrownBy(() -> orderService.createOrder(request, null))
@@ -423,6 +425,8 @@ class OrderServiceTest {
                 null,
                 null,
                 addressRequest(),
+                null,
+                null,
                 null
         );
         given(cartRepository.findBySessionId("missing-session")).willReturn(Optional.empty());
@@ -445,6 +449,8 @@ class OrderServiceTest {
                 null,
                 null,
                 addressRequest(),
+                null,
+                null,
                 null
         );
         given(cartRepository.findBySessionId("session-1")).willReturn(Optional.of(cart));
@@ -467,6 +473,8 @@ class OrderServiceTest {
                 null,
                 null,
                 addressRequest(),
+                null,
+                null,
                 null
         );
         given(cartRepository.findBySessionId("session-1")).willReturn(Optional.of(cart));
@@ -489,6 +497,8 @@ class OrderServiceTest {
                 null,
                 null,
                 addressRequest(),
+                null,
+                null,
                 null
         );
         given(cartRepository.findBySessionId("session-1")).willReturn(Optional.of(cart));
@@ -511,6 +521,8 @@ class OrderServiceTest {
                 null,
                 20L,
                 addressRequest(),
+                null,
+                null,
                 null
         );
         given(cartRepository.findBySessionId("session-1")).willReturn(Optional.of(cart));
@@ -528,6 +540,8 @@ class OrderServiceTest {
         CreateOrderRequest request = new CreateOrderRequest(
                 "session-1",
                 "customer@example.com",
+                null,
+                null,
                 null,
                 null,
                 null,
@@ -560,6 +574,8 @@ class OrderServiceTest {
                 "5551112233",
                 null,
                 addressRequest(),
+                null,
+                null,
                 null
         );
 
@@ -606,6 +622,8 @@ class OrderServiceTest {
                 null,
                 20L,
                 null,
+                null,
+                null,
                 null
         );
 
@@ -639,6 +657,8 @@ class OrderServiceTest {
                 null,
                 null,
                 20L,
+                null,
+                null,
                 null,
                 null
         );

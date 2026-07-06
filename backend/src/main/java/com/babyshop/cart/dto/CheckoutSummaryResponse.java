@@ -19,6 +19,7 @@ public record CheckoutSummaryResponse(
         BigDecimal freeShippingThreshold,
         BigDecimal remainingAmountForFreeShipping,
         boolean eligibleForFreeShipping,
+        BigDecimal minimumOrderAmount,
         boolean readyForCheckout,
         String checkoutBlockedReason,
         CustomerAddressResponse defaultShippingAddress

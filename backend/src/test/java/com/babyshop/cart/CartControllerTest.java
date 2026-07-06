@@ -221,6 +221,7 @@ class CartControllerTest {
                 new BigDecimal("1500.00"),
                 new BigDecimal("502.00"),
                 false,
+                BigDecimal.ZERO,
                 true,
                 null,
                 null
@@ -256,6 +257,7 @@ class CartControllerTest {
                 new BigDecimal("1500.00"),
                 new BigDecimal("502.00"),
                 false,
+                BigDecimal.ZERO,
                 true,
                 null,
                 new com.babyshop.customer.dto.CustomerAddressResponse(
@@ -292,6 +294,7 @@ class CartControllerTest {
                 new BigDecimal("1500.00"),
                 new BigDecimal("1500.00"),
                 false,
+                BigDecimal.ZERO,
                 false,
                 "CART_EMPTY",
                 null

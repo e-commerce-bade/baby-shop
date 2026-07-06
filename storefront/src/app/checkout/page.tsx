@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -9,6 +10,14 @@ import { useCartStore, cartSubtotal } from '@/store/cartStore'
 import CheckoutSteps from '@/components/checkout/CheckoutSteps'
 import CheckoutSection from '@/components/checkout/CheckoutSection'
 import CheckoutOrderSummary from '@/components/checkout/CheckoutOrderSummary'
+import {
+  fetchStoreSettings,
+  toNumber,
+  PAYMENT_METHOD_LABELS,
+  type PaymentMethod,
+  type StoreSettings,
+} from '@/lib/storeSettings'
+import { formatPrice } from '@/lib/utils'
 
 // ─── Schema (değiştirilmedi) ──────────────────────────────────────────────────
 
@@ -121,11 +130,17 @@ function Field({
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function CheckoutPage() {
+  const router = useRouter()
   const [mounted, setMounted]         = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [checkoutFormContent, setCheckoutFormContent] = useState<string | null>(null)
   // iyzico script'inin enjekte edilecegi React-yonetimli kapsayici (document.body yerine).
   const iyzicoContainerRef = useRef<HTMLDivElement>(null)
+
+  // Magaza ayarlari: odeme secenekleri, kapida odeme farki, kargo firmalari, IBAN.
+  const [storeSettings, setStoreSettings] = useState<StoreSettings | null>(null)
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('CARD')
+  const [carrier, setCarrier] = useState<string>('')
 
   const sessionId              = useCartStore((s) => s.sessionId)
   const hasHydrated            = useCartStore((s) => s.hasHydrated)
@@ -247,6 +262,26 @@ export default function CheckoutPage() {
     void refreshCheckoutSummary()
   }, [hasHydrated, mounted, refreshCheckoutSummary])
 
+  // Magaza ayarlarini yukle; odeme yontemi varsayilanini ilk acik secenege, kargo firmasini
+  // ilk anlasmali firmaya ayarla.
+  useEffect(() => {
+    let active = true
+    void fetchStoreSettings().then((settings) => {
+      if (!active || !settings) return
+      setStoreSettings(settings)
+      const firstMethod: PaymentMethod | null = settings.cardEnabled
+        ? 'CARD'
+        : settings.codEnabled
+          ? 'COD'
+          : settings.bankTransferEnabled
+            ? 'EFT'
+            : null
+      if (firstMethod) setPaymentMethod(firstMethod)
+      if (settings.shippingCarriers.length > 0) setCarrier(settings.shippingCarriers[0])
+    })
+    return () => { active = false }
+  }, [])
+
   // iyzico Ödeme Formu icerigini (script), document.body yerine React-yonetimli modal
   // kapsayicisina enjekte et: boylece kapanista React dugumleri kaldirir, body kirlenmez ve
   // form ust pencerede render olur (3DS / callback yonlendirmesi etkilenmez).
@@ -278,6 +313,14 @@ export default function CheckoutPage() {
 
   async function onSubmit(values: CheckoutFormValues) {
     setSubmitError(null)
+
+    // Kargo firmasi tanimliysa secim zorunlu.
+    const carriers = storeSettings?.shippingCarriers ?? []
+    if (carriers.length > 0 && !carrier) {
+      setSubmitError('Lütfen bir kargo firması seçin.')
+      return
+    }
+
     try {
       // Hesap olustur seciliyse once kayit ol: basarili kayit auth cookie'sini set eder,
       // boylece asagidaki siparis bu yeni hesaba baglanir.
@@ -320,6 +363,8 @@ export default function CheckoutPage() {
             country:    values.country,
           },
           notes: optionalValue(values.notes),
+          paymentMethod,
+          shippingCarrier: carrier || undefined,
         }),
       })
       const payload = await res.json().catch(() => null)
@@ -369,6 +414,15 @@ export default function CheckoutPage() {
           JSON.stringify({ orderNumber: order.orderNumber, email: values.customerEmail }),
         )
       } catch { /* sessionStorage erisilemezse ozet gosterilemez, kritik degil */ }
+
+      // Kapıda ödeme / havale: çevrimiçi ödeme adımı yok. Sipariş oluşturuldu ve backend sepeti
+      // tükettiyse; temiz sepet başlat ve onay ekranına yönlendir (EFT'de IBAN gösterilir).
+      if (paymentMethod !== 'CARD') {
+        startNewCart()
+        const params = new URLSearchParams({ orderNumber: order.orderNumber, method: paymentMethod })
+        router.push(`/payment/success?${params.toString()}`)
+        return
+      }
 
       // Sipariş oluşturuldu; iyzico güvenli ödeme sayfasını başlat.
       const origin = window.location.origin
@@ -456,6 +510,14 @@ export default function CheckoutPage() {
 
   // Adres alanlarini yalnizca misafirde, kayitli adres yoksa ya da "yeni adres" secildiginde goster.
   const showAddressFields = !isLoggedIn || savedAddresses.length === 0 || addressMode === 'new'
+
+  // Ödeme seçenekleri: ayarlar yüklenmediyse yalnızca kart varsayılan gösterilir.
+  const carriers = storeSettings?.shippingCarriers ?? []
+  const enabledMethods: PaymentMethod[] = []
+  if (!storeSettings || storeSettings.cardEnabled) enabledMethods.push('CARD')
+  if (storeSettings?.codEnabled) enabledMethods.push('COD')
+  if (storeSettings?.bankTransferEnabled) enabledMethods.push('EFT')
+  const codSurcharge = toNumber(storeSettings?.codSurcharge)
 
   return (
     <div className="min-h-screen bg-cream-3">
@@ -654,6 +716,103 @@ export default function CheckoutPage() {
               )}
             </CheckoutSection>
 
+            {/* 3. Kargo Firması */}
+            {carriers.length > 0 && (
+              <CheckoutSection
+                num={3}
+                title="Kargo Firması"
+                subtitle="Siparişinizin gönderileceği anlaşmalı kargo firmasını seçin."
+              >
+                <div className="flex flex-col gap-2.5">
+                  {carriers.map((name) => {
+                    const selected = carrier === name
+                    return (
+                      <button
+                        type="button"
+                        key={name}
+                        onClick={() => setCarrier(name)}
+                        className={`flex items-center gap-3 rounded-[12px] border p-3.5 text-left transition-colors ${
+                          selected ? 'border-rose bg-rose-tint/50' : 'border-line hover:border-rose-soft'
+                        }`}
+                      >
+                        <span
+                          className={`grid h-4 w-4 shrink-0 place-items-center rounded-full border ${
+                            selected ? 'border-rose' : 'border-line-2'
+                          }`}
+                        >
+                          {selected && <span className="h-2 w-2 rounded-full bg-rose" />}
+                        </span>
+                        <span className="text-[13.5px] font-semibold text-brown">{name}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </CheckoutSection>
+            )}
+
+            {/* 4. Ödeme Yöntemi */}
+            <CheckoutSection
+              num={carriers.length > 0 ? 4 : 3}
+              title="Ödeme Yöntemi"
+              subtitle="Nasıl ödemek istersiniz?"
+            >
+              <div className="flex flex-col gap-2.5">
+                {enabledMethods.map((method) => {
+                  const selected = paymentMethod === method
+                  return (
+                    <div key={method}>
+                      <button
+                        type="button"
+                        onClick={() => setPaymentMethod(method)}
+                        className={`flex w-full items-center gap-3 rounded-[12px] border p-3.5 text-left transition-colors ${
+                          selected ? 'border-rose bg-rose-tint/50' : 'border-line hover:border-rose-soft'
+                        }`}
+                      >
+                        <span
+                          className={`grid h-4 w-4 shrink-0 place-items-center rounded-full border ${
+                            selected ? 'border-rose' : 'border-line-2'
+                          }`}
+                        >
+                          {selected && <span className="h-2 w-2 rounded-full bg-rose" />}
+                        </span>
+                        <span className="flex-1 text-[13.5px] font-semibold text-brown">
+                          {PAYMENT_METHOD_LABELS[method]}
+                        </span>
+                        {method === 'COD' && codSurcharge > 0 && (
+                          <span className="shrink-0 rounded-full bg-cream-3 px-2 py-0.5 text-[11.5px] font-bold text-brown-2">
+                            +{formatPrice(codSurcharge, currency)}
+                          </span>
+                        )}
+                      </button>
+
+                      {/* EFT seçiliyse banka/IBAN bilgileri */}
+                      {selected && method === 'EFT' && (
+                        <div className="mt-2 rounded-[12px] border border-[#F0E2C8] bg-[#FFF8EC] p-3.5 text-[12.5px] leading-relaxed text-brown-2">
+                          <p className="mb-1.5 font-bold text-[#8A6D1F]">Havale / EFT Bilgileri</p>
+                          <p><span className="text-muted">Banka:</span> <span className="font-semibold">{storeSettings?.bankTransferBankName ?? '—'}</span></p>
+                          <p><span className="text-muted">Hesap Sahibi:</span> <span className="font-semibold">{storeSettings?.bankTransferAccountName ?? '—'}</span></p>
+                          <p className="break-all"><span className="text-muted">IBAN:</span> <span className="font-mono font-semibold">{storeSettings?.bankTransferIban ?? '—'}</span></p>
+                          <p className="mt-1.5 text-[11.5px] text-muted">
+                            Siparişinizi verdikten sonra ödemeyi bu hesaba yapın; açıklamaya sipariş numaranızı yazın. Ödeme onaylanınca siparişiniz hazırlanır.
+                          </p>
+                        </div>
+                      )}
+
+                      {/* COD seçiliyse bilgi */}
+                      {selected && method === 'COD' && (
+                        <div className="mt-2 rounded-[12px] border border-[#CDE9D9] bg-[#EDF7F1] p-3.5 text-[12.5px] leading-relaxed text-brown-2">
+                          Ödemeyi teslimat sırasında kuryeye nakit olarak yapabilirsiniz.
+                          {codSurcharge > 0 && (
+                            <> Kapıda ödeme için <span className="font-semibold">+{formatPrice(codSurcharge, currency)}</span> ek ücret uygulanır.</>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </CheckoutSection>
+
             {/* Sipariş notu */}
             <div className="rounded-[18px] border border-line bg-white p-5">
               <Field label="Sipariş Notu" error={errors.notes?.message}>
@@ -676,7 +835,11 @@ export default function CheckoutPage() {
 
           {/* SAĞ (mobilde en altta): sipariş özeti + Ödemeye Geç ─────────── */}
           <div>
-            <CheckoutOrderSummary isSubmitting={isSubmitting} />
+            <CheckoutOrderSummary
+              isSubmitting={isSubmitting}
+              paymentMethod={paymentMethod}
+              codSurcharge={codSurcharge}
+            />
           </div>
 
         </div>

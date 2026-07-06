@@ -64,7 +64,7 @@ class CustomerProfileServiceTest {
         given(orderService.getOrdersByUserEmail("customer@babyshop.local")).willReturn(List.of(
                 new OrderResponse(
                         1L, "ORD-ABC123DEF456", "PAID", "customer@babyshop.local", "Ceren", "Unlu", "5551112233",
-                        new BigDecimal("499.00"), BigDecimal.ZERO, BigDecimal.ZERO, new BigDecimal("499.00"), "TRY",
+                        new BigDecimal("499.00"), BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, new BigDecimal("499.00"), "TRY", "CARD", null,
                         OffsetDateTime.parse("2026-06-01T12:00:00+03:00"),
                         new OrderAddressResponse("Ataturk Cd. No:10", null, "Kadikoy", "Istanbul", "34710", "Turkey"),
                         null,
@@ -92,7 +92,7 @@ class CustomerProfileServiceTest {
         )).willReturn(new PageResponse<>(
                 List.of(new OrderResponse(
                         1L, "ORD-ABC123DEF456", "PAID", "customer@babyshop.local", "Ceren", "Unlu", "5551112233",
-                        new BigDecimal("499.00"), BigDecimal.ZERO, BigDecimal.ZERO, new BigDecimal("499.00"), "TRY",
+                        new BigDecimal("499.00"), BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, new BigDecimal("499.00"), "TRY", "CARD", null,
                         OffsetDateTime.parse("2026-06-01T12:00:00+03:00"),
                         new OrderAddressResponse("Ataturk Cd. No:10", null, "Kadikoy", "Istanbul", "34710", "Turkey"),
                         null,

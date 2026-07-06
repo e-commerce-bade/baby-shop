@@ -62,7 +62,9 @@ class OrderControllerTest {
                 "5551112233",
                 null,
                 addressRequest(),
-                "Please ring the bell"
+                "Please ring the bell",
+                null,
+                null
         );
 
         given(orderService.createOrder(any(CreateOrderRequest.class), any())).willReturn(sampleOrderResponse());
@@ -77,7 +79,7 @@ class OrderControllerTest {
 
     @Test
     void shouldReturnValidationErrorForInvalidRequest() throws Exception {
-        CreateOrderRequest request = new CreateOrderRequest("", "bad-email", null, null, null, null, null, null);
+        CreateOrderRequest request = new CreateOrderRequest("", "bad-email", null, null, null, null, null, null, null, null);
 
         mockMvc.perform(post("/api/v1/orders")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -96,6 +98,8 @@ class OrderControllerTest {
                 "5551112233",
                 null,
                 addressRequest(),
+                null,
+                null,
                 null
         );
 
@@ -131,8 +135,11 @@ class OrderControllerTest {
                 new BigDecimal("998.00"),
                 BigDecimal.ZERO,
                 BigDecimal.ZERO,
+                BigDecimal.ZERO,
                 new BigDecimal("998.00"),
                 "TRY",
+                "CARD",
+                null,
                 OffsetDateTime.parse("2026-06-01T12:00:00+03:00"),
                 new com.babyshop.order.dto.OrderAddressResponse(
                         "Ataturk Cd. No:10",

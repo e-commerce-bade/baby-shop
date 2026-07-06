@@ -2,8 +2,12 @@ package com.babyshop.notification;
 
 import com.babyshop.order.Order;
 import com.babyshop.order.OrderItem;
+import com.babyshop.order.PaymentMethodPolicy;
+import com.babyshop.settings.StoreSettingService;
+import com.babyshop.settings.dto.StoreSettingResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -18,6 +22,11 @@ public class OrderEmailService {
 
     private final MailProperties mailProperties;
     private final AsyncMailDispatcher dispatcher;
+
+    // Opsiyonel enjeksiyon: 2 argumanli manuel yapicilar (testler) bozulmasin diye.
+    // Havale (EFT) siparislerinde banka bilgilerini e-postaya eklemek icin kullanilir.
+    @Autowired(required = false)
+    private StoreSettingService storeSettingService;
 
     public void sendOrderConfirmation(Order order) {
         if (!mailProperties.enabled()) {
@@ -67,6 +76,11 @@ public class OrderEmailService {
                 order.getShippingCountry()
         );
 
+        String method = PaymentMethodPolicy.normalizeOrDefault(order.getPaymentMethod());
+        String intro = introFor(method);
+        String codRow = codSurchargeRow(order.getCodSurcharge(), currency);
+        String paymentInfoHtml = paymentInfoFor(method, order);
+
         String notes = order.getNotes();
         String notesHtml = (notes == null || notes.isBlank()) ? "" : """
                 <div style="margin-top:18px;">
@@ -84,7 +98,7 @@ public class OrderEmailService {
                     <div style="padding:24px 28px;">
                       <p style="color:#5B4839;font-size:15px;margin:0 0 8px;">%s</p>
                       <p style="color:#6B5747;font-size:14px;line-height:1.6;margin:0 0 18px;">
-                        Siparişiniz başarıyla alındı ve ödemeniz onaylandı. Detaylar aşağıda.
+                        %s
                       </p>
                       <div style="background:#FAF6F1;border-radius:12px;padding:14px 16px;margin-bottom:18px;">
                         <div style="font-size:12px;color:#9A8A78;">Sipariş Numarası</div>
@@ -94,8 +108,10 @@ public class OrderEmailService {
                       <table style="width:100%%;border-collapse:collapse;font-size:14px;margin-top:14px;">
                         <tr><td style="padding:3px 0;color:#6B5747;">Ara toplam</td><td style="padding:3px 0;text-align:right;color:#3D2B1F;">%s</td></tr>
                         <tr><td style="padding:3px 0;color:#6B5747;">Kargo</td><td style="padding:3px 0;text-align:right;color:#3D2B1F;">%s</td></tr>
+                        %s
                         <tr><td style="padding:8px 0 0;font-weight:700;color:#3D2B1F;border-top:1px solid #ECE3D6;">Toplam</td><td style="padding:8px 0 0;text-align:right;font-weight:700;color:#3D2B1F;border-top:1px solid #ECE3D6;">%s</td></tr>
                       </table>
+                      %s
                       <div style="margin-top:18px;">
                         <div style="font-size:12px;color:#9A8A78;margin-bottom:4px;">Teslimat Adresi</div>
                         <div style="font-size:13px;color:#6B5747;line-height:1.5;">%s</div>
@@ -113,16 +129,76 @@ public class OrderEmailService {
                 """.formatted(
                 escape(mailProperties.storeName()),
                 greeting,
+                intro,
                 escape(order.getOrderNumber()),
                 rows.toString(),
                 money(order.getSubtotalAmount(), currency),
                 shipping(order.getShippingAmount(), currency),
+                codRow,
                 money(order.getTotalAmount(), currency),
+                paymentInfoHtml,
                 address.isBlank() ? "—" : escape(address),
                 notesHtml,
                 trackUrl,
                 escape(mailProperties.storeName())
         );
+    }
+
+    private String introFor(String method) {
+        return switch (method) {
+            case PaymentMethodPolicy.COD ->
+                    "Siparişiniz başarıyla alındı. Ödemeyi teslimat sırasında kapıda nakit olarak yapabilirsiniz. Detaylar aşağıda.";
+            case PaymentMethodPolicy.EFT ->
+                    "Siparişiniz alındı. Havale/EFT ödemenizi aşağıdaki banka hesabına yaptığınızda siparişiniz hazırlanmaya başlanır. Açıklama kısmına sipariş numaranızı yazmayı unutmayın. Detaylar aşağıda.";
+            default ->
+                    "Siparişiniz başarıyla alındı ve ödemeniz onaylandı. Detaylar aşağıda.";
+        };
+    }
+
+    private String codSurchargeRow(BigDecimal codSurcharge, String currency) {
+        if (codSurcharge == null || codSurcharge.signum() <= 0) {
+            return "";
+        }
+        return """
+                <tr><td style="padding:3px 0;color:#6B5747;">Kapıda Ödeme Farkı</td><td style="padding:3px 0;text-align:right;color:#3D2B1F;">%s</td></tr>
+                """.formatted(money(codSurcharge, currency));
+    }
+
+    // EFT icin banka/IBAN bilgilerini; COD icin kapida odeme bilgisini gosterir.
+    private String paymentInfoFor(String method, Order order) {
+        if (PaymentMethodPolicy.EFT.equals(method)) {
+            StoreSettingResponse settings = storeSettingService == null ? null : storeSettingService.getSettings();
+            String bankName = settings == null ? null : settings.bankTransferBankName();
+            String accountName = settings == null ? null : settings.bankTransferAccountName();
+            String iban = settings == null ? null : settings.bankTransferIban();
+            return """
+                    <div style="margin-top:18px;background:#FFF8EC;border:1px solid #F0E2C8;border-radius:12px;padding:14px 16px;">
+                      <div style="font-size:13px;font-weight:700;color:#8A6D1F;margin-bottom:8px;">Havale / EFT Bilgileri</div>
+                      <div style="font-size:13px;color:#6B5747;line-height:1.7;">
+                        <div><span style="color:#9A8A78;">Banka:</span> <strong>%s</strong></div>
+                        <div><span style="color:#9A8A78;">Hesap Sahibi:</span> <strong>%s</strong></div>
+                        <div><span style="color:#9A8A78;">IBAN:</span> <strong style="font-family:monospace;">%s</strong></div>
+                        <div style="margin-top:6px;"><span style="color:#9A8A78;">Açıklama:</span> <strong>%s</strong></div>
+                      </div>
+                    </div>
+                    """.formatted(
+                    escape(bankName == null ? "—" : bankName),
+                    escape(accountName == null ? "—" : accountName),
+                    escape(iban == null ? "—" : iban),
+                    escape(order.getOrderNumber())
+            );
+        }
+        if (PaymentMethodPolicy.COD.equals(method)) {
+            return """
+                    <div style="margin-top:18px;background:#EDF7F1;border:1px solid #CDE9D9;border-radius:12px;padding:14px 16px;">
+                      <div style="font-size:13px;font-weight:700;color:#1A6640;margin-bottom:4px;">Kapıda Nakit Ödeme</div>
+                      <div style="font-size:13px;color:#6B5747;line-height:1.6;">
+                        Ödemeyi teslimat sırasında kuryeye nakit olarak yapabilirsiniz.
+                      </div>
+                    </div>
+                    """;
+        }
+        return "";
     }
 
     private String shipping(BigDecimal amount, String currency) {

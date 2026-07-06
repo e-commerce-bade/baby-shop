@@ -31,6 +31,7 @@ public class CartService {
 
     private static final String ACTIVE_STATUS = "ACTIVE";
     private static final String CART_EMPTY_REASON = "CART_EMPTY";
+    private static final String MIN_ORDER_NOT_MET_REASON = "MIN_ORDER_NOT_MET";
 
     private final CartRepository cartRepository;
     private final CartItemRepository cartItemRepository;
@@ -72,6 +73,15 @@ public class CartService {
         }
 
         cart.getItems().forEach(item -> validateVariantAvailability(item.getProductVariant(), item.getQuantity()));
+
+        // Minimum sepet tutari kontrolu: ara toplam esigin altindaysa odemeye gecis engellenir.
+        BigDecimal minimumOrderAmount = storeSettingService.getMinimumOrderAmount();
+        if (minimumOrderAmount != null
+                && minimumOrderAmount.signum() > 0
+                && cartResponse.subtotal().compareTo(minimumOrderAmount) < 0) {
+            return buildCheckoutSummary(cartResponse, defaultShippingAddress, false, MIN_ORDER_NOT_MET_REASON);
+        }
+
         return buildCheckoutSummary(cartResponse, defaultShippingAddress, true, null);
     }
 
@@ -400,6 +410,7 @@ public class CartService {
                 .subtract(cartResponse.subtotal())
                 .max(BigDecimal.ZERO);
         boolean eligibleForFreeShipping = remainingAmountForFreeShipping.compareTo(BigDecimal.ZERO) == 0;
+        BigDecimal minimumOrderAmount = storeSettingService.getMinimumOrderAmount();
 
         return new CheckoutSummaryResponse(
                 cartResponse.id(),
@@ -415,6 +426,7 @@ public class CartService {
                 freeShippingThreshold,
                 remainingAmountForFreeShipping,
                 eligibleForFreeShipping,
+                minimumOrderAmount,
                 readyForCheckout,
                 checkoutBlockedReason,
                 defaultShippingAddress

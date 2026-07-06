@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { useCartStore } from '@/store/cartStore'
 import { formatPrice } from '@/lib/utils'
+import { fetchStoreSettings, type StoreSettings } from '@/lib/storeSettings'
 
 interface SummaryItem {
   id: number
@@ -27,8 +28,20 @@ export default function PaymentSuccessContent() {
   const searchParams = useSearchParams()
   const startNewCart = useCartStore((state) => state.startNewCart)
   const orderNumber = searchParams.get('orderNumber')
+  // Ödeme yöntemi: COD (kapıda) / EFT (havale) / null (kart, iyzico).
+  const method = searchParams.get('method')
+  const isOffline = method === 'COD' || method === 'EFT'
   const [email, setEmail] = useState<string | null>(null)
   const [order, setOrder] = useState<OrderSummary | null>(null)
+  const [storeSettings, setStoreSettings] = useState<StoreSettings | null>(null)
+
+  // EFT/havale siparişinde IBAN bilgilerini göstermek için mağaza ayarlarını çek.
+  useEffect(() => {
+    if (method !== 'EFT') return
+    let active = true
+    void fetchStoreSettings().then((s) => { if (active) setStoreSettings(s) })
+    return () => { active = false }
+  }, [method])
 
   useEffect(() => {
     // iyzico Ödeme Formu callback'i, formun kendi iframe'i icinde bu sayfayi acabilir.
@@ -78,11 +91,30 @@ export default function PaymentSuccessContent() {
           </svg>
         </div>
         <h1 className="font-serif text-[26px] font-semibold text-brown">
-          Ödeme tamamlandı
+          {isOffline ? 'Siparişiniz alındı' : 'Ödeme tamamlandı'}
         </h1>
         <p className="mt-3 text-[14px] leading-relaxed text-muted">
-          Siparişiniz alındı. Ödeme onayı iyzico üzerinden başarıyla döndü.
+          {method === 'COD'
+            ? 'Siparişiniz alındı. Ödemeyi teslimat sırasında kapıda nakit olarak yapabilirsiniz.'
+            : method === 'EFT'
+              ? 'Siparişiniz alındı. Havale/EFT ödemenizi aşağıdaki hesaba yaptığınızda siparişiniz hazırlanmaya başlanır.'
+              : 'Siparişiniz alındı. Ödeme onayı iyzico üzerinden başarıyla döndü.'}
         </p>
+
+        {/* EFT/Havale bilgileri */}
+        {method === 'EFT' && (
+          <div className="mt-5 rounded-[14px] border border-[#F0E2C8] bg-[#FFF8EC] p-4 text-left text-[13px] leading-relaxed text-brown-2">
+            <p className="mb-2 font-bold text-[#8A6D1F]">Havale / EFT Bilgileri</p>
+            <p><span className="text-muted">Banka:</span> <span className="font-semibold">{storeSettings?.bankTransferBankName ?? '—'}</span></p>
+            <p><span className="text-muted">Hesap Sahibi:</span> <span className="font-semibold">{storeSettings?.bankTransferAccountName ?? '—'}</span></p>
+            <p className="break-all"><span className="text-muted">IBAN:</span> <span className="font-mono font-semibold">{storeSettings?.bankTransferIban ?? '—'}</span></p>
+            {orderNumber && (
+              <p className="mt-2 text-[12px] text-muted">
+                Açıklama kısmına sipariş numaranızı (<span className="font-mono font-semibold text-brown-2">{orderNumber}</span>) yazmayı unutmayın.
+              </p>
+            )}
+          </div>
+        )}
 
         {orderNumber ? (
           <p className="mt-5 rounded-[12px] bg-cream-2 px-4 py-3 text-[13px] font-semibold text-brown-2">

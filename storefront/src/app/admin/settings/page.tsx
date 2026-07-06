@@ -25,8 +25,45 @@ interface AdminUser {
 interface StoreSettings {
   freeShippingThreshold: number | string
   shippingFee: number | string
+  minimumOrderAmount: number | string
+  cardEnabled: boolean
+  codEnabled: boolean
+  codSurcharge: number | string
+  bankTransferEnabled: boolean
+  bankTransferIban: string | null
+  bankTransferAccountName: string | null
+  bankTransferBankName: string | null
+  shippingCarriers: string[]
   currency: string
   updatedAt: string | null
+}
+
+interface StoreForm {
+  freeShippingThreshold: string
+  shippingFee: string
+  minimumOrderAmount: string
+  cardEnabled: boolean
+  codEnabled: boolean
+  codSurcharge: string
+  bankTransferEnabled: boolean
+  bankTransferIban: string
+  bankTransferAccountName: string
+  bankTransferBankName: string
+  shippingCarriers: string
+}
+
+const emptyStoreForm: StoreForm = {
+  freeShippingThreshold: '',
+  shippingFee: '',
+  minimumOrderAmount: '',
+  cardEnabled: true,
+  codEnabled: true,
+  codSurcharge: '',
+  bankTransferEnabled: true,
+  bankTransferIban: '',
+  bankTransferAccountName: '',
+  bankTransferBankName: '',
+  shippingCarriers: '',
 }
 
 const emptyForm = { email: '', password: '', firstName: '', lastName: '', phoneNumber: '' }
@@ -55,21 +92,34 @@ export default function AdminSettingsPage() {
   const [createError, setCreateError] = useState<string | null>(null)
   const [createOk, setCreateOk] = useState(false)
 
-  const [shippingThreshold, setShippingThreshold] = useState('')
-  const [shippingFee, setShippingFee] = useState('')
+  const [storeForm, setStoreForm] = useState<StoreForm>(emptyStoreForm)
   const [shippingSaving, setShippingSaving] = useState(false)
   const [shippingError, setShippingError] = useState<string | null>(null)
   const [shippingOk, setShippingOk] = useState(false)
+
+  function applyStoreSettings(data: StoreSettings) {
+    setStoreForm({
+      freeShippingThreshold: String(data.freeShippingThreshold ?? ''),
+      shippingFee: String(data.shippingFee ?? ''),
+      minimumOrderAmount: String(data.minimumOrderAmount ?? ''),
+      cardEnabled: data.cardEnabled,
+      codEnabled: data.codEnabled,
+      codSurcharge: String(data.codSurcharge ?? ''),
+      bankTransferEnabled: data.bankTransferEnabled,
+      bankTransferIban: data.bankTransferIban ?? '',
+      bankTransferAccountName: data.bankTransferAccountName ?? '',
+      bankTransferBankName: data.bankTransferBankName ?? '',
+      shippingCarriers: (data.shippingCarriers ?? []).join('\n'),
+    })
+  }
 
   async function loadShippingSettings() {
     const res = await fetch('/api/admin/store-settings', {
       cache: 'no-store',
       headers: { Accept: 'application/json' },
     })
-    if (!res.ok) throw new Error(await readApiError(res, 'Kargo ayarları yüklenemedi.'))
-    const data = (await res.json()) as StoreSettings
-    setShippingThreshold(String(data.freeShippingThreshold))
-    setShippingFee(String(data.shippingFee))
+    if (!res.ok) throw new Error(await readApiError(res, 'Mağaza ayarları yüklenemedi.'))
+    applyStoreSettings((await res.json()) as StoreSettings)
   }
 
   async function saveShippingSettings(e: React.FormEvent) {
@@ -77,8 +127,10 @@ export default function AdminSettingsPage() {
     setShippingError(null)
     setShippingOk(false)
 
-    const threshold = Number(shippingThreshold.replace(',', '.'))
-    const fee = Number(shippingFee.replace(',', '.'))
+    const threshold = Number(storeForm.freeShippingThreshold.replace(',', '.'))
+    const fee = Number(storeForm.shippingFee.replace(',', '.'))
+    const minOrder = Number(storeForm.minimumOrderAmount.replace(',', '.'))
+    const cod = Number((storeForm.codSurcharge || '0').replace(',', '.'))
     if (!Number.isFinite(threshold) || threshold < 0) {
       setShippingError('Ücretsiz kargo eşiği sıfır veya daha büyük bir sayı olmalı.')
       return
@@ -87,24 +139,46 @@ export default function AdminSettingsPage() {
       setShippingError('Kargo ücreti sıfır veya daha büyük bir sayı olmalı.')
       return
     }
+    if (!Number.isFinite(minOrder) || minOrder < 0) {
+      setShippingError('Minimum sepet tutarı sıfır veya daha büyük bir sayı olmalı.')
+      return
+    }
+    if (!Number.isFinite(cod) || cod < 0) {
+      setShippingError('Kapıda ödeme farkı sıfır veya daha büyük bir sayı olmalı.')
+      return
+    }
 
     setShippingSaving(true)
     try {
       const res = await fetch('/api/admin/store-settings', {
         method: 'PUT',
         headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
-        body: JSON.stringify({ freeShippingThreshold: threshold, shippingFee: fee }),
+        body: JSON.stringify({
+          freeShippingThreshold: threshold,
+          shippingFee: fee,
+          minimumOrderAmount: minOrder,
+          cardEnabled: storeForm.cardEnabled,
+          codEnabled: storeForm.codEnabled,
+          codSurcharge: cod,
+          bankTransferEnabled: storeForm.bankTransferEnabled,
+          bankTransferIban: storeForm.bankTransferIban.trim() || null,
+          bankTransferAccountName: storeForm.bankTransferAccountName.trim() || null,
+          bankTransferBankName: storeForm.bankTransferBankName.trim() || null,
+          shippingCarriers: storeForm.shippingCarriers,
+        }),
       })
-      if (!res.ok) throw new Error(await readApiError(res, 'Kargo ayarları kaydedilemedi.'))
-      const data = (await res.json()) as StoreSettings
-      setShippingThreshold(String(data.freeShippingThreshold))
-      setShippingFee(String(data.shippingFee))
+      if (!res.ok) throw new Error(await readApiError(res, 'Mağaza ayarları kaydedilemedi.'))
+      applyStoreSettings((await res.json()) as StoreSettings)
       setShippingOk(true)
     } catch (err) {
-      setShippingError(err instanceof Error ? err.message : 'Kargo ayarları kaydedilirken hata oluştu.')
+      setShippingError(err instanceof Error ? err.message : 'Mağaza ayarları kaydedilirken hata oluştu.')
     } finally {
       setShippingSaving(false)
     }
+  }
+
+  function updateStoreForm<K extends keyof StoreForm>(key: K, value: StoreForm[K]) {
+    setStoreForm((f) => ({ ...f, [key]: value }))
   }
 
   async function loadUsers() {
@@ -250,38 +324,136 @@ export default function AdminSettingsPage() {
         <div className="mb-4 rounded-[10px] bg-[#FEEAEA] px-4 py-3 text-[13px] text-[#8A1A1A]">{error}</div>
       ) : null}
 
-      {/* Kargo ayarları */}
+      {/* Mağaza / Ödeme ayarları */}
       <div className="mb-4 rounded-[16px] border border-[#ECE3D6] bg-white p-5">
-        <h2 className="text-[15px] font-bold text-[#3D2B1F]">Kargo Ayarları</h2>
+        <h2 className="text-[15px] font-bold text-[#3D2B1F]">Mağaza & Ödeme Ayarları</h2>
         <p className="mt-0.5 mb-4 text-[12px] text-[#B5A090]">
-          Ücretsiz kargo eşiği ve eşik altı sabit kargo ücreti. Sepet ve siparişlerde bu değerler kullanılır.
+          Kargo, minimum sepet tutarı ve ödeme seçenekleri. Sepet ve siparişlerde bu değerler kullanılır.
         </p>
 
-        <form onSubmit={(e) => void saveShippingSettings(e)} className="flex flex-wrap items-end gap-4">
-          <label className="block">
-            <span className="mb-1.5 block text-[12px] font-bold text-[#5B4839]">Ücretsiz Kargo Eşiği (₺)</span>
-            <input
-              type="number"
-              min={0}
-              step="0.01"
-              required
-              value={shippingThreshold}
-              onChange={(e) => setShippingThreshold(e.target.value)}
-              className={`${inputCls} w-44`}
-            />
-          </label>
-          <label className="block">
-            <span className="mb-1.5 block text-[12px] font-bold text-[#5B4839]">Kargo Ücreti (₺)</span>
-            <input
-              type="number"
-              min={0}
-              step="0.01"
-              required
-              value={shippingFee}
-              onChange={(e) => setShippingFee(e.target.value)}
-              className={`${inputCls} w-44`}
-            />
-          </label>
+        <form onSubmit={(e) => void saveShippingSettings(e)} className="space-y-5">
+          {/* Kargo + minimum tutar */}
+          <div className="flex flex-wrap items-end gap-4">
+            <label className="block">
+              <span className="mb-1.5 block text-[12px] font-bold text-[#5B4839]">Ücretsiz Kargo Eşiği (₺)</span>
+              <input
+                type="number" min={0} step="0.01" required
+                value={storeForm.freeShippingThreshold}
+                onChange={(e) => updateStoreForm('freeShippingThreshold', e.target.value)}
+                className={`${inputCls} w-40`}
+              />
+            </label>
+            <label className="block">
+              <span className="mb-1.5 block text-[12px] font-bold text-[#5B4839]">Kargo Ücreti (₺)</span>
+              <input
+                type="number" min={0} step="0.01" required
+                value={storeForm.shippingFee}
+                onChange={(e) => updateStoreForm('shippingFee', e.target.value)}
+                className={`${inputCls} w-40`}
+              />
+            </label>
+            <label className="block">
+              <span className="mb-1.5 block text-[12px] font-bold text-[#5B4839]">Minimum Sepet Tutarı (₺)</span>
+              <input
+                type="number" min={0} step="0.01" required
+                value={storeForm.minimumOrderAmount}
+                onChange={(e) => updateStoreForm('minimumOrderAmount', e.target.value)}
+                className={`${inputCls} w-40`}
+              />
+            </label>
+          </div>
+          <p className="text-[11.5px] text-[#B5A090]">
+            Minimum sepet tutarının altındaki siparişler engellenir. 0 girilirse limit uygulanmaz.
+          </p>
+
+          {/* Ödeme yöntemleri */}
+          <div className="border-t border-[#F4EEE6] pt-4">
+            <h3 className="mb-2.5 text-[13px] font-bold text-[#3D2B1F]">Ödeme Yöntemleri</h3>
+            <div className="space-y-2.5">
+              <label className="flex items-center gap-2.5 text-[13px] text-[#5B4839]">
+                <input
+                  type="checkbox"
+                  checked={storeForm.cardEnabled}
+                  onChange={(e) => updateStoreForm('cardEnabled', e.target.checked)}
+                  className="h-4 w-4 rounded border-[#ECE3D6] accent-[#C07B5A]"
+                />
+                Kredi / Banka Kartı (iyzico)
+              </label>
+              <label className="flex flex-wrap items-center gap-2.5 text-[13px] text-[#5B4839]">
+                <input
+                  type="checkbox"
+                  checked={storeForm.codEnabled}
+                  onChange={(e) => updateStoreForm('codEnabled', e.target.checked)}
+                  className="h-4 w-4 rounded border-[#ECE3D6] accent-[#C07B5A]"
+                />
+                Kapıda Nakit Ödeme — ek ücret (₺):
+                <input
+                  type="number" min={0} step="0.01"
+                  value={storeForm.codSurcharge}
+                  onChange={(e) => updateStoreForm('codSurcharge', e.target.value)}
+                  className={`${inputCls} w-24`}
+                />
+              </label>
+              <label className="flex items-center gap-2.5 text-[13px] text-[#5B4839]">
+                <input
+                  type="checkbox"
+                  checked={storeForm.bankTransferEnabled}
+                  onChange={(e) => updateStoreForm('bankTransferEnabled', e.target.checked)}
+                  className="h-4 w-4 rounded border-[#ECE3D6] accent-[#C07B5A]"
+                />
+                EFT / Havale
+              </label>
+            </div>
+
+            {/* Banka bilgileri */}
+            <div className="mt-3 grid grid-cols-3 gap-3 max-[720px]:grid-cols-1">
+              <label className="block">
+                <span className="mb-1.5 block text-[12px] font-bold text-[#5B4839]">Banka Adı</span>
+                <input
+                  value={storeForm.bankTransferBankName}
+                  onChange={(e) => updateStoreForm('bankTransferBankName', e.target.value)}
+                  placeholder="Akbank"
+                  className={inputCls}
+                />
+              </label>
+              <label className="block">
+                <span className="mb-1.5 block text-[12px] font-bold text-[#5B4839]">Hesap Sahibi</span>
+                <input
+                  value={storeForm.bankTransferAccountName}
+                  onChange={(e) => updateStoreForm('bankTransferAccountName', e.target.value)}
+                  placeholder="Ad Soyad"
+                  className={inputCls}
+                />
+              </label>
+              <label className="block">
+                <span className="mb-1.5 block text-[12px] font-bold text-[#5B4839]">IBAN</span>
+                <input
+                  value={storeForm.bankTransferIban}
+                  onChange={(e) => updateStoreForm('bankTransferIban', e.target.value)}
+                  placeholder="TR.. .. .. .."
+                  className={inputCls}
+                />
+              </label>
+            </div>
+          </div>
+
+          {/* Kargo firmaları */}
+          <div className="border-t border-[#F4EEE6] pt-4">
+            <label className="block">
+              <span className="mb-1.5 block text-[13px] font-bold text-[#3D2B1F]">Anlaşmalı Kargo Firmaları</span>
+              <span className="mb-2 block text-[11.5px] text-[#B5A090]">
+                Her satıra bir firma yazın. Müşteri ödeme adımında bunlardan birini seçer.
+              </span>
+              <textarea
+                rows={3}
+                value={storeForm.shippingCarriers}
+                onChange={(e) => updateStoreForm('shippingCarriers', e.target.value)}
+                placeholder={'PTT Kargo\nYurtiçi Kargo'}
+                className={inputCls}
+              />
+            </label>
+          </div>
+
           <button
             type="submit"
             disabled={shippingSaving}
@@ -291,15 +463,11 @@ export default function AdminSettingsPage() {
           </button>
         </form>
 
-        <p className="mt-2.5 text-[11.5px] text-[#B5A090]">
-          Eşik ve üzeri siparişlerde kargo ücretsizdir; altında {shippingFee ? `₺${shippingFee}` : 'sabit ücret'} uygulanır.
-        </p>
-
         {shippingError ? (
           <p className="mt-3 rounded-[8px] bg-[#FEEAEA] px-3 py-2 text-[12px] text-[#8A1A1A]">{shippingError}</p>
         ) : null}
         {shippingOk ? (
-          <p className="mt-3 rounded-[8px] bg-[#EDF7F1] px-3 py-2 text-[12px] text-[#1A6640]">Kargo ayarları güncellendi.</p>
+          <p className="mt-3 rounded-[8px] bg-[#EDF7F1] px-3 py-2 text-[12px] text-[#1A6640]">Mağaza ayarları güncellendi.</p>
         ) : null}
       </div>
 

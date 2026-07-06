@@ -18,6 +18,7 @@ import com.babyshop.order.dto.OrderItemResponse;
 import com.babyshop.order.dto.OrderPaymentSummaryResponse;
 import com.babyshop.order.dto.OrderResponse;
 import com.babyshop.order.dto.OrderStatusUpdateRequest;
+import com.babyshop.notification.OrderEmailService;
 import com.babyshop.payment.Payment;
 import com.babyshop.payment.PaymentRepository;
 import com.babyshop.product.ProductImage;
@@ -25,6 +26,8 @@ import com.babyshop.product.ProductImageRepository;
 import com.babyshop.product.ProductVariant;
 import com.babyshop.settings.StoreSettingService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -48,9 +51,11 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
+@Slf4j
 public class OrderService {
 
     private static final String CART_STATUS_ACTIVE = "ACTIVE";
+    private static final String CART_STATUS_CHECKED_OUT = "CHECKED_OUT";
 
     private final CartRepository cartRepository;
     private final OrderRepository orderRepository;
@@ -60,6 +65,11 @@ public class OrderService {
     private final StoreSettingService storeSettingService;
     private final ProductImageRepository productImageRepository;
     private final StockReservationService stockReservationService;
+
+    // Opsiyonel enjeksiyon: @RequiredArgsConstructor'a girmez, boylece testlerdeki manuel
+    // `new OrderService(...)` cagrilari degismeden derlenir; runtime'da Spring enjekte eder.
+    @Autowired(required = false)
+    private OrderEmailService orderEmailService;
 
     public List<OrderResponse> getAllOrders() {
         return orderRepository.findAllByOrderByCreatedAtDesc().stream()
@@ -140,8 +150,11 @@ public class OrderService {
                 order.getSubtotalAmount(),
                 order.getShippingAmount(),
                 order.getDiscountAmount(),
+                order.getCodSurcharge(),
                 order.getTotalAmount(),
                 order.getCurrency(),
+                order.getPaymentMethod(),
+                order.getShippingCarrier(),
                 order.getCreatedAt(),
                 new OrderAddressResponse(
                         order.getShippingAddressLine1(),
@@ -244,6 +257,8 @@ public class OrderService {
         validateCartForCheckout(cart);
         String normalizedAuthenticatedEmail = normalizeOptionalEmail(authenticatedEmail);
         ShippingDetails shippingDetails = resolveShippingDetails(request, normalizedAuthenticatedEmail);
+        String paymentMethod = resolvePaymentMethod(request.paymentMethod());
+        String shippingCarrier = resolveShippingCarrier(request.shippingCarrier());
 
         List<CartItem> cartItems = cart.getItems();
         String currency = validateCartCurrencies(cartItems);
@@ -280,6 +295,8 @@ public class OrderService {
         order.setNotes(normalize(request.notes()));
         order.setCurrency(currency);
         order.setDiscountAmount(discountAmount);
+        order.setPaymentMethod(paymentMethod);
+        order.setShippingCarrier(shippingCarrier);
 
         for (CartItem cartItem : cartItems) {
             ProductVariant variant = cartItem.getProductVariant();
@@ -302,18 +319,118 @@ public class OrderService {
             order.getItems().add(orderItem);
         }
 
+        // Minimum sepet tutari kontrolu (sunucu tarafi guvenlik agi; frontend de engeller).
+        enforceMinimumOrderAmount(subtotalAmount);
+
+        // Kapida odemede toplama ek ucret eklenir; diger yontemlerde 0.
+        BigDecimal codSurcharge = PaymentMethodPolicy.COD.equals(paymentMethod)
+                ? storeSettingService.getCodSurcharge()
+                : BigDecimal.ZERO;
+
         // Kargo ücreti ara toplam belli olduktan sonra hesaplanır (eşik üstü ücretsiz).
         BigDecimal shippingAmount = storeSettingService.calculateShipping(subtotalAmount);
         order.setShippingAmount(shippingAmount);
         order.setSubtotalAmount(subtotalAmount);
-        order.setTotalAmount(subtotalAmount.add(shippingAmount).subtract(discountAmount));
+        order.setCodSurcharge(codSurcharge);
+        order.setTotalAmount(subtotalAmount.add(shippingAmount).add(codSurcharge).subtract(discountAmount));
 
         // Stogu checkout aninda atomik olarak rezerve et (oversell'i onler). Yetersiz stokta istisna
         // firlatir ve @Transactional oldugundan tum islem (rezervasyon dahil) geri alinir.
         stockReservationService.reserve(order);
 
-        // Sepet tuketimi (CHECKED_OUT) odeme basariyla tamamlaninca PaymentService'te yapilir.
-        return toResponse(orderRepository.save(order));
+        Order saved = orderRepository.save(order);
+
+        // CARD (iyzico): sepet tuketimi ve onay e-postasi odeme basariyla tamamlaninca PaymentService'te
+        // yapilir. COD/EFT: cevrimici odeme adimi yok; siparis burada kesinlestirilir (sepet tuketilir,
+        // onay e-postasi gonderilir). Siparis PENDING_PAYMENT'ta bekler; admin odemeyi/havaleyi
+        // onaylayinca PAID'e gecirir.
+        if (PaymentMethodPolicy.isOffline(paymentMethod)) {
+            finalizeOfflineOrder(saved);
+        }
+
+        return toResponse(saved);
+    }
+
+    // Kapida odeme / havale siparisini kesinlestirir: kaynak sepeti tuketir ve onay e-postasi gonderir.
+    private void finalizeOfflineOrder(Order order) {
+        consumeSourceCart(order);
+        sendOrderConfirmationQuietly(order);
+    }
+
+    // Siparisi olusturan sepeti CHECKED_OUT yapar; boylece ayni sepetten tekrar siparis olusturulamaz
+    // ve musterinin sepeti bosalir. (PaymentService'teki es mantigin cevrimdisi karsiligi.)
+    private void consumeSourceCart(Order order) {
+        if (order.getCartId() == null) {
+            return;
+        }
+        cartRepository.findById(order.getCartId()).ifPresent(cart -> {
+            if (!CART_STATUS_CHECKED_OUT.equalsIgnoreCase(cart.getStatus())) {
+                cart.setStatus(CART_STATUS_CHECKED_OUT);
+                cart.setSessionId(null);
+                cartRepository.save(cart);
+            }
+        });
+    }
+
+    // Onay e-postasi best-effort; orderEmailService testlerde null olabilir, hata yutulur.
+    private void sendOrderConfirmationQuietly(Order order) {
+        if (orderEmailService == null) {
+            return;
+        }
+        try {
+            orderEmailService.sendOrderConfirmation(order);
+        } catch (Exception e) {
+            log.warn("Siparis onay e-postasi gonderilemedi (siparis {}): {}",
+                    order.getOrderNumber(), e.getMessage());
+        }
+    }
+
+    private void enforceMinimumOrderAmount(BigDecimal subtotalAmount) {
+        BigDecimal minimumOrderAmount = storeSettingService.getMinimumOrderAmount();
+        if (minimumOrderAmount != null
+                && minimumOrderAmount.signum() > 0
+                && subtotalAmount.compareTo(minimumOrderAmount) < 0) {
+            throw new InvalidRequestException(
+                    "Minimum sepet tutarı " + minimumOrderAmount.stripTrailingZeros().toPlainString()
+                            + " ₺. Lütfen sepetinize ürün ekleyin."
+            );
+        }
+    }
+
+    private String resolvePaymentMethod(String requestedMethod) {
+        String method = PaymentMethodPolicy.normalizeOrDefault(requestedMethod);
+        // Yalnizca musteri acikca bir yontem sectiyse "acik mi" kontrolu yapilir; boylece yontem
+        // belirtmeyen eski istekler CARD varsayilaniyla calismaya devam eder.
+        if (requestedMethod == null || requestedMethod.isBlank()) {
+            return method;
+        }
+        boolean enabled = switch (method) {
+            case PaymentMethodPolicy.CARD -> storeSettingService.isCardEnabled();
+            case PaymentMethodPolicy.COD -> storeSettingService.isCodEnabled();
+            case PaymentMethodPolicy.EFT -> storeSettingService.isBankTransferEnabled();
+            default -> false;
+        };
+        if (!enabled) {
+            throw new InvalidRequestException("Seçilen ödeme yöntemi şu anda kullanılamıyor.");
+        }
+        return method;
+    }
+
+    private String resolveShippingCarrier(String requestedCarrier) {
+        List<String> carriers = storeSettingService.getShippingCarriers();
+        String carrier = normalize(requestedCarrier);
+
+        // Kargo firmasi tanimli degilse secim zorunlu tutulmaz (geriye donuk uyumluluk).
+        if (carriers.isEmpty()) {
+            return carrier;
+        }
+        if (carrier == null) {
+            throw new InvalidRequestException("Lütfen bir kargo firması seçin.");
+        }
+        return carriers.stream()
+                .filter(candidate -> candidate.equalsIgnoreCase(carrier))
+                .findFirst()
+                .orElseThrow(() -> new InvalidRequestException("Geçersiz kargo firması seçimi: " + requestedCarrier));
     }
 
     private java.util.Optional<UserAccount> resolveAuthenticatedUser(String authenticatedEmail) {
@@ -535,8 +652,11 @@ public class OrderService {
                 order.getSubtotalAmount(),
                 order.getShippingAmount(),
                 order.getDiscountAmount(),
+                order.getCodSurcharge(),
                 order.getTotalAmount(),
                 order.getCurrency(),
+                order.getPaymentMethod(),
+                order.getShippingCarrier(),
                 order.getCreatedAt(),
                 new OrderAddressResponse(
                         order.getShippingAddressLine1(),

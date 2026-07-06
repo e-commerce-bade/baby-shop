@@ -70,6 +70,18 @@ public class Order {
     @Column(name = "total_amount", nullable = false, precision = 12, scale = 2)
     private BigDecimal totalAmount;
 
+    // Odeme yontemi: CARD (iyzico), COD (kapida nakit) veya EFT (havale).
+    @Column(name = "payment_method", nullable = false, length = 20)
+    private String paymentMethod;
+
+    // Kapida odeme ek ucreti (yalnizca COD'da > 0). Toplama dahildir.
+    @Column(name = "cod_surcharge", nullable = false, precision = 12, scale = 2)
+    private BigDecimal codSurcharge = BigDecimal.ZERO;
+
+    // Musterinin sectigi anlasmali kargo firmasi.
+    @Column(name = "shipping_carrier", length = 80)
+    private String shippingCarrier;
+
     @Column(nullable = false, length = 3)
     private String currency;
 
