@@ -176,7 +176,7 @@ class AuthServiceTest {
     private SecurityProperties securityProperties() {
         return new SecurityProperties(
                 new SecurityProperties.Admin("admin@babyshop.local", "change-me", "ADMIN", true),
-                new SecurityProperties.Jwt("test-jwt-secret-key-with-32-bytes!!", 120, "test-suite")
+                new SecurityProperties.Jwt("test-jwt-secret-key-with-32-bytes!!", 120, 720, "test-suite")
         );
     }
 }

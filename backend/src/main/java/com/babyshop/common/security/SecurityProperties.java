@@ -18,6 +18,7 @@ public record SecurityProperties(
     public record Jwt(
             String secret,
             long accessTokenTtlMinutes,
+            long adminAccessTokenTtlMinutes,
             String issuer
     ) {
     }

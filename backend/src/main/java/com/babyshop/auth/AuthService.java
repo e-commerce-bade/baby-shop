@@ -30,6 +30,7 @@ import java.util.Locale;
 public class AuthService {
 
     private static final String CUSTOMER_ROLE = "CUSTOMER";
+    private static final String ADMIN_ROLE = "ADMIN";
 
     // Kullanici yoksa zamanlama esitlemesi icin tek seferlik hesaplanan sabit hash.
     private volatile String dummyPasswordHash;
@@ -131,7 +132,8 @@ public class AuthService {
         }
 
         Instant issuedAt = Instant.now();
-        Instant expiresAt = issuedAt.plus(securityProperties.jwt().accessTokenTtlMinutes(), ChronoUnit.MINUTES);
+        long ttlMinutes = resolveTokenTtlMinutes(roles);
+        Instant expiresAt = issuedAt.plus(ttlMinutes, ChronoUnit.MINUTES);
 
         JwtClaimsSet claimsSet = JwtClaimsSet.builder()
                 .issuer(securityProperties.jwt().issuer())
@@ -151,11 +153,22 @@ public class AuthService {
         return new AuthTokenResponse(
                 accessToken,
                 "Bearer",
-                securityProperties.jwt().accessTokenTtlMinutes() * 60,
+                ttlMinutes * 60,
                 expiresAt,
                 user.getEmail(),
                 roles.stream().min(Comparator.naturalOrder()).orElse(CUSTOMER_ROLE)
         );
+    }
+
+    // Admin oturumu daha uzun tutulur; musteri token'i kisa kalir. Admin TTL yapilandirilmamissa
+    // (0 veya negatif) standart TTL'e duser.
+    private long resolveTokenTtlMinutes(List<String> roles) {
+        long standardTtl = securityProperties.jwt().accessTokenTtlMinutes();
+        if (!roles.contains(ADMIN_ROLE)) {
+            return standardTtl;
+        }
+        long adminTtl = securityProperties.jwt().adminAccessTokenTtlMinutes();
+        return adminTtl > 0 ? adminTtl : standardTtl;
     }
 
     private List<String> extractNormalizedRoles(UserAccount user) {

@@ -91,4 +91,6 @@ app:
     jwt:
       secret: ${JWT_SECRET:}
       access-token-ttl-minutes: ${JWT_ACCESS_TOKEN_TTL_MINUTES:120}
+      # Admin oturumu daha uzun tutulur (musteri token'i kisa kalir). Varsayilan 12 saat.
+      admin-access-token-ttl-minutes: ${JWT_ADMIN_ACCESS_TOKEN_TTL_MINUTES:720}
       issuer: ${JWT_ISSUER:baby-shop-backend}
