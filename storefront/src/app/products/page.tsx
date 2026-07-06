@@ -6,7 +6,7 @@ import FilterSidebarSkeleton from '@/components/product/filter/FilterSidebarSkel
 import ProductGrid from '@/components/product/ProductGrid'
 import Pagination from '@/components/product/Pagination'
 import BackButton from '@/components/common/BackButton'
-import { fetchProductsPage } from '@/lib/api/catalog'
+import { fetchProductsPage, fetchCategories } from '@/lib/api/catalog'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -33,6 +33,11 @@ export default async function ProductsPage({
   const params = await searchParams
   const categorySlug = params.categorySlug ?? params.category
   const pageIndex = Math.max(0, (parseInt(params.page ?? '1', 10) || 1) - 1)
+
+  // Kategori seçiliyse başlıkta ve breadcrumb'da kategori adını göster.
+  const categoryName = categorySlug
+    ? (await fetchCategories()).find((category) => category.slug === categorySlug)?.name ?? null
+    : null
 
   // Filtre + siralama + sayfalama sunucuda yapilir (bkz. /api/v1/products/search).
   const result = await fetchProductsPage({
@@ -74,14 +79,24 @@ export default async function ProductsPage({
             Ana Sayfa
           </Link>
           <span className="text-muted-2">›</span>
-          <span className="text-brown">Ürünler</span>
+          {categoryName ? (
+            <>
+              <Link href="/products" className="text-brown-2 transition-colors hover:text-rose-dk">
+                Ürünler
+              </Link>
+              <span className="text-muted-2">›</span>
+              <span className="text-brown">{categoryName}</span>
+            </>
+          ) : (
+            <span className="text-brown">Ürünler</span>
+          )}
         </nav>
       </div>
 
       <div className="mb-5 flex items-end justify-between">
         <div>
           <h1 className="font-serif text-[28px] font-semibold text-brown">
-            {params.q ? `"${params.q}" için sonuçlar` : 'Tüm Ürünler'}
+            {params.q ? `"${params.q}" için sonuçlar` : categoryName ?? 'Tüm Ürünler'}
           </h1>
           <p className="mt-1 text-sm text-muted">
             {result.totalElements} ürün
