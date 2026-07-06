@@ -381,6 +381,7 @@ function WorkingAddProductDrawer({
   const [active, setActive] = useState(true)
   const [currency, setCurrency] = useState('TRY')
   const [selectedSizes, setSelectedSizes] = useState<string[]>([])
+  const [sizeInput, setSizeInput] = useState('')
   const [colors, setColors] = useState<string[]>([])
   const [colorInput, setColorInput] = useState('')
   const [basePrice, setBasePrice] = useState('')
@@ -411,6 +412,19 @@ function WorkingAddProductDrawer({
         ? prev.filter((item) => item !== sizeLabel)
         : [...prev, sizeLabel]
     ))
+    setVariants([])
+  }
+
+  // Hazir listede olmayan ozel beden/yas ekler (orn. "2-3 Yas"). Renklerdeki mantikla ayni.
+  function addCustomSize() {
+    const size = sizeInput.trim()
+    if (!size) return
+    setSelectedSizes((prev) => (
+      prev.some((item) => item.toLocaleLowerCase('tr-TR') === size.toLocaleLowerCase('tr-TR'))
+        ? prev
+        : [...prev, size]
+    ))
+    setSizeInput('')
     setVariants([])
   }
 
@@ -850,6 +864,54 @@ function WorkingAddProductDrawer({
                       </button>
                     )
                   })}
+                </div>
+
+                {/* Ozel beden/yas ekleme (orn. "2-3 Yas"). Hazir listede olmayanlar buradan eklenir. */}
+                <div className="mt-3">
+                  <p className="mb-1.5 text-[11.5px] text-[#B5A090]">
+                    Listede yoksa ozel yas/beden ekleyin (orn. 2-3 Yas)
+                  </p>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="2-3 Yas"
+                      value={sizeInput}
+                      onChange={(e) => setSizeInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault()
+                          addCustomSize()
+                        }
+                      }}
+                      className="min-w-0 flex-1 rounded-[10px] border border-[#ECE3D6] bg-white px-3.5 py-2.5 text-[13px] text-[#3D2B1F] placeholder:text-[#C4B5A5] focus:border-[#A89070] focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={addCustomSize}
+                      className="rounded-[10px] border border-[#ECE3D6] bg-white px-3.5 py-2.5 text-[12px] font-bold text-[#C07B5A] hover:bg-[#FFFDFC]"
+                    >
+                      Ekle
+                    </button>
+                  </div>
+
+                  {/* Hazir listede olmayan secili ozel bedenler (kaldirilabilir chip) */}
+                  {selectedSizes.filter((size) => !sizePreset.sizes.includes(size)).length > 0 ? (
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {selectedSizes
+                        .filter((size) => !sizePreset.sizes.includes(size))
+                        .map((size) => (
+                          <button
+                            key={size}
+                            type="button"
+                            onClick={() => toggleSize(size)}
+                            className="inline-flex items-center gap-1.5 rounded-full bg-[#C07B5A] px-3 py-1.5 text-[12px] font-bold text-white hover:bg-[#A9694C]"
+                          >
+                            {size}
+                            <span className="text-[13px] leading-none">×</span>
+                          </button>
+                        ))}
+                    </div>
+                  ) : null}
                 </div>
               </div>
 
@@ -1605,6 +1667,16 @@ function ProductManagementDrawer({
                       {row.sizeLabel} / {row.colorName}
                       {row.active ? null : <span className="ml-1 text-[11px] font-semibold text-[#B5A090]">(Pasif)</span>}
                     </p>
+                    <div className="mt-2">
+                      <label className="mb-1 block text-[11px] font-bold text-[#5B4839]">Beden / Yas</label>
+                      <input
+                        type="text"
+                        value={row.sizeLabel}
+                        onChange={(event) => updateVariantRow(row.id, { sizeLabel: event.target.value })}
+                        placeholder="Orn. 2-3 Yas"
+                        className="h-9 w-full rounded-[9px] border border-[#ECE3D6] bg-white px-2.5 text-[12.5px] text-[#3D2B1F] outline-none focus:border-[#A89070] focus:ring-2 focus:ring-[#A89070]/20"
+                      />
+                    </div>
                     <div className="mt-2 grid grid-cols-[1fr_1fr_auto] items-end gap-2">
                       <div>
                         <label className="mb-1 block text-[11px] font-bold text-[#5B4839]">Fiyat ({row.currency})</label>
