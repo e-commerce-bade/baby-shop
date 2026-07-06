@@ -106,9 +106,38 @@ const PAYMENT_METHOD_LABELS: Record<string, string> = {
   EFT: 'EFT / Havale',
 }
 
+// Liste rozetinde gösterilen kısa etiket + renk.
+const PAYMENT_METHOD_BADGE: Record<string, { label: string; bg: string; color: string }> = {
+  CARD: { label: 'iyzico', bg: '#EBF4FF', color: '#1A4E8A' },
+  COD: { label: 'Kapıda Ödeme', bg: '#FFF3E0', color: '#9A5B20' },
+  EFT: { label: 'Havale/EFT', bg: '#F0EAFB', color: '#5B3F9A' },
+}
+
+const PAYMENT_METHOD_TABS: Array<{ key: 'all' | 'CARD' | 'COD' | 'EFT'; label: string }> = [
+  { key: 'all', label: 'Tüm Ödemeler' },
+  { key: 'CARD', label: 'Kart (iyzico)' },
+  { key: 'COD', label: 'Kapıda Ödeme' },
+  { key: 'EFT', label: 'Havale/EFT' },
+]
+
+type PaymentMethodKey = 'all' | 'CARD' | 'COD' | 'EFT'
+
 function paymentMethodLabel(method: string | null | undefined) {
   if (!method) return 'Kredi / Banka Kartı'
   return PAYMENT_METHOD_LABELS[method.toUpperCase()] ?? method
+}
+
+function PaymentMethodBadge({ method }: { method: string | null | undefined }) {
+  const m = (method ?? 'CARD').toUpperCase()
+  const cfg = PAYMENT_METHOD_BADGE[m] ?? { label: method ?? '-', bg: '#F4EEE6', color: '#5B4839' }
+  return (
+    <span
+      className="inline-flex items-center rounded-full px-2 py-0.5 text-[10.5px] font-bold"
+      style={{ background: cfg.bg, color: cfg.color }}
+    >
+      {cfg.label}
+    </span>
+  )
 }
 
 function formatDate(iso: string | null | undefined) {
@@ -147,6 +176,7 @@ export default function AdminOrdersPage() {
   const [currentPage, setCurrentPage] = useState(0)
   // Siparişler sayfası varsayılan olarak "Sipariş Alındı" (PAID) filtresiyle açılır.
   const [statusFilter, setStatusFilter] = useState<StatusKey>('PAID')
+  const [paymentFilter, setPaymentFilter] = useState<PaymentMethodKey>('all')
   const [search, setSearch] = useState('')
   const [selectedOrder, setSelectedOrder] = useState<AdminOrder | null>(null)
   const [updatingOrderNumber, setUpdatingOrderNumber] = useState<string | null>(null)
@@ -193,7 +223,7 @@ export default function AdminOrdersPage() {
 
   useEffect(() => {
     setCurrentPage(0)
-  }, [search, statusFilter])
+  }, [search, statusFilter, paymentFilter])
 
   useEffect(() => {
     if (!profile) return
@@ -207,6 +237,7 @@ export default function AdminOrdersPage() {
         const q = search.trim()
 
         if (statusFilter !== 'all') params.set('status', statusFilter)
+        if (paymentFilter !== 'all') params.set('paymentMethod', paymentFilter)
         if (q) params.set('orderNumber', q)
 
         const res = await fetch(`/api/admin/orders?${params.toString()}`, {
@@ -229,7 +260,7 @@ export default function AdminOrdersPage() {
     return () => {
       active = false
     }
-  }, [profile, currentPage, statusFilter, search])
+  }, [profile, currentPage, statusFilter, paymentFilter, search])
 
   const displayName = profile
     ? [profile.firstName, profile.lastName].filter(Boolean).join(' ') || profile.email
@@ -326,24 +357,52 @@ export default function AdminOrdersPage() {
         </button>
       </div>
 
-      <div className="mb-4 flex gap-1.5 overflow-x-auto pb-1">
-        {STATUS_TABS.map((tab) => {
-          const active = statusFilter === tab.key
-          return (
-            <button
-              key={tab.key}
-              type="button"
-              onClick={() => setStatusFilter(tab.key)}
-              className={`shrink-0 rounded-[8px] px-3 py-2 text-[12.5px] font-semibold transition-colors ${
-                active
-                  ? 'bg-[#F4EEE6] text-[#5B4839]'
-                  : 'border border-[#ECE3D6] bg-white text-[#B5A090] hover:text-[#5B4839]'
-              }`}
-            >
-              {tab.label}
-            </button>
-          )
-        })}
+      {/* Ödeme yöntemi filtresi (sipariş durumunun üstünde) */}
+      <div className="mb-2 flex items-center gap-2">
+        <span className="shrink-0 text-[11px] font-bold uppercase tracking-[0.08em] text-[#C4B5A5]">Ödeme</span>
+        <div className="flex gap-1.5 overflow-x-auto pb-1">
+          {PAYMENT_METHOD_TABS.map((tab) => {
+            const active = paymentFilter === tab.key
+            return (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => setPaymentFilter(tab.key)}
+                className={`shrink-0 rounded-[8px] px-3 py-2 text-[12.5px] font-semibold transition-colors ${
+                  active
+                    ? 'bg-[#F4EEE6] text-[#5B4839]'
+                    : 'border border-[#ECE3D6] bg-white text-[#B5A090] hover:text-[#5B4839]'
+                }`}
+              >
+                {tab.label}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Sipariş durumu filtresi */}
+      <div className="mb-4 flex items-center gap-2">
+        <span className="shrink-0 text-[11px] font-bold uppercase tracking-[0.08em] text-[#C4B5A5]">Durum</span>
+        <div className="flex gap-1.5 overflow-x-auto pb-1">
+          {STATUS_TABS.map((tab) => {
+            const active = statusFilter === tab.key
+            return (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => setStatusFilter(tab.key)}
+                className={`shrink-0 rounded-[8px] px-3 py-2 text-[12.5px] font-semibold transition-colors ${
+                  active
+                    ? 'bg-[#F4EEE6] text-[#5B4839]'
+                    : 'border border-[#ECE3D6] bg-white text-[#B5A090] hover:text-[#5B4839]'
+                }`}
+              >
+                {tab.label}
+              </button>
+            )
+          })}
+        </div>
       </div>
 
       <div className="mb-4 flex flex-wrap items-center gap-3">
@@ -359,12 +418,13 @@ export default function AdminOrdersPage() {
             className="w-full rounded-[10px] border border-[#ECE3D6] bg-white py-2 pl-9 pr-4 text-[13px] text-[#3D2B1F] placeholder:text-[#C4B5A5] focus:border-[#A89070] focus:outline-none focus:ring-2 focus:ring-[#A89070]/20"
           />
         </div>
-        {(search || statusFilter !== 'all') ? (
+        {(search || statusFilter !== 'all' || paymentFilter !== 'all') ? (
           <button
             type="button"
             onClick={() => {
               setSearch('')
               setStatusFilter('all')
+              setPaymentFilter('all')
             }}
             className="rounded-[10px] border border-[#ECE3D6] bg-white px-3 py-2 text-[12.5px] font-semibold text-[#5B4839] transition-colors hover:bg-[#FAF6F1]"
           >
@@ -393,7 +453,7 @@ export default function AdminOrdersPage() {
               </svg>
             </div>
             <p className="text-[14px] font-semibold text-[#5B4839]">
-              {search || statusFilter !== 'all' ? 'Sonuç bulunamadı.' : 'Henüz sipariş bulunmuyor.'}
+              {search || statusFilter !== 'all' || paymentFilter !== 'all' ? 'Sonuç bulunamadı.' : 'Henüz sipariş bulunmuyor.'}
             </p>
           </div>
         ) : (
@@ -421,7 +481,12 @@ export default function AdminOrdersPage() {
                       </td>
                       <td className="px-5 py-4 text-[#8C7A6A]">{formatDate(order.createdAt)}</td>
                       <td className="px-5 py-4 text-[#8C7A6A]">{itemCount(order)} adet</td>
-                      <td className="px-5 py-4"><StatusBadge status={order.status} /></td>
+                      <td className="px-5 py-4">
+                        <div className="flex flex-col items-start gap-1.5">
+                          <StatusBadge status={order.status} />
+                          <PaymentMethodBadge method={order.paymentMethod} />
+                        </div>
+                      </td>
                       <td className="px-5 py-4 text-right font-bold text-[#3D2B1F]">
                         {formatPrice(order.totalAmount, order.currency)}
                       </td>
@@ -455,7 +520,10 @@ export default function AdminOrdersPage() {
                       <p className="font-bold text-[#3D2B1F]">{order.orderNumber}</p>
                       <p className="mt-0.5 text-[12.5px] text-[#8C7A6A]">{customerName(order)}</p>
                     </div>
-                    <StatusBadge status={order.status} />
+                    <div className="flex flex-col items-end gap-1.5">
+                      <StatusBadge status={order.status} />
+                      <PaymentMethodBadge method={order.paymentMethod} />
+                    </div>
                   </div>
                   <div className="mt-2.5 flex items-center justify-between">
                     <span className="text-[12px] text-[#A89070]">{formatDate(order.createdAt)}</span>

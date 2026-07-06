@@ -45,7 +45,7 @@ class OrderAdminControllerTest {
 
     @Test
     void shouldReturnAllOrders() throws Exception {
-        given(orderService.getAllOrders(0, 10, null, null, null, null)).willReturn(new PageResponse<>(
+        given(orderService.getAllOrders(0, 10, null, null, null, null, null)).willReturn(new PageResponse<>(
                 List.of(sampleOrderResponse("ORD-ABC123DEF456", "PENDING_PAYMENT")),
                 0,
                 10,
@@ -63,7 +63,7 @@ class OrderAdminControllerTest {
 
     @Test
     void shouldReturnFilteredOrdersByOrderNumber() throws Exception {
-        given(orderService.getAllOrders(0, 10, "ABC123", null, null, null)).willReturn(new PageResponse<>(
+        given(orderService.getAllOrders(0, 10, "ABC123", null, null, null, null)).willReturn(new PageResponse<>(
                 List.of(sampleOrderResponse("ORD-ABC123DEF456", "PENDING_PAYMENT")),
                 0,
                 10,

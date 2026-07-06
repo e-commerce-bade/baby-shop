@@ -115,6 +115,7 @@ class OrderServiceTest {
                 10,
                 null,
                 "PAID",
+                null,
                 LocalDate.parse("2026-06-01"),
                 LocalDate.parse("2026-06-30")
         );
@@ -137,6 +138,7 @@ class OrderServiceTest {
                 0,
                 10,
                 "ABC123",
+                null,
                 null,
                 null,
                 null

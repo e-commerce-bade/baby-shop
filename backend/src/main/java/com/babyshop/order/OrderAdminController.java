@@ -35,10 +35,11 @@ public class OrderAdminController {
             @Max(value = 100, message = "Order page size must be at most 100") int size,
             @RequestParam(required = false) String orderNumber,
             @RequestParam(required = false) String status,
+            @RequestParam(required = false) String paymentMethod,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to
     ) {
-        return ResponseEntity.ok(orderService.getAllOrders(page, size, orderNumber, status, from, to));
+        return ResponseEntity.ok(orderService.getAllOrders(page, size, orderNumber, status, paymentMethod, from, to));
     }
 
     @GetMapping("/{orderNumber}")

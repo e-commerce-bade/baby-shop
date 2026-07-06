@@ -82,6 +82,7 @@ public class OrderService {
             int size,
             String orderNumber,
             String status,
+            String paymentMethod,
             LocalDate from,
             LocalDate to
     ) {
@@ -90,6 +91,7 @@ public class OrderService {
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
         Specification<Order> specification = Specification.where(hasOrderNumber(orderNumber))
                 .and(hasStatus(status))
+                .and(hasPaymentMethod(paymentMethod))
                 .and(createdAtOnOrAfter(from))
                 .and(createdAtBeforeOrOn(to));
 
@@ -607,6 +609,15 @@ public class OrderService {
 
         return (root, query, criteriaBuilder) ->
                 criteriaBuilder.equal(root.get("status"), normalizedStatus);
+    }
+
+    private Specification<Order> hasPaymentMethod(String paymentMethod) {
+        if (paymentMethod == null || paymentMethod.trim().isEmpty()) {
+            return null;
+        }
+        String normalized = paymentMethod.trim().toUpperCase(Locale.ROOT);
+        return (root, query, criteriaBuilder) ->
+                criteriaBuilder.equal(root.get("paymentMethod"), normalized);
     }
 
     private Specification<Order> hasOrderNumber(String orderNumber) {
