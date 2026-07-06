@@ -1,8 +1,8 @@
 'use client'
 
 // Sabit WhatsApp sohbet butonu — sag altta, tum storefront sayfalarinda gorunur.
-// Numara: +90 546 617 03 08 (wa.me sadece rakam ister, ulke koduyla birlikte).
-const WHATSAPP_NUMBER = '905466170308'
+// Numara: 0551 651 67 03 (wa.me sadece rakam ister; ulke koduyla: 90 + numara, bastaki 0 atilir).
+const WHATSAPP_NUMBER = '905516516703'
 const WHATSAPP_URL = `https://wa.me/${WHATSAPP_NUMBER}`
 
 export default function WhatsAppButton() {

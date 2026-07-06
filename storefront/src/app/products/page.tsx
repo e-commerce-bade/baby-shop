@@ -98,10 +98,13 @@ export default async function ProductsPage({
           <h1 className="font-serif text-[28px] font-semibold text-brown">
             {params.q ? `"${params.q}" için sonuçlar` : categoryName ?? 'Tüm Ürünler'}
           </h1>
-          <p className="mt-1 text-sm text-muted">
-            {result.totalElements} ürün
-            {activeCount > 0 && ` · ${activeCount} filtre aktif`}
-          </p>
+          {/* Kategori sayfasında ürün sayısı/filtre satırı gösterilmez; başlık kategori adıdır. */}
+          {!categoryName && (
+            <p className="mt-1 text-sm text-muted">
+              {result.totalElements} ürün
+              {activeCount > 0 && ` · ${activeCount} filtre aktif`}
+            </p>
+          )}
         </div>
       </div>
 

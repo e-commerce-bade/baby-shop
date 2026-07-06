@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useCallback, useEffect } from 'react'
 import Link from 'next/link'
 import { useCartStore } from '@/store/cartStore'
 import CartItem from './CartItem'
@@ -16,13 +16,34 @@ export default function CartDrawer() {
   const items    = useCartStore((s) => s.items)
   const totalQty = items.reduce((s, i) => s + i.quantity, 0)
 
+  // Sepet açıkken geri tuşu (telefon/tarayıcı) önce sepeti kapatsın, sayfada geri gitmesin.
+  // Açılışta geçmişe bir kayıt ekleriz; geri basınca popstate ile sepeti kapatırız.
+  useEffect(() => {
+    if (!isOpen) return
+    // Next.js router verisini koru, üzerine kendi bayrağımızı ekle (aynı URL, yeni geçmiş kaydı).
+    window.history.pushState({ ...window.history.state, badebebeCart: true }, '')
+    const onPopState = () => closeDrawer()
+    window.addEventListener('popstate', onPopState)
+    return () => window.removeEventListener('popstate', onPopState)
+  }, [isOpen, closeDrawer])
+
+  // UI'dan kapatma (Geri butonu / arka plan / Escape): eklediğimiz geçmiş kaydını da temizlemek
+  // için history.back() ile kapatırız (bu da popstate → closeDrawer tetikler). Kayıt yoksa direkt kapat.
+  const requestClose = useCallback(() => {
+    if (typeof window !== 'undefined' && window.history.state?.badebebeCart) {
+      window.history.back()
+    } else {
+      closeDrawer()
+    }
+  }, [closeDrawer])
+
   /* Klavye ve scroll kilidi */
   useEffect(() => {
     if (!isOpen) return
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') closeDrawer() }
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') requestClose() }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [isOpen, closeDrawer])
+  }, [isOpen, requestClose])
 
   useEffect(() => {
     document.body.style.overflow = isOpen ? 'hidden' : ''
@@ -34,7 +55,7 @@ export default function CartDrawer() {
       {/* Backdrop */}
       <div
         aria-hidden="true"
-        onClick={closeDrawer}
+        onClick={requestClose}
         className={[
           'fixed inset-0 z-40 bg-brown/25 backdrop-blur-[2px]',
           'transition-opacity duration-300',
@@ -55,31 +76,32 @@ export default function CartDrawer() {
           isOpen ? 'translate-x-0' : 'translate-x-full',
         ].join(' ')}
       >
-        {/* ── Başlık ──────────────────────────────────────── */}
-        <div className="flex shrink-0 items-center justify-between px-6 py-4">
-          <div className="flex items-baseline gap-2">
+        {/* ── Başlık: solda Geri, ortada Sepetim ──────────── */}
+        <div className="relative flex shrink-0 items-center px-4 py-4">
+          <button
+            type="button"
+            onClick={requestClose}
+            aria-label="Geri"
+            className="z-10 inline-flex items-center gap-1 rounded-full px-2 py-1.5 text-[13px] font-semibold text-brown-2 transition-colors hover:bg-cream-2 hover:text-brown"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M15 18l-6-6 6-6" />
+            </svg>
+            Geri
+          </button>
+          <div className="pointer-events-none absolute inset-x-0 flex items-baseline justify-center gap-2">
             <span className="font-serif text-[19px] font-semibold text-brown">Sepetim</span>
             {totalQty > 0 && (
               <span className="text-[12px] font-bold text-muted">({totalQty})</span>
             )}
           </div>
-          <button
-            type="button"
-            onClick={closeDrawer}
-            aria-label="Kapat"
-            className="grid h-8 w-8 place-items-center rounded-full text-muted transition-colors hover:bg-cream-2 hover:text-brown"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-              <path d="M18 6 6 18M6 6l12 12" />
-            </svg>
-          </button>
         </div>
 
         {/* ── İçerik ──────────────────────────────────────── */}
         {!hasHydrated || isSyncing ? (
           <DrawerLoading />
         ) : items.length === 0 ? (
-          <EmptyDrawer onClose={closeDrawer} />
+          <EmptyDrawer onClose={requestClose} />
         ) : (
           <>
             {/* Ücretsiz kargo barı */}
