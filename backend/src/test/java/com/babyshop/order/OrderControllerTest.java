@@ -157,6 +157,7 @@ class OrderControllerTest {
                         OffsetDateTime.parse("2026-06-01T12:05:00+03:00")
                 ),
                 "Please ring the bell",
+                null,
                 List.of(new OrderItemResponse(
                         10L,
                         1L,

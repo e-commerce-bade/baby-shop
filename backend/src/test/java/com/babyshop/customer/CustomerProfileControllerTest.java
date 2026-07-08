@@ -63,6 +63,7 @@ class CustomerProfileControllerTest {
                                 new OrderAddressResponse("Ataturk Cd. No:10", null, "Kadikoy", "Istanbul", "34710", "Turkey"),
                                 null,
                                 null,
+                                null,
                                 List.of()
                         )),
                         0,

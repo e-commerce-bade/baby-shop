@@ -24,6 +24,7 @@ public record OrderResponse(
         OrderAddressResponse shippingAddress,
         OrderPaymentSummaryResponse payment,
         String notes,
+        String cancellationReason,
         List<OrderItemResponse> items
 ) {
 }

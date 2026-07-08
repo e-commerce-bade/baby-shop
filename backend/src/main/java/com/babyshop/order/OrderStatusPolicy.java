@@ -15,14 +15,18 @@ public final class OrderStatusPolicy {
     public static final String SHIPPED = "SHIPPED";
     public static final String DELIVERED = "DELIVERED";
     public static final String CANCELLED = "CANCELLED";
+    // Odenmeden terk edilen / odemesi basarisiz kart siparisleri. Musteri veya admin
+    // tarafindan iptal edilenlerden (CANCELLED) ayridir; admin listelerinde gosterilmez.
+    public static final String EXPIRED = "EXPIRED";
 
     private static final Map<String, Set<String>> ALLOWED_TRANSITIONS = Map.of(
-            PENDING_PAYMENT, Set.of(PAID, CANCELLED),
+            PENDING_PAYMENT, Set.of(PAID, CANCELLED, EXPIRED),
             PAID, Set.of(PREPARING, CANCELLED),
             PREPARING, Set.of(SHIPPED, CANCELLED),
             SHIPPED, Set.of(DELIVERED),
             DELIVERED, Set.of(),
-            CANCELLED, Set.of()
+            CANCELLED, Set.of(),
+            EXPIRED, Set.of()
     );
 
     private OrderStatusPolicy() {

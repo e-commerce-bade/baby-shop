@@ -43,11 +43,12 @@ const STATUS_STEPS = ['PENDING_PAYMENT', 'PAID', 'PREPARING', 'SHIPPED', 'DELIVE
 
 const STATUS_LABELS: Record<string, string> = {
   PENDING_PAYMENT: 'Ödeme Bekleniyor',
-  PAID: 'Ödendi',
+  PAID: 'Onaylandı',
   PREPARING: 'Hazırlanıyor',
   SHIPPED: 'Kargoda',
   DELIVERED: 'Teslim Edildi',
   CANCELLED: 'İptal Edildi',
+  EXPIRED: 'Ödenmedi',
 }
 
 function formatDate(iso: string | null) {
@@ -60,6 +61,13 @@ function StatusTimeline({ status }: { status: string }) {
     return (
       <div className="rounded-[12px] border border-[#F0D2D2] bg-[#FEEAEA] px-4 py-3 text-[13px] font-semibold text-[#8A1A1A]">
         Bu sipariş iptal edildi.
+      </div>
+    )
+  }
+  if (status === 'EXPIRED') {
+    return (
+      <div className="rounded-[12px] border border-[#E6DFD8] bg-[#F0EEEC] px-4 py-3 text-[13px] font-semibold text-[#8C7A6A]">
+        Bu sipariş ödeme tamamlanmadığı için iptal oldu. Dilerseniz tekrar sipariş verebilirsiniz.
       </div>
     )
   }

@@ -690,7 +690,7 @@ class OrderServiceTest {
 
         var response = orderService.updateOrderStatus(
                 "ORD-ABC123DEF456",
-                new OrderStatusUpdateRequest("shipped")
+                new OrderStatusUpdateRequest("shipped", null)
         );
 
         assertThat(response.status()).isEqualTo("SHIPPED");
@@ -704,7 +704,7 @@ class OrderServiceTest {
         given(orderRepository.findByOrderNumber("ORD-ABC123DEF456")).willReturn(Optional.of(order));
         given(orderRepository.save(any(Order.class))).willAnswer(invocation -> invocation.getArgument(0));
 
-        orderService.updateOrderStatus("ORD-ABC123DEF456", new OrderStatusUpdateRequest("CANCELLED"));
+        orderService.updateOrderStatus("ORD-ABC123DEF456", new OrderStatusUpdateRequest("CANCELLED", null));
 
         // Iptal edilen (rezerve durumdaki) siparisin stogu geri verilir.
         verify(stockReservationService).release(order);
@@ -715,7 +715,7 @@ class OrderServiceTest {
     void shouldRejectUnsupportedOrderStatus() {
         assertThatThrownBy(() -> orderService.updateOrderStatus(
                 "ORD-ABC123DEF456",
-                new OrderStatusUpdateRequest("unknown")
+                new OrderStatusUpdateRequest("unknown", null)
         ))
                 .isInstanceOf(InvalidRequestException.class)
                 .hasMessage("Unsupported order status: UNKNOWN");
@@ -729,7 +729,7 @@ class OrderServiceTest {
 
         assertThatThrownBy(() -> orderService.updateOrderStatus(
                 "ORD-ABC123DEF456",
-                new OrderStatusUpdateRequest("DELIVERED")
+                new OrderStatusUpdateRequest("DELIVERED", null)
         ))
                 .isInstanceOf(InvalidRequestException.class)
                 .hasMessage("Invalid order status transition: PAID -> DELIVERED");

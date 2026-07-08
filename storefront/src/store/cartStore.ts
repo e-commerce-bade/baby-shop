@@ -175,9 +175,10 @@ export const useCartStore = create<CartState>()(
           })
           if (!isLatestCartRequest(requestToken)) return
 
+          // Sepet drawer'i otomatik ACILMAZ; kullanici istedigi zaman sepete gider. Yalnizca
+          // urun listesi (ve rozet sayaci) guncellenir.
           set({
             items: cart.items.map(mapCartItem),
-            isOpen: true,
           })
 
           const summary = await fetchCheckoutSummary(get().sessionId)

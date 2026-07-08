@@ -250,7 +250,7 @@ class PaymentServiceTest {
         ));
 
         assertThat(response.paymentStatus()).isEqualTo("FAILED");
-        assertThat(response.orderStatus()).isEqualTo("CANCELLED");
+        assertThat(response.orderStatus()).isEqualTo("EXPIRED");
     }
 
     @Test

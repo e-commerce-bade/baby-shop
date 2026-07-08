@@ -37,9 +37,11 @@ public class OrderExpiryService {
 
         for (Order order : stale) {
             stockReservationService.release(order);
-            order.setStatus(OrderStatusPolicy.CANCELLED);
+            // CANCELLED yerine EXPIRED: odenmeden terk edilen (kart) siparisleri, gercek iptal
+            // edilen siparislerle karismasin diye ayri tutulur ve admin listelerinde gosterilmez.
+            order.setStatus(OrderStatusPolicy.EXPIRED);
             orderRepository.save(order);
-            log.info("Sure asimi: {} dk odenmeden bekleyen siparis {} iptal edildi, stok iade edildi.",
+            log.info("Sure asimi: {} dk odenmeden bekleyen siparis {} 'Odenmedi' durumuna alindi, stok iade edildi.",
                     expiryMinutes, order.getOrderNumber());
         }
     }

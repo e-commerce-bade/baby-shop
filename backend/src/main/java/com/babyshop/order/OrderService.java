@@ -92,6 +92,7 @@ public class OrderService {
         Specification<Order> specification = Specification.where(hasOrderNumber(orderNumber))
                 .and(hasStatus(status))
                 .and(hasPaymentMethod(paymentMethod))
+                .and(hideExpiredUnlessRequested(status))
                 .and(createdAtOnOrAfter(from))
                 .and(createdAtBeforeOrOn(to));
 
@@ -215,6 +216,7 @@ public class OrderService {
         Specification<Order> specification = Specification.where(hasUserEmail(normalizedEmail))
                 .and(hasOrderNumber(orderNumber))
                 .and(hasStatus(status))
+                .and(hideExpiredUnlessRequested(status))
                 .and(createdAtOnOrAfter(from))
                 .and(createdAtBeforeOrOn(to));
 
@@ -244,8 +246,11 @@ public class OrderService {
         boolean wasReserved = OrderStatusPolicy.PENDING_PAYMENT.equalsIgnoreCase(order.getStatus())
                 || OrderStatusPolicy.PAID.equalsIgnoreCase(order.getStatus());
         OrderStatusPolicy.validateTransition(order.getStatus(), normalizedStatus);
-        if (OrderStatusPolicy.CANCELLED.equalsIgnoreCase(normalizedStatus) && wasReserved) {
-            stockReservationService.release(order);
+        if (OrderStatusPolicy.CANCELLED.equalsIgnoreCase(normalizedStatus)) {
+            if (wasReserved) {
+                stockReservationService.release(order);
+            }
+            order.setCancellationReason(normalize(request.cancellationReason()));
         }
         order.setStatus(normalizedStatus);
         return toResponse(orderRepository.save(order));
@@ -283,7 +288,12 @@ public class OrderService {
         order.getItems().clear();
         resolveAuthenticatedUser(normalizedAuthenticatedEmail).ifPresent(order::setUser);
         order.setCartId(cart.getId());
-        order.setStatus(OrderStatusPolicy.PENDING_PAYMENT);
+        // Kapida odeme / havale: cevrimici odeme adimi yok; siparis dogrudan 'Onaylandi' (PAID)
+        // olarak olusur ve asla otomatik iptale (EXPIRED) dusmez. Kart: odeme tamamlanana kadar
+        // PENDING_PAYMENT'ta bekler.
+        order.setStatus(PaymentMethodPolicy.isOffline(paymentMethod)
+                ? OrderStatusPolicy.PAID
+                : OrderStatusPolicy.PENDING_PAYMENT);
         order.setCustomerEmail(request.customerEmail().trim().toLowerCase(Locale.ROOT));
         order.setCustomerFirstName(shippingDetails.customerFirstName());
         order.setCustomerLastName(shippingDetails.customerLastName());
@@ -615,6 +625,16 @@ public class OrderService {
                 criteriaBuilder.equal(root.get("status"), normalizedStatus);
     }
 
+    // Belirli bir durum istenmediyse 'Odenmedi' (EXPIRED) siparisleri listeden gizler; boylece
+    // terk edilen/odenmemis checkout'lar gercek siparislerle ve iptallerle karismaz.
+    private Specification<Order> hideExpiredUnlessRequested(String status) {
+        if (normalizeOptionalStatus(status) != null) {
+            return null;
+        }
+        return (root, query, criteriaBuilder) ->
+                criteriaBuilder.notEqual(root.get("status"), OrderStatusPolicy.EXPIRED);
+    }
+
     private Specification<Order> hasPaymentMethod(String paymentMethod) {
         if (paymentMethod == null || paymentMethod.trim().isEmpty()) {
             return null;
@@ -683,6 +703,7 @@ public class OrderService {
                 ),
                 resolvePaymentSummary(order),
                 order.getNotes(),
+                order.getCancellationReason(),
                 order.getItems().stream()
                         .map(item -> toItemResponse(item, imageUrls))
                         .toList()

@@ -90,7 +90,7 @@ class OrderAdminControllerTest {
 
     @Test
     void shouldUpdateOrderStatus() throws Exception {
-        OrderStatusUpdateRequest request = new OrderStatusUpdateRequest("SHIPPED");
+        OrderStatusUpdateRequest request = new OrderStatusUpdateRequest("SHIPPED", null);
         given(orderService.updateOrderStatus("ORD-ABC123DEF456", request))
                 .willReturn(sampleOrderResponse("ORD-ABC123DEF456", "SHIPPED"));
 
@@ -103,7 +103,7 @@ class OrderAdminControllerTest {
 
     @Test
     void shouldReturnValidationErrorForInvalidStatusRequest() throws Exception {
-        OrderStatusUpdateRequest request = new OrderStatusUpdateRequest("");
+        OrderStatusUpdateRequest request = new OrderStatusUpdateRequest("", null);
 
         mockMvc.perform(patch("/api/v1/admin/orders/ORD-ABC123DEF456/status")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -131,7 +131,7 @@ class OrderAdminControllerTest {
 
     @Test
     void shouldReturnBadRequestForUnsupportedStatus() throws Exception {
-        OrderStatusUpdateRequest request = new OrderStatusUpdateRequest("INVALID_STATUS");
+        OrderStatusUpdateRequest request = new OrderStatusUpdateRequest("INVALID_STATUS", null);
         given(orderService.updateOrderStatus(any(), any(OrderStatusUpdateRequest.class)))
                 .willThrow(new InvalidRequestException("Unsupported order status: INVALID_STATUS"));
 
@@ -176,6 +176,7 @@ class OrderAdminControllerTest {
                         OffsetDateTime.parse("2026-06-01T12:05:00+03:00")
                 ),
                 "Please ring the bell",
+                null,
                 List.of(new OrderItemResponse(
                         10L,
                         1L,

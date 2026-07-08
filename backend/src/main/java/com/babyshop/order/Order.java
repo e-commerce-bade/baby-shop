@@ -106,6 +106,10 @@ public class Order {
     @Column(columnDefinition = "TEXT")
     private String notes;
 
+    // Siparis iptal edildiginde admin'in girdigi iptal nedeni.
+    @Column(name = "cancellation_reason", length = 500)
+    private String cancellationReason;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     @CreationTimestamp
     private OffsetDateTime createdAt;

@@ -25,6 +25,7 @@ interface AdminOrder {
   paymentMethod: string | null
   shippingCarrier: string | null
   codSurcharge: number | string | null
+  cancellationReason: string | null
   createdAt: string | null
   shippingAddress: {
     line1: string
@@ -60,27 +61,28 @@ const PAGE_SIZE = 20
 
 const STATUS_CONFIG = {
   PENDING_PAYMENT: { label: 'Ödeme Bekliyor', bg: '#FFF8EC', color: '#9A7020', dotColor: '#D4A017' },
-  PAID: { label: 'Sipariş Alındı', bg: '#EDF7F1', color: '#1A6640', dotColor: '#27AE60' },
+  PAID: { label: 'Onaylandı', bg: '#EDF7F1', color: '#1A6640', dotColor: '#27AE60' },
   PREPARING: { label: 'Hazırlanıyor', bg: '#FFF8EC', color: '#9A7020', dotColor: '#D4A017' },
   SHIPPED: { label: 'Kargoda', bg: '#EBF4FF', color: '#1A4E8A', dotColor: '#2E86DE' },
   DELIVERED: { label: 'Teslim Edildi', bg: '#EDF7F1', color: '#1A6640', dotColor: '#27AE60' },
   CANCELLED: { label: 'İptal Edildi', bg: '#FEEAEA', color: '#8A1A1A', dotColor: '#E74C3C' },
+  // 'Odenmedi': terk edilen/odemesi basarisiz kart siparisleri. Listede tab'i yok; yalnizca
+  // olasi bir gorunum icin etiket tanimlanir.
+  EXPIRED: { label: 'Ödenmedi', bg: '#F0EEEC', color: '#8C7A6A', dotColor: '#A89070' },
 } as const
 
 type OrderStatus = keyof typeof STATUS_CONFIG
 type StatusKey = 'all' | OrderStatus
 
+// Musterinin istedigi 5 asama (+ Tumu). 'Odeme Bekliyor' ve 'Odenmedi' sekme olarak gosterilmez.
 const STATUS_TABS: Array<{ key: StatusKey; label: string }> = [
   { key: 'all', label: 'Tümü' },
-  { key: 'PENDING_PAYMENT', label: 'Ödeme Bekliyor' },
-  { key: 'PAID', label: 'Sipariş Alındı' },
+  { key: 'PAID', label: 'Onaylandı' },
   { key: 'PREPARING', label: 'Hazırlanıyor' },
   { key: 'SHIPPED', label: 'Kargoda' },
-  { key: 'DELIVERED', label: 'Teslim' },
-  { key: 'CANCELLED', label: 'İptal' },
+  { key: 'DELIVERED', label: 'Teslim Edildi' },
+  { key: 'CANCELLED', label: 'İptal Edildi' },
 ]
-
-const STATUS_OPTIONS = STATUS_TABS.filter((tab): tab is { key: OrderStatus; label: string } => tab.key !== 'all')
 
 const ALLOWED_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
   PENDING_PAYMENT: ['PAID', 'CANCELLED'],
@@ -89,6 +91,7 @@ const ALLOWED_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
   SHIPPED: ['DELIVERED'],
   DELIVERED: [],
   CANCELLED: [],
+  EXPIRED: [],
 }
 
 function getStatus(status: string) {
@@ -180,6 +183,9 @@ export default function AdminOrdersPage() {
   const [search, setSearch] = useState('')
   const [selectedOrder, setSelectedOrder] = useState<AdminOrder | null>(null)
   const [updatingOrderNumber, setUpdatingOrderNumber] = useState<string | null>(null)
+  // İptal edilirken neden girilmesi için: iptal edilecek sipariş + neden metni.
+  const [cancelTarget, setCancelTarget] = useState<AdminOrder | null>(null)
+  const [cancelReason, setCancelReason] = useState('')
 
   useEffect(() => {
     let active = true
@@ -268,16 +274,28 @@ export default function AdminOrdersPage() {
 
   const orders = page?.content ?? []
 
-  async function updateOrderStatus(order: AdminOrder, nextStatus: OrderStatus) {
+  // İptal (İptal Edildi) seçilirse önce neden sorulur; diğer durumlar doğrudan güncellenir.
+  function updateOrderStatus(order: AdminOrder, nextStatus: OrderStatus) {
     if (order.status === nextStatus) return
+    if (nextStatus === 'CANCELLED') {
+      setCancelReason('')
+      setCancelTarget(order)
+      return
+    }
+    void performStatusUpdate(order, nextStatus)
+  }
 
+  async function performStatusUpdate(order: AdminOrder, nextStatus: OrderStatus, cancellationReason?: string) {
     setUpdatingOrderNumber(order.orderNumber)
     setError(null)
     try {
       const res = await fetch(`/api/admin/orders/${encodeURIComponent(order.orderNumber)}/status`, {
         method: 'PATCH',
         headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: nextStatus }),
+        body: JSON.stringify({
+          status: nextStatus,
+          ...(cancellationReason && cancellationReason.trim() ? { cancellationReason: cancellationReason.trim() } : {}),
+        }),
       })
 
       const payload = await res.json().catch(() => null)
@@ -296,6 +314,13 @@ export default function AdminOrdersPage() {
     } finally {
       setUpdatingOrderNumber(null)
     }
+  }
+
+  async function confirmCancel() {
+    if (!cancelTarget) return
+    const target = cancelTarget
+    setCancelTarget(null)
+    await performStatusUpdate(target, 'CANCELLED', cancelReason)
   }
 
   function exportVisibleOrders() {
@@ -582,6 +607,42 @@ export default function AdminOrdersPage() {
           onClose={() => setSelectedOrder(null)}
         />
       ) : null}
+
+      {/* İptal nedeni modalı */}
+      {cancelTarget ? (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 px-4" onClick={() => setCancelTarget(null)}>
+          <div className="w-full max-w-[420px] rounded-[16px] bg-white p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-[16px] font-bold text-[#3D2B1F]">Siparişi İptal Et</h3>
+            <p className="mt-1 text-[12.5px] text-[#8C7A6A]">
+              {cancelTarget.orderNumber} numaralı sipariş iptal edilecek. İptal nedenini yazın:
+            </p>
+            <textarea
+              autoFocus
+              rows={3}
+              value={cancelReason}
+              onChange={(e) => setCancelReason(e.target.value)}
+              placeholder="Örn. Müşteri vazgeçti / Stok kalmadı / Yanlış sipariş"
+              className="mt-3 w-full rounded-[10px] border border-[#ECE3D6] bg-[#FAF6F1] px-3.5 py-2.5 text-[13px] text-[#3D2B1F] placeholder:text-[#C4B5A5] focus:border-[#A89070] focus:bg-white focus:outline-none"
+            />
+            <div className="mt-4 flex gap-2">
+              <button
+                type="button"
+                onClick={() => setCancelTarget(null)}
+                className="flex-1 rounded-[10px] border border-[#ECE3D6] py-2.5 text-[13px] font-bold text-[#5B4839] transition-colors hover:bg-[#FAF6F1]"
+              >
+                Vazgeç
+              </button>
+              <button
+                type="button"
+                onClick={() => void confirmCancel()}
+                className="flex-1 rounded-[10px] bg-[#C0392B] py-2.5 text-[13px] font-bold text-white transition-colors hover:bg-[#A93226]"
+              >
+                Siparişi İptal Et
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </AdminShell>
   )
 }
@@ -863,6 +924,12 @@ function OrderDetailsDrawer({ order, onClose }: { order: AdminOrder; onClose: ()
               <span className="font-bold text-[#3D2B1F]">{formatPrice(order.totalAmount, order.currency)}</span>
             </div>
           </DetailSection>
+
+          {order.status === 'CANCELLED' && order.cancellationReason ? (
+            <DetailSection title="İptal Nedeni">
+              <p className="text-[13px] leading-relaxed text-[#8A1A1A]">{order.cancellationReason}</p>
+            </DetailSection>
+          ) : null}
 
           {order.notes ? (
             <DetailSection title="Not">

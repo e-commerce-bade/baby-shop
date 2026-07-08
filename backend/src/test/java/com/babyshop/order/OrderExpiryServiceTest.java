@@ -40,7 +40,7 @@ class OrderExpiryServiceTest {
 
         // Sure asimina ugrayan siparis iptal edilir ve rezerve stok geri verilir.
         verify(stockReservationService).release(order);
-        assertThat(order.getStatus()).isEqualTo("CANCELLED");
+        assertThat(order.getStatus()).isEqualTo("EXPIRED");
         verify(orderRepository).save(order);
     }
 }

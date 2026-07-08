@@ -74,7 +74,7 @@ type SalesWindow = 7 | 30
 const STATUS_MAP: Record<string, { label: string; bg: string; color: string }> = {
   PENDING: { label: 'Beklemede', bg: '#FFF8EC', color: '#9A7020' },
   PENDING_PAYMENT: { label: 'Ödeme Bekliyor', bg: '#FFF8EC', color: '#9A7020' },
-  PAID: { label: 'Sipariş Alındı', bg: '#EDF7F1', color: '#1A6640' },
+  PAID: { label: 'Onaylandı', bg: '#EDF7F1', color: '#1A6640' },
   PREPARING: { label: 'Hazırlanıyor', bg: '#FFF8EC', color: '#9A7020' },
   PROCESSING: { label: 'Hazırlanıyor', bg: '#FFF8EC', color: '#9A7020' },
   SHIPPED: { label: 'Kargoda', bg: '#EBF4FF', color: '#1A4E8A' },

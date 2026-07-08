@@ -335,8 +335,9 @@ public class PaymentService {
         }
 
         payment.setStatus(PAYMENT_STATUS_FAILED);
-        order.setStatus(OrderStatusPolicy.CANCELLED);
-        // Siparis iptal edildi: checkout aninda rezerve edilen stogu geri ver.
+        // Odeme basarisiz/iptal: siparis 'Odenmedi' (EXPIRED) olur; gercek iptallerle karismaz ve
+        // admin listelerinde gorunmez. Rezerve edilen stok geri verilir.
+        order.setStatus(OrderStatusPolicy.EXPIRED);
         if (stockReservationService != null) {
             stockReservationService.release(order);
         }
