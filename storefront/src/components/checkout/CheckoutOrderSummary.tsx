@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import Link from 'next/link'
 import { useCartStore } from '@/store/cartStore'
 import { formatPrice } from '@/lib/utils'
@@ -69,7 +70,7 @@ export default function CheckoutOrderSummary({ isSubmitting, paymentMethod = 'CA
               <div key={item.id} className="flex gap-3 py-3 first:pt-0 last:pb-0">
                 {/* Thumbnail */}
                 <div
-                  className="h-[68px] w-[58px] shrink-0 overflow-hidden rounded-[10px] border border-line-2"
+                  className="relative h-[68px] w-[58px] shrink-0 overflow-hidden rounded-[10px] border border-line-2"
                   style={{
                     background: item.primaryImageUrl
                       ? undefined
@@ -77,10 +78,12 @@ export default function CheckoutOrderSummary({ isSubmitting, paymentMethod = 'CA
                   }}
                 >
                   {item.primaryImageUrl && (
-                    <img
+                    <Image
+                      fill
                       src={item.primaryImageUrl}
                       alt={item.productName}
-                      className="h-full w-full object-cover"
+                      sizes="58px"
+                      className="object-cover"
                     />
                   )}
                 </div>

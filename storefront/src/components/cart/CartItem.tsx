@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import Link from 'next/link'
 import { useCartStore } from '@/store/cartStore'
 import { formatPrice } from '@/lib/utils'
@@ -39,7 +40,7 @@ function Thumb({
     <Link
       href={`/products/${item.slug}`}
       tabIndex={-1}
-      className={`shrink-0 overflow-hidden rounded-card border border-line-2 ${className}`}
+      className={`relative shrink-0 overflow-hidden rounded-card border border-line-2 ${className}`}
       style={{
         background: item.primaryImageUrl
           ? undefined
@@ -47,10 +48,12 @@ function Thumb({
       }}
     >
       {item.primaryImageUrl && (
-        <img
+        <Image
+          fill
           src={item.primaryImageUrl}
           alt={item.productName}
-          className="h-full w-full object-cover"
+          sizes="76px"
+          className="object-cover"
         />
       )}
     </Link>

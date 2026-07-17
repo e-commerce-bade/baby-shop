@@ -1,3 +1,4 @@
+import Image from 'next/image'
 import Link from 'next/link'
 import type { CategoryDisplayItem } from '@/types/category'
 
@@ -20,10 +21,12 @@ export default function CategoryStrip({ categories }: Props) {
             style={{ backgroundColor: category.backgroundColor }}
           >
             {category.imageUrl ? (
-              <img
+              <Image
+                fill
                 src={category.imageUrl}
                 alt={category.name}
-                className="h-full w-full object-cover object-center transition-transform duration-300 group-hover:scale-105"
+                sizes="(max-width: 680px) 50vw, (max-width: 980px) 33vw, 220px"
+                className="object-cover object-center transition-transform duration-300 group-hover:scale-105"
               />
             ) : (
               <span className="text-[32px] max-[680px]:text-[24px]">

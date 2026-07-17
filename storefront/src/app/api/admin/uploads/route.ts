@@ -2,11 +2,16 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
+import sharp from 'sharp'
 import { AUTH_COOKIE_NAME } from '@/lib/api/auth-cookie'
 import { buildBackendUrl } from '@/lib/api/backend'
 import { getProductUploadDir, getProductUploadUrl, safeFilePart } from '@/lib/server/product-uploads'
 
 const MAX_UPLOAD_SIZE = 5 * 1024 * 1024
+// Urun gorseli icin yeterli maksimum kenar; telefon fotograflari (3-5MB) bu boyuta indirilip
+// WebP'ye cevrilince ~200KB'a duser. Galeri/zoom icin 1600px fazlasiyla yeterli.
+const MAX_IMAGE_DIMENSION = 1600
+const WEBP_QUALITY = 80
 const ALLOWED_TYPES = new Map([
   ['image/jpeg', 'jpg'],
   ['image/png', 'png'],
@@ -91,9 +96,32 @@ export async function POST(request: Request) {
   try {
     await mkdir(uploadDir, { recursive: true })
     const baseName = safeFilePart(file.name.replace(/\.[^.]+$/, '')) || 'product'
-    const fileName = `${Date.now()}-${baseName}.${extension}`
-    const bytes = await file.arrayBuffer()
-    await writeFile(path.join(uploadDir, fileName), Buffer.from(bytes))
+    const original = Buffer.from(await file.arrayBuffer())
+
+    // Gorseli kucult + WebP'ye cevir. rotate(): EXIF yon bilgisine gore otomatik duzeltir,
+    // boylece telefondan yuklenen fotograflar yan donmez.
+    let output: Buffer
+    let fileName: string
+    try {
+      output = await sharp(original)
+        .rotate()
+        .resize({
+          width: MAX_IMAGE_DIMENSION,
+          height: MAX_IMAGE_DIMENSION,
+          fit: 'inside',
+          withoutEnlargement: true,
+        })
+        .webp({ quality: WEBP_QUALITY })
+        .toBuffer()
+      fileName = `${Date.now()}-${baseName}.webp`
+    } catch {
+      // Optimizasyon herhangi bir sebeple basarisiz olursa orijinali oldugu gibi kaydet
+      // (eski davranis). Boylece en kotu senaryoda yukleme yine calisir.
+      output = original
+      fileName = `${Date.now()}-${baseName}.${extension}`
+    }
+
+    await writeFile(path.join(uploadDir, fileName), output)
 
     return NextResponse.json({ imageUrl: getProductUploadUrl(fileName) })
   } catch {
