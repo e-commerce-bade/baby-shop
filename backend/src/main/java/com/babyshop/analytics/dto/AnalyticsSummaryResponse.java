@@ -10,6 +10,7 @@ import java.util.List;
 public record AnalyticsSummaryResponse(
         BigDecimal totalRevenue,
         long totalOrders,
+        long abandonedCheckouts,
         long paidOrders,
         BigDecimal averageOrderValue,
         long totalCustomers,

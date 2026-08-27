@@ -48,6 +48,12 @@ public interface OrderRepository extends JpaRepository<Order, Long>, JpaSpecific
     @Query("select o.status as status, count(o) as count from Order o group by o.status")
     List<StatusCountView> countOrdersByStatus();
 
+    // Analitikte 'Toplam Siparis' sayisi: terk edilmis (EXPIRED) checkout'lar gercek siparis
+    // sayilmaz; admin Siparisler listesi de onlari gizler.
+    long countByStatus(String status);
+
+    long countByStatusNot(String status);
+
     @Query("select oi.productName as productName, sum(oi.quantity) as quantity, sum(oi.lineTotal) as revenue "
             + "from OrderItem oi where oi.order.status in :statuses "
             + "group by oi.productName order by sum(oi.quantity) desc")

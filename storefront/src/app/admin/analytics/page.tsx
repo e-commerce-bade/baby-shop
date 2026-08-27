@@ -26,6 +26,7 @@ interface TopProduct {
 interface AnalyticsSummary {
   totalRevenue: number | string
   totalOrders: number
+  abandonedCheckouts: number
   paidOrders: number
   averageOrderValue: number | string
   totalCustomers: number
@@ -44,6 +45,7 @@ const STATUS_LABELS: Record<string, string> = {
   SHIPPED: 'Kargoda',
   DELIVERED: 'Teslim Edildi',
   CANCELLED: 'İptal',
+  EXPIRED: 'Ödenmedi',
 }
 
 function statusLabel(status: string) {
@@ -170,10 +172,11 @@ export default function AdminAnalyticsPage() {
           </div>
 
           {/* Catalog metrics */}
-          <div className="mb-5 grid grid-cols-3 gap-3 max-[480px]:grid-cols-1">
+          <div className="mb-5 grid grid-cols-4 gap-3 max-[900px]:grid-cols-2 max-[480px]:grid-cols-1">
             <Metric label="Ürün" value={data.totalProducts} sub={`${data.activeProducts} aktif`} />
             <Metric label="Kategori" value={data.totalCategories} />
             <Metric label="Ödenmiş Sipariş" value={data.paidOrders} />
+            <Metric label="Ödenmedi" value={data.abandonedCheckouts} sub="tamamlanmayan checkout" />
           </div>
 
           <div className="grid grid-cols-2 gap-4 max-[860px]:grid-cols-1">

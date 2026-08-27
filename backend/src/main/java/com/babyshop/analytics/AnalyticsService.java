@@ -8,6 +8,7 @@ import com.babyshop.auth.UserAccountRepository;
 import com.babyshop.category.CategoryRepository;
 import com.babyshop.order.Order;
 import com.babyshop.order.OrderRepository;
+import com.babyshop.order.OrderStatusPolicy;
 import com.babyshop.product.ProductRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
@@ -57,13 +58,16 @@ public class AnalyticsService {
         OrderRepository.RevenueAggregateView revenue = orderRepository.aggregateRevenue(REVENUE_STATUSES);
         BigDecimal totalRevenue = revenue.getRevenue() == null ? BigDecimal.ZERO : revenue.getRevenue();
         long paidOrders = revenue.getCount();
-        long totalOrders = orderRepository.count();
+        // Terk edilmis checkout'lar (EXPIRED) gercek siparis degildir; ayri metrik olarak raporlanir.
+        long totalOrders = orderRepository.countByStatusNot(OrderStatusPolicy.EXPIRED);
+        long abandonedCheckouts = orderRepository.countByStatus(OrderStatusPolicy.EXPIRED);
 
         BigDecimal averageOrderValue = paidOrders == 0
                 ? BigDecimal.ZERO
                 : totalRevenue.divide(BigDecimal.valueOf(paidOrders), 2, RoundingMode.HALF_UP);
 
         List<StatusCount> ordersByStatus = orderRepository.countOrdersByStatus().stream()
+                .filter(view -> !OrderStatusPolicy.EXPIRED.equals(view.getStatus()))
                 .map(view -> new StatusCount(view.getStatus(), view.getCount()))
                 .sorted(Comparator.comparingLong(StatusCount::count).reversed())
                 .toList();
@@ -83,6 +87,7 @@ public class AnalyticsService {
         return new AnalyticsSummaryResponse(
                 totalRevenue,
                 totalOrders,
+                abandonedCheckouts,
                 paidOrders,
                 averageOrderValue,
                 totalCustomers,
