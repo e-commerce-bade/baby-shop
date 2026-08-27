@@ -49,7 +49,7 @@ class AdminUserControllerTest {
 
     @Test
     void shouldReturnUsersForAdmin() throws Exception {
-        given(adminUserService.getAllUsers()).willReturn(List.of(userResponse()));
+        given(adminUserService.getAdminUsers()).willReturn(List.of(userResponse()));
 
         mockMvc.perform(get("/api/v1/admin/users"))
                 .andExpect(status().isOk())

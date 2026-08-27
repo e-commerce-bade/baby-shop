@@ -19,8 +19,12 @@ public interface UserAccountRepository extends JpaRepository<UserAccount, Long> 
     @EntityGraph(attributePaths = "roles")
     Optional<UserAccount> findById(Long id);
 
+    // Yalnizca ADMIN rolundeki hesaplari getirir; musteri hesaplari bu listeye girmez.
     @EntityGraph(attributePaths = "roles")
-    List<UserAccount> findAllByOrderByCreatedAtDesc();
+    @Query("select u from UserAccount u "
+            + "where exists (select 1 from u.roles r where upper(r.name) = 'ADMIN') "
+            + "order by u.createdAt desc")
+    List<UserAccount> findAdmins();
 
     @Query("select count(distinct u.id) from UserAccount u join u.roles r "
             + "where upper(r.name) = upper(:roleName)")

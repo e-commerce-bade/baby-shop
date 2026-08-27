@@ -25,8 +25,8 @@ public class AdminUserService {
     private final PasswordEncoder passwordEncoder;
 
     @Transactional(readOnly = true)
-    public List<AdminUserResponse> getAllUsers() {
-        return userAccountRepository.findAllByOrderByCreatedAtDesc().stream()
+    public List<AdminUserResponse> getAdminUsers() {
+        return userAccountRepository.findAdmins().stream()
                 .map(this::toResponse)
                 .toList();
     }

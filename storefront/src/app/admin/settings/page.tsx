@@ -187,7 +187,9 @@ export default function AdminSettingsPage() {
       headers: { Accept: 'application/json' },
     })
     if (!res.ok) throw new Error(await readApiError(res, 'Yöneticiler yüklenemedi.'))
-    setUsers((await res.json()) as AdminUser[])
+    const all = (await res.json()) as AdminUser[]
+    // Backend zaten ADMIN rolune gore filtreliyor; bu ek kontrol musteri hesaplarinin listeye sizmasini onler.
+    setUsers(all.filter((u) => (u.roles ?? []).some((r) => r.replace(/^ROLE_/i, '').toUpperCase() === 'ADMIN')))
   }
 
   useEffect(() => {

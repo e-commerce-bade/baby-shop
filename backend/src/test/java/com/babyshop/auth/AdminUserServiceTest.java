@@ -40,10 +40,10 @@ class AdminUserServiceTest {
     private AdminUserService adminUserService;
 
     @Test
-    void shouldReturnAllUsers() {
-        given(userAccountRepository.findAllByOrderByCreatedAtDesc()).willReturn(List.of(buildUser(1L, "admin@babyshop.local")));
+    void shouldReturnOnlyAdminUsers() {
+        given(userAccountRepository.findAdmins()).willReturn(List.of(buildUser(1L, "admin@babyshop.local")));
 
-        var response = adminUserService.getAllUsers();
+        var response = adminUserService.getAdminUsers();
 
         assertThat(response).hasSize(1);
         assertThat(response.getFirst().email()).isEqualTo("admin@babyshop.local");

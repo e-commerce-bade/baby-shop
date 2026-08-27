@@ -28,8 +28,8 @@ public class AdminUserController {
     private final AdminUserService adminUserService;
 
     @GetMapping
-    public ResponseEntity<List<AdminUserResponse>> getAllUsers() {
-        return ResponseEntity.ok(adminUserService.getAllUsers());
+    public ResponseEntity<List<AdminUserResponse>> getAdminUsers() {
+        return ResponseEntity.ok(adminUserService.getAdminUsers());
     }
 
     @GetMapping("/{userId}")
