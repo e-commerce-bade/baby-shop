@@ -36,13 +36,16 @@ export default function FilterGroup({ title, defaultOpen = false, children }: Pr
         </svg>
       </button>
 
+      {/* Acik grubun yuksekligi icerigine gore belirlenir (0fr -> 1fr gecisi). Sabit bir ust sinir
+          yok: eski 400px sinirinda uzun beden listesinin sonundaki secenekler kesilip secilemiyordu. */}
       <div
         className={cn(
-          'overflow-hidden transition-all duration-[280ms]',
-          open ? 'mt-3 max-h-[400px] opacity-100' : 'max-h-0 opacity-0',
+          'grid transition-all duration-[280ms]',
+          open ? 'mt-3 grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0',
         )}
       >
-        {children}
+        {/* Kapaliyken icerik klavye ve ekran okuyucu icin de devre disidir (Tab gizli seceneklere gitmez). */}
+        <div className="overflow-hidden" inert={!open}>{children}</div>
       </div>
     </div>
   )

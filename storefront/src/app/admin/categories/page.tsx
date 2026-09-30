@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import AdminShell from '@/components/admin/AdminShell'
+import { foldForSearch } from '@/lib/utils'
 
 interface AdminProfile {
   email: string
@@ -426,7 +427,7 @@ export default function AdminCategoriesPage() {
     : undefined
 
   const filtered = useMemo(
-    () => categories.filter((c) => !search || c.name.toLowerCase().includes(search.toLowerCase())),
+    () => categories.filter((c) => !search || foldForSearch(c.name).includes(foldForSearch(search))),
     [categories, search]
   )
   const nextSortOrder = useMemo(

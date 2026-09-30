@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
+import { compareSizeLabels } from '@/lib/sizes'
 import { formatPrice } from '@/lib/utils'
 import ColorSelector from './ColorSelector'
 import SizeSelector from './SizeSelector'
@@ -9,14 +10,10 @@ import QuantityControl from './QuantityControl'
 import { useFavoriteStore } from '@/store/favoriteStore'
 import type { ProductDetail, ProductVariant } from '@/types/product'
 
-// Beden etiketindeki ilk sayiya gore sirala ("3 Yas" < "10 Yas", "0-3 Ay" < "3-6 Ay")
-function sizeSortKey(label: string): number {
-  const match = label.match(/\d+/)
-  return match ? parseInt(match[0], 10) : Number.MAX_SAFE_INTEGER
-}
-
 interface Props {
   product: ProductDetail
+  // Renk secenekleri, galerideki gorsel sirasiyla.
+  colors: string[]
   selectedColor: string
   onColorSelect: (color: string) => void
   selectedSize: string | null
@@ -32,6 +29,7 @@ interface Props {
 
 export default function ProductInfoPanel({
   product,
+  colors,
   selectedColor,
   onColorSelect,
   selectedSize,
@@ -46,28 +44,22 @@ export default function ProductInfoPanel({
 }: Props) {
   const router = useRouter()
   const pathname = usePathname()
-  const uniqueColors = useMemo(
-    () => [...new Set(product.variants.map((variant) => variant.colorName))],
-    [product.variants],
-  )
-
   const isFavorite = useFavoriteStore((state) => state.isFavorite(product.id))
   const toggleFavorite = useFavoriteStore((state) => state.toggleFavorite)
 
   const sizesForColor = useMemo(() => {
-    const seen = new Set<string>()
-    return product.variants
+    // Ayni beden etiketi birden fazla varyantta olabilir (eski "3-4 Yas" ve yeni "3-4 Yaş" ayni
+    // gorunur): herhangi birinde stok varsa beden secilebilir.
+    const stockBySize = new Map<string, boolean>()
+    product.variants
       .filter((variant) => variant.colorName === selectedColor)
-      .filter((variant) => {
-        if (seen.has(variant.sizeLabel)) return false
-        seen.add(variant.sizeLabel)
-        return true
+      .forEach((variant) => {
+        stockBySize.set(variant.sizeLabel, (stockBySize.get(variant.sizeLabel) ?? false) || variant.stockQuantity > 0)
       })
-      .map((variant) => ({
-        label: variant.sizeLabel,
-        inStock: variant.stockQuantity > 0,
-      }))
-      .sort((a, b) => sizeSortKey(a.label) - sizeSortKey(b.label))
+    return [...stockBySize.entries()]
+      .map(([label, inStock]) => ({ label, inStock }))
+      // Yas araliklari sayisal sirayla: "9-10" < "10-11", "5-6" < "6" < "6-7".
+      .sort((a, b) => compareSizeLabels(a.label, b.label))
   }, [product.variants, selectedColor])
 
   const currentPrice = parseFloat(currentVariant?.price ?? product.lowestPrice)
@@ -122,7 +114,7 @@ export default function ProductInfoPanel({
           <span className="font-normal text-brown-2">{selectedColor}</span>
         </p>
         <ColorSelector
-          colors={uniqueColors}
+          colors={colors}
           selected={selectedColor}
           onSelect={onColorSelect}
         />

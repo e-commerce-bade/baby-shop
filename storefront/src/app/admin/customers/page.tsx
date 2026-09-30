@@ -1,7 +1,7 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { Suspense, useCallback, useEffect, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import AdminShell from '@/components/admin/AdminShell'
 import { formatPrice } from '@/lib/utils'
 
@@ -73,16 +73,27 @@ function initials(c: Customer) {
     .toUpperCase()
 }
 
+// useSearchParams kullanan icerik, statik on-isleme icin Suspense siniri icinde olmalidir.
 export default function AdminCustomersPage() {
+  return (
+    <Suspense fallback={null}>
+      <AdminCustomersContent />
+    </Suspense>
+  )
+}
+
+function AdminCustomersContent() {
   const router = useRouter()
+  // Ust cubuktaki genel aramadan gelindiginde (?q=...) arama kutusu o metinle acilir.
+  const urlQuery = useSearchParams().get('q') ?? ''
   const [profile, setProfile] = useState<AdminProfile | null>(null)
   const [stats, setStats] = useState<CustomerStats | null>(null)
   const [customers, setCustomers] = useState<Customer[]>([])
   const [page, setPage] = useState(0)
   const [totalPages, setTotalPages] = useState(0)
   const [totalElements, setTotalElements] = useState(0)
-  const [search, setSearch] = useState('')
-  const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [search, setSearch] = useState(urlQuery)
+  const [debouncedSearch, setDebouncedSearch] = useState(urlQuery)
   const [loading, setLoading] = useState(true)
   const [listLoading, setListLoading] = useState(false)
   const [forbidden, setForbidden] = useState(false)
@@ -132,6 +143,14 @@ export default function AdminCustomersPage() {
       active = false
     }
   }, [router])
+
+  // Genel aramadan gelinince (?q=...) kutuyu doldur; parametre sonra adres cubugundan silinir ki
+  // ayni sonuca yeniden tiklanabilsin ve sayfa yenilenince arama geri gelmesin.
+  useEffect(() => {
+    if (!urlQuery) return
+    setSearch(urlQuery)
+    router.replace(window.location.pathname, { scroll: false })
+  }, [urlQuery, router])
 
   // Arama girisini debounce'la; her degisimde ilk sayfaya don.
   useEffect(() => {
@@ -228,7 +247,7 @@ export default function AdminCustomersPage() {
           type="search"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="İsim veya e-posta ara..."
+          placeholder="İsim, e-posta veya telefon ara..."
           className="w-full rounded-[12px] border border-[#ECE3D6] bg-white py-2.5 pl-10 pr-4 text-[13px] text-[#3D2B1F] placeholder:text-[#C4B5A5] focus:border-[#A89070] focus:outline-none focus:ring-2 focus:ring-[#A89070]/20"
         />
       </div>

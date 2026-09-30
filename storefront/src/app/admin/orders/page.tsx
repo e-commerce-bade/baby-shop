@@ -1,8 +1,9 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { Suspense, useEffect, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import AdminShell from '@/components/admin/AdminShell'
+import { downloadCsv } from '@/lib/csv'
 import { formatPrice } from '@/lib/utils'
 
 interface AdminProfile {
@@ -20,6 +21,9 @@ interface AdminOrder {
   customerFirstName: string | null
   customerLastName: string | null
   customerPhone: string | null
+  subtotalAmount: number | string | null
+  shippingAmount: number | string | null
+  discountAmount: number | string | null
   totalAmount: number | string
   currency: string
   paymentMethod: string | null
@@ -40,7 +44,9 @@ interface AdminOrder {
     id: number
     productName: string
     variantLabel: string
+    sku: string | null
     quantity: number
+    unitPrice: number | string | null
     lineTotal: number | string
     currency: string
     imageUrl: string | null
@@ -169,18 +175,31 @@ function StatusBadge({ status }: { status: string }) {
   )
 }
 
+// useSearchParams kullanan icerik, statik on-isleme icin Suspense siniri icinde olmalidir.
 export default function AdminOrdersPage() {
+  return (
+    <Suspense fallback={null}>
+      <AdminOrdersContent />
+    </Suspense>
+  )
+}
+
+function AdminOrdersContent() {
   const router = useRouter()
+  // Ust cubuktaki genel aramadan gelindiginde (?q=...) arama kutusu o metinle acilir.
+  const urlQuery = useSearchParams().get('q') ?? ''
   const [profile, setProfile] = useState<AdminProfile | null>(null)
   const [page, setPage] = useState<PageResponse<AdminOrder> | null>(null)
   const [loading, setLoading] = useState(true)
   const [forbidden, setForbidden] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [currentPage, setCurrentPage] = useState(0)
-  // Siparişler sayfası varsayılan olarak "Sipariş Alındı" (PAID) filtresiyle açılır.
-  const [statusFilter, setStatusFilter] = useState<StatusKey>('PAID')
+  // Siparişler sayfası varsayılan olarak "Sipariş Alındı" (PAID) filtresiyle açılır; aramayla
+  // gelindiyse tüm durumlarda aranır.
+  const [statusFilter, setStatusFilter] = useState<StatusKey>(urlQuery ? 'all' : 'PAID')
   const [paymentFilter, setPaymentFilter] = useState<PaymentMethodKey>('all')
-  const [search, setSearch] = useState('')
+  const [search, setSearch] = useState(urlQuery)
+  const [debouncedSearch, setDebouncedSearch] = useState(urlQuery)
   const [selectedOrder, setSelectedOrder] = useState<AdminOrder | null>(null)
   const [updatingOrderNumber, setUpdatingOrderNumber] = useState<string | null>(null)
   // İptal edilirken neden girilmesi için: iptal edilecek sipariş + neden metni.
@@ -227,9 +246,31 @@ export default function AdminOrdersPage() {
     }
   }, [router])
 
+  // Genel aramadan gelinince (?q=...) kutuyu ona esitle; parametre sonra adres cubugundan silinir ki
+  // ayni sonuca yeniden tiklanabilsin ve sayfa yenilenince arama geri gelmesin.
+  useEffect(() => {
+    if (!urlQuery) return
+    setSearch(urlQuery)
+    setDebouncedSearch(urlQuery)
+    setStatusFilter('all')
+    setPaymentFilter('all')
+    router.replace(window.location.pathname, { scroll: false })
+  }, [urlQuery, router])
+
+  // Her tus vurusunda istek atmamak icin arama metni kisa bir gecikmeyle uygulanir. Arama tum
+  // durumlarda yapilir: "Onaylandı" sekmesindeyken yazilan bir musteri adi, kargodaki siparisini de
+  // bulmali; bu yuzden arama uygulanirken durum sekmesi "Tümü"ne alinir (kullanici sonra daraltabilir).
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search)
+      if (search.trim()) setStatusFilter('all')
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [search])
+
   useEffect(() => {
     setCurrentPage(0)
-  }, [search, statusFilter, paymentFilter])
+  }, [debouncedSearch, statusFilter, paymentFilter])
 
   useEffect(() => {
     if (!profile) return
@@ -240,11 +281,12 @@ export default function AdminOrdersPage() {
       setError(null)
       try {
         const params = new URLSearchParams({ page: String(currentPage), size: String(PAGE_SIZE) })
-        const q = search.trim()
+        const q = debouncedSearch.trim()
 
         if (statusFilter !== 'all') params.set('status', statusFilter)
         if (paymentFilter !== 'all') params.set('paymentMethod', paymentFilter)
-        if (q) params.set('orderNumber', q)
+        // Siparis no, musteri adi, telefon veya e-posta icinde arar.
+        if (q) params.set('q', q)
 
         const res = await fetch(`/api/admin/orders?${params.toString()}`, {
           cache: 'no-store',
@@ -266,7 +308,7 @@ export default function AdminOrdersPage() {
     return () => {
       active = false
     }
-  }, [profile, currentPage, statusFilter, paymentFilter, search])
+  }, [profile, currentPage, statusFilter, paymentFilter, debouncedSearch])
 
   const displayName = profile
     ? [profile.firstName, profile.lastName].filter(Boolean).join(' ') || profile.email
@@ -337,16 +379,7 @@ export default function AdminOrdersPage() {
       ]),
     ]
 
-    const csv = rows
-      .map((row) => row.map((cell) => `"${cell.replaceAll('"', '""')}"`).join(','))
-      .join('\n')
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = 'orders.csv'
-    link.click()
-    URL.revokeObjectURL(url)
+    downloadCsv('orders.csv', rows)
   }
 
   if (forbidden) {
@@ -431,13 +464,13 @@ export default function AdminOrdersPage() {
       </div>
 
       <div className="mb-4 flex flex-wrap items-center gap-3">
-        <div className="relative min-w-[260px] max-w-sm flex-1">
+        <div className="relative min-w-[260px] max-w-md flex-1">
           <svg className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#C4B5A5]" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
             <circle cx="9" cy="9" r="5.5" /><path d="M17 17l-3.5-3.5" />
           </svg>
           <input
             type="search"
-            placeholder="Sipariş no ara..."
+            placeholder="Müşteri adı, telefon, e-posta veya sipariş no ara..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full rounded-[10px] border border-[#ECE3D6] bg-white py-2 pl-9 pr-4 text-[13px] text-[#3D2B1F] placeholder:text-[#C4B5A5] focus:border-[#A89070] focus:outline-none focus:ring-2 focus:ring-[#A89070]/20"
@@ -700,9 +733,12 @@ function absoluteUrl(url: string) {
 
 // Siparis detayini bagimsiz bir yazdirma penceresinde acar; kullanici yazdirabilir veya
 // "PDF olarak kaydet" ile PDF alabilir. Admin arayuzunun stilini tasimadan temiz cikti verir.
+// Musteri, teslimat ve odeme (odeme sekli + toplam) en ustte durur; urunler kucuk gorselli kartlar
+// halinde alta dizilir. Boylece yalnizca ilk sayfa yazdirilsa bile siparisin tum ozeti kagittadir.
 function printOrder(order: AdminOrder) {
   const status = getStatus(order.status)
   const address = order.shippingAddress
+  const money = (value: number | string | null | undefined) => escapeHtml(formatPrice(value ?? 0, order.currency))
   const addressHtml = address
     ? [
         address.line1,
@@ -715,21 +751,32 @@ function printOrder(order: AdminOrder) {
         .join('')
     : '<div>Adres bilgisi yok.</div>'
 
-  const rowsHtml = order.items
+  const isCashOnDelivery = (order.paymentMethod ?? '').toUpperCase() === 'COD'
+  const shipping = Number(order.shippingAmount ?? 0)
+  const amountRows = [
+    order.subtotalAmount != null ? `<tr><td>Ara toplam</td><td>${money(order.subtotalAmount)}</td></tr>` : '',
+    order.shippingAmount != null ? `<tr><td>Kargo</td><td>${shipping > 0 ? money(shipping) : 'Ücretsiz'}</td></tr>` : '',
+    Number(order.codSurcharge) > 0 ? `<tr><td>Kapıda ödeme farkı</td><td>${money(order.codSurcharge)}</td></tr>` : '',
+    Number(order.discountAmount) > 0 ? `<tr><td>İndirim</td><td>-${money(order.discountAmount)}</td></tr>` : '',
+  ].join('')
+
+  const totalQuantity = order.items.reduce((total, item) => total + item.quantity, 0)
+  const itemsHtml = order.items
     .map((item) => {
       const thumb = item.imageUrl
-        ? `<img src="${escapeHtml(absoluteUrl(item.imageUrl))}" alt="" style="width:260px;height:320px;object-fit:cover;border-radius:8px;border:1px solid #ECE3D6;display:block;" />`
-        : '<div style="width:260px;height:320px;border-radius:8px;border:1px solid #ECE3D6;background:#F4EEE6;"></div>'
+        ? `<img src="${escapeHtml(absoluteUrl(item.imageUrl))}" alt="" />`
+        : '<div class="noimg"></div>'
+      const unitPrice = item.unitPrice != null ? `${item.quantity} × ${money(item.unitPrice)}` : `${item.quantity} adet`
       return `
-        <tr>
-          <td style="padding:12px 6px;vertical-align:top;">
-            <div style="font-weight:600;color:#3D2B1F;">${escapeHtml(item.productName)}</div>
-            <div style="font-size:12px;color:#8C7A6A;margin-bottom:8px;">${escapeHtml(item.variantLabel ?? '')}</div>
-            ${thumb}
-          </td>
-          <td style="padding:12px 6px;text-align:center;vertical-align:top;">${item.quantity}</td>
-          <td style="padding:12px 6px;text-align:right;vertical-align:top;font-weight:700;color:#3D2B1F;white-space:nowrap;">${escapeHtml(formatPrice(item.lineTotal, item.currency))}</td>
-        </tr>`
+        <div class="item">
+          ${thumb}
+          <div class="item-body">
+            <div class="item-name">${escapeHtml(item.productName)}</div>
+            <div class="item-variant">${escapeHtml(item.variantLabel ?? '')}</div>
+            ${item.sku ? `<div class="muted small">${escapeHtml(item.sku)}</div>` : ''}
+            <div class="item-price"><span>${unitPrice}</span><strong>${money(item.lineTotal)}</strong></div>
+          </div>
+        </div>`
     })
     .join('')
 
@@ -740,20 +787,34 @@ function printOrder(order: AdminOrder) {
 <title>Sipariş ${escapeHtml(order.orderNumber)}</title>
 <style>
   * { box-sizing: border-box; }
-  body { font-family: -apple-system, Segoe UI, Roboto, Arial, sans-serif; color: #3D2B1F; margin: 32px; }
+  body { font-family: -apple-system, Segoe UI, Roboto, Arial, sans-serif; color: #3D2B1F; margin: 28px; font-size: 13px; }
   h1 { font-size: 22px; margin: 0; }
-  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em; color: #A89070; margin: 24px 0 8px; }
+  h2 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: #A89070; margin: 0 0 6px; }
   .brand { font-size: 13px; font-weight: 700; color: #C07B5A; letter-spacing: 0.14em; text-transform: uppercase; }
-  .head { display:flex; justify-content:space-between; align-items:flex-start; border-bottom:2px solid #ECE3D6; padding-bottom:16px; }
-  .muted { color:#8C7A6A; font-size:13px; }
+  .head { display:flex; justify-content:space-between; align-items:flex-start; border-bottom:2px solid #ECE3D6; padding-bottom:12px; }
+  .muted { color:#8C7A6A; }
+  .small { font-size: 11px; }
+  .strong { font-weight: 700; font-size: 15px; }
   .badge { display:inline-block; padding:4px 10px; border-radius:999px; font-size:12px; font-weight:700; background:${status.bg}; color:${status.color}; }
-  table { width:100%; border-collapse:collapse; font-size:13px; }
-  thead th { text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:0.06em; color:#A89070; border-bottom:1px solid #ECE3D6; padding:6px; }
-  tbody tr { border-bottom:1px solid #F4EEE6; }
-  .total { display:flex; justify-content:space-between; font-size:16px; font-weight:800; border-top:2px solid #ECE3D6; margin-top:10px; padding-top:10px; }
-  .grid { display:flex; gap:32px; }
-  .grid > div { flex:1; }
-  @media print { body { margin: 12mm; } }
+  .summary { display:flex; gap:12px; margin-top:14px; }
+  .box { flex:1; border:1px solid #ECE3D6; border-radius:10px; padding:12px; overflow-wrap:anywhere; }
+  .pay { flex:1.1; background:#FAF6F1; }
+  .amounts { width:100%; border-collapse:collapse; margin-top:6px; color:#8C7A6A; }
+  .amounts td { padding:1px 0; }
+  .amounts td:last-child { text-align:right; }
+  .total { display:flex; justify-content:space-between; align-items:baseline; border-top:1px solid #ECE3D6; margin-top:6px; padding-top:6px; font-weight:800; }
+  .total span:last-child { font-size:20px; }
+  .collect { margin-top:6px; padding:5px 8px; border-radius:6px; border:1px solid #E0B98A; font-weight:700; text-align:center; }
+  .items-title { margin:18px 0 8px; }
+  .items { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .item { display:flex; gap:12px; border:1px solid #ECE3D6; border-radius:10px; padding:10px; break-inside:avoid; page-break-inside:avoid; }
+  .item img, .item .noimg { width:104px; height:128px; flex-shrink:0; object-fit:cover; border-radius:8px; border:1px solid #ECE3D6; background:#F4EEE6; }
+  .item-body { flex:1; min-width:0; display:flex; flex-direction:column; }
+  .item-name { font-weight:700; }
+  .item-variant { font-size:14px; font-weight:700; color:#C07B5A; margin:3px 0; }
+  .item-price { display:flex; justify-content:space-between; align-items:baseline; margin-top:auto; padding-top:6px; }
+  .note { margin-top:14px; border:1px solid #ECE3D6; border-radius:10px; padding:12px; }
+  @media print { body { margin: 10mm; } }
 </style>
 </head>
 <body>
@@ -766,33 +827,31 @@ function printOrder(order: AdminOrder) {
     <span class="badge">${escapeHtml(status.label)}</span>
   </div>
 
-  <div class="grid">
-    <div>
+  <div class="summary">
+    <div class="box">
       <h2>Müşteri</h2>
-      <div style="font-weight:600;">${escapeHtml(customerName(order))}</div>
+      <div class="strong">${escapeHtml(customerName(order))}</div>
+      <div>${escapeHtml(order.customerPhone ?? 'Telefon yok')}</div>
       <div class="muted">${escapeHtml(order.customerEmail)}</div>
-      ${order.customerPhone ? `<div class="muted">${escapeHtml(order.customerPhone)}</div>` : ''}
     </div>
-    <div>
+    <div class="box">
       <h2>Teslimat</h2>
-      <div class="muted">${addressHtml}</div>
+      ${addressHtml}
+      ${order.shippingCarrier ? `<div class="muted">Kargo: ${escapeHtml(order.shippingCarrier)}</div>` : ''}
+    </div>
+    <div class="box pay">
+      <h2>Ödeme</h2>
+      <div class="strong">${escapeHtml(paymentMethodLabel(order.paymentMethod))}</div>
+      <table class="amounts">${amountRows}</table>
+      <div class="total"><span>Toplam</span><span>${money(order.totalAmount)}</span></div>
+      ${isCashOnDelivery ? `<div class="collect">Kapıda tahsil edilecek: ${money(order.totalAmount)}</div>` : ''}
     </div>
   </div>
 
-  <h2>Ürünler</h2>
-  <table>
-    <thead>
-      <tr><th>Ürün</th><th style="text-align:center;">Adet</th><th style="text-align:right;">Tutar</th></tr>
-    </thead>
-    <tbody>${rowsHtml}</tbody>
-  </table>
+  <h2 class="items-title">Ürünler (${totalQuantity} adet)</h2>
+  <div class="items">${itemsHtml}</div>
 
-  <div class="total">
-    <span>Toplam</span>
-    <span>${escapeHtml(formatPrice(order.totalAmount, order.currency))}</span>
-  </div>
-
-  ${order.notes ? `<h2>Not</h2><div class="muted">${escapeHtml(order.notes)}</div>` : ''}
+  ${order.notes ? `<div class="note"><h2>Müşteri Notu</h2>${escapeHtml(order.notes)}</div>` : ''}
 </body>
 </html>`
 
@@ -849,6 +908,33 @@ function OrderDetailsDrawer({ order, onClose }: { order: AdminOrder; onClose: ()
             {order.customerPhone ? <p className="mt-1 text-[13px] text-[#8C7A6A]">{order.customerPhone}</p> : null}
           </DetailSection>
 
+          <DetailSection title="Özet">
+            <div className="flex items-center justify-between">
+              <span className="text-[13px] text-[#8C7A6A]">Durum</span>
+              <StatusBadge status={order.status} />
+            </div>
+            <div className="mt-3 flex items-center justify-between">
+              <span className="text-[13px] text-[#8C7A6A]">Ödeme Yöntemi</span>
+              <span className="text-[13px] font-semibold text-[#3D2B1F]">{paymentMethodLabel(order.paymentMethod)}</span>
+            </div>
+            {order.shippingCarrier ? (
+              <div className="mt-3 flex items-center justify-between">
+                <span className="text-[13px] text-[#8C7A6A]">Kargo Firması</span>
+                <span className="text-[13px] font-semibold text-[#3D2B1F]">{order.shippingCarrier}</span>
+              </div>
+            ) : null}
+            {Number(order.codSurcharge) > 0 ? (
+              <div className="mt-3 flex items-center justify-between">
+                <span className="text-[13px] text-[#8C7A6A]">Kapıda Ödeme Farkı</span>
+                <span className="text-[13px] font-semibold text-[#3D2B1F]">{formatPrice(order.codSurcharge ?? 0, order.currency)}</span>
+              </div>
+            ) : null}
+            <div className="mt-3 flex items-center justify-between">
+              <span className="text-[13px] text-[#8C7A6A]">Toplam</span>
+              <span className="font-bold text-[#3D2B1F]">{formatPrice(order.totalAmount, order.currency)}</span>
+            </div>
+          </DetailSection>
+
           <DetailSection title="Teslimat">
             {order.shippingAddress ? (
               <div className="text-[13px] leading-relaxed text-[#8C7A6A]">
@@ -869,7 +955,10 @@ function OrderDetailsDrawer({ order, onClose }: { order: AdminOrder; onClose: ()
                   <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0 flex-1">
                       <p className="text-[13px] font-semibold text-[#3D2B1F]">{item.productName}</p>
-                      <p className="mt-0.5 text-[12px] text-[#8C7A6A]">{item.variantLabel} x {item.quantity}</p>
+                      <p className="mt-0.5 text-[12px] text-[#8C7A6A]">
+                        {item.variantLabel} · {item.quantity}
+                        {item.unitPrice != null ? ` × ${formatPrice(item.unitPrice, item.currency)}` : ' adet'}
+                      </p>
                     </div>
                     <p className="shrink-0 text-[13px] font-bold text-[#3D2B1F]">
                       {formatPrice(item.lineTotal, item.currency)}
@@ -895,33 +984,6 @@ function OrderDetailsDrawer({ order, onClose }: { order: AdminOrder; onClose: ()
                   </div>
                 </div>
               ))}
-            </div>
-          </DetailSection>
-
-          <DetailSection title="Özet">
-            <div className="flex items-center justify-between">
-              <span className="text-[13px] text-[#8C7A6A]">Durum</span>
-              <StatusBadge status={order.status} />
-            </div>
-            <div className="mt-3 flex items-center justify-between">
-              <span className="text-[13px] text-[#8C7A6A]">Ödeme Yöntemi</span>
-              <span className="text-[13px] font-semibold text-[#3D2B1F]">{paymentMethodLabel(order.paymentMethod)}</span>
-            </div>
-            {order.shippingCarrier ? (
-              <div className="mt-3 flex items-center justify-between">
-                <span className="text-[13px] text-[#8C7A6A]">Kargo Firması</span>
-                <span className="text-[13px] font-semibold text-[#3D2B1F]">{order.shippingCarrier}</span>
-              </div>
-            ) : null}
-            {Number(order.codSurcharge) > 0 ? (
-              <div className="mt-3 flex items-center justify-between">
-                <span className="text-[13px] text-[#8C7A6A]">Kapıda Ödeme Farkı</span>
-                <span className="text-[13px] font-semibold text-[#3D2B1F]">{formatPrice(order.codSurcharge ?? 0, order.currency)}</span>
-              </div>
-            ) : null}
-            <div className="mt-3 flex items-center justify-between">
-              <span className="text-[13px] text-[#8C7A6A]">Toplam</span>
-              <span className="font-bold text-[#3D2B1F]">{formatPrice(order.totalAmount, order.currency)}</span>
             </div>
           </DetailSection>
 

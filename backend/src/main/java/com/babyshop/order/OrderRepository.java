@@ -1,13 +1,11 @@
 package com.babyshop.order;
 
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
-import org.springframework.data.jpa.domain.Specification;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
@@ -35,9 +33,10 @@ public interface OrderRepository extends JpaRepository<Order, Long>, JpaSpecific
     @EntityGraph(attributePaths = {"items"})
     List<Order> findAllByUserEmailIgnoreCaseOrderByCreatedAtDesc(String email);
 
-    @Override
-    @EntityGraph(attributePaths = {"items"})
-    Page<Order> findAll(Specification<Order> specification, Pageable pageable);
+    // Sayfali siparis listeleri (findAll(Specification, Pageable)) bilerek kalem fetch'i yapmaz:
+    // koleksiyon fetch'li sayfali sorguda Hibernate LIMIT'i veritabaninda uygulayamaz, eslesen tum
+    // siparisleri bellege alip orada keser. Kalemler Order.items uzerindeki @BatchSize ile sayfa
+    // basina tek sorguda yuklenir.
 
     // --- Analitik agregalari (tum tabloyu bellege cekmeden SQL'de hesaplanir) ---
 

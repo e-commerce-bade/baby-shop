@@ -15,6 +15,7 @@ import com.babyshop.order.dto.OrderStatusUpdateRequest;
 import com.babyshop.payment.Payment;
 import com.babyshop.payment.PaymentRepository;
 import com.babyshop.product.Product;
+import com.babyshop.product.ProductImage;
 import com.babyshop.product.ProductImageRepository;
 import com.babyshop.product.ProductVariant;
 import com.babyshop.settings.StoreSettingService;
@@ -164,6 +165,54 @@ class OrderServiceTest {
         assertThat(response.items()).hasSize(1);
         assertThat(response.payment()).isNotNull();
         assertThat(response.payment().status()).isEqualTo("SUCCEEDED");
+    }
+
+    @Test
+    void shouldShowImageOfTheOrderedColour() {
+        Order order = buildOrder("ORD-ABC123DEF456");
+        order.getItems().add(buildOrderItem(order, 1L, 1));
+        given(orderRepository.findByOrderNumber("ORD-ABC123DEF456")).willReturn(Optional.of(order));
+        given(productImageRepository.findAllByProductIdInOrderBySortOrderAscIdAsc(any())).willReturn(List.of(
+                buildImage("/uploads/blue.webp", "Blue", true),
+                buildImage("/uploads/pink.webp", " pink ", false)
+        ));
+
+        var response = orderService.getOrderByOrderNumber("ORD-ABC123DEF456");
+
+        assertThat(response.items().get(0).variantLabel()).isEqualTo("6-9 months / Pink");
+        assertThat(response.items().get(0).imageUrl()).isEqualTo("/uploads/pink.webp");
+    }
+
+    @Test
+    void shouldMatchOrderedColourEvenWhenTheColourNameContainsTheSeparator() {
+        Order order = buildOrder("ORD-ABC123DEF456");
+        order.getItems().add(buildOrderItem(order, 1L, 1));
+        order.getItems().get(0).setVariantLabel("3-4 Yaş / Siyah / Gri");
+        given(orderRepository.findByOrderNumber("ORD-ABC123DEF456")).willReturn(Optional.of(order));
+        given(productImageRepository.findAllByProductIdInOrderBySortOrderAscIdAsc(any())).willReturn(List.of(
+                buildImage("/uploads/gri.webp", "Gri", true),
+                buildImage("/uploads/siyah-gri.webp", "Siyah / Gri", false),
+                buildImage("/uploads/siyah-gri-arka.webp", "Siyah / Gri", false)
+        ));
+
+        var response = orderService.getOrderByOrderNumber("ORD-ABC123DEF456");
+
+        assertThat(response.items().get(0).imageUrl()).isEqualTo("/uploads/siyah-gri.webp");
+    }
+
+    @Test
+    void shouldFallBackToPrimaryImageWhenOrderedColourHasNoImage() {
+        Order order = buildOrder("ORD-ABC123DEF456");
+        order.getItems().add(buildOrderItem(order, 1L, 1));
+        given(orderRepository.findByOrderNumber("ORD-ABC123DEF456")).willReturn(Optional.of(order));
+        given(productImageRepository.findAllByProductIdInOrderBySortOrderAscIdAsc(any())).willReturn(List.of(
+                buildImage("/uploads/green.webp", "Green", false),
+                buildImage("/uploads/blue.webp", "Blue", true)
+        ));
+
+        var response = orderService.getOrderByOrderNumber("ORD-ABC123DEF456");
+
+        assertThat(response.items().get(0).imageUrl()).isEqualTo("/uploads/blue.webp");
     }
 
     @Test
@@ -712,6 +761,20 @@ class OrderServiceTest {
     }
 
     @Test
+    void shouldReturnStockWhenAnOrderBeingPreparedIsCancelled() {
+        Order order = buildOrder("ORD-ABC123DEF456");
+        order.setStatus("PREPARING");
+        given(orderRepository.findByOrderNumber("ORD-ABC123DEF456")).willReturn(Optional.of(order));
+        given(orderRepository.save(any(Order.class))).willAnswer(invocation -> invocation.getArgument(0));
+
+        orderService.updateOrderStatus("ORD-ABC123DEF456", new OrderStatusUpdateRequest("CANCELLED", "Müşteri vazgeçti"));
+
+        // Hazirlanan siparis henuz kargoya verilmedi; urunler rafta kaldigi icin stok geri verilir.
+        verify(stockReservationService).release(order);
+        assertThat(order.getStatus()).isEqualTo("CANCELLED");
+    }
+
+    @Test
     void shouldRejectUnsupportedOrderStatus() {
         assertThatThrownBy(() -> orderService.updateOrderStatus(
                 "ORD-ABC123DEF456",
@@ -823,6 +886,18 @@ class OrderServiceTest {
                 "34710",
                 "Turkey"
         );
+    }
+
+    private ProductImage buildImage(String imageUrl, String colorName, boolean primary) {
+        Product product = new Product();
+        product.setId(1L);
+
+        ProductImage image = new ProductImage();
+        image.setProduct(product);
+        image.setImageUrl(imageUrl);
+        image.setColorName(colorName);
+        image.setPrimary(primary);
+        return image;
     }
 
     private OrderItem buildOrderItem(Order order, Long id, int quantity) {

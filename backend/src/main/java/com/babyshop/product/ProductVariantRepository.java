@@ -1,10 +1,13 @@
 package com.babyshop.product;
 
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -32,7 +35,26 @@ public interface ProductVariantRepository extends JpaRepository<ProductVariant, 
 
     List<ProductVariant> findAllByProductIdOrderBySizeLabelAscColorNameAsc(Long productId);
 
+    List<ProductVariant> findAllByProductIdIn(Collection<Long> productIds);
+
+    // Kalici silme. Dogrudan SQL'e gider; boylece Product.variants uzerindeki cascade, silinen
+    // satiri flush sirasinda geri yazmaz. Siparis kalemleri kendi kopyasini tutar (FK: SET NULL).
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("DELETE FROM ProductVariant v WHERE v.id IN :ids")
+    int deleteAllByIdIn(@Param("ids") Collection<Long> ids);
+
     Optional<ProductVariant> findByIdAndProductId(Long id, Long productId);
+
+    // Admin stok yazimlari icin satir kilidi (SELECT ... FOR UPDATE): panelin gordugu stok ile
+    // karsilastirma ve yazim arasinda bir siparisin atomik stok dusumu araya giremez, kilit birakilana
+    // kadar bekler. Kilitler id sirasiyla alinir (siparis rezervasyonu da ayni sirayi izler).
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT v FROM ProductVariant v WHERE v.id IN :ids ORDER BY v.id")
+    List<ProductVariant> findAllByIdForUpdate(@Param("ids") Collection<Long> ids);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT v FROM ProductVariant v WHERE v.id = :id AND v.product.id = :productId")
+    Optional<ProductVariant> findByIdAndProductIdForUpdate(@Param("id") Long id, @Param("productId") Long productId);
 
     boolean existsByProductIdAndSizeLabelAndColorName(Long productId, String sizeLabel, String colorName);
 

@@ -45,7 +45,7 @@ class OrderAdminControllerTest {
 
     @Test
     void shouldReturnAllOrders() throws Exception {
-        given(orderService.getAllOrders(0, 10, null, null, null, null, null)).willReturn(new PageResponse<>(
+        given(orderService.getAllOrders(0, 10, null, null, null, null, null, null)).willReturn(new PageResponse<>(
                 List.of(sampleOrderResponse("ORD-ABC123DEF456", "PENDING_PAYMENT")),
                 0,
                 10,
@@ -63,7 +63,7 @@ class OrderAdminControllerTest {
 
     @Test
     void shouldReturnFilteredOrdersByOrderNumber() throws Exception {
-        given(orderService.getAllOrders(0, 10, "ABC123", null, null, null, null)).willReturn(new PageResponse<>(
+        given(orderService.getAllOrders(0, 10, null, "ABC123", null, null, null, null)).willReturn(new PageResponse<>(
                 List.of(sampleOrderResponse("ORD-ABC123DEF456", "PENDING_PAYMENT")),
                 0,
                 10,
@@ -74,6 +74,23 @@ class OrderAdminControllerTest {
         ));
 
         mockMvc.perform(get("/api/v1/admin/orders?orderNumber=ABC123"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].orderNumber").value("ORD-ABC123DEF456"));
+    }
+
+    @Test
+    void shouldSearchOrdersByCustomerText() throws Exception {
+        given(orderService.getAllOrders(0, 10, "ayşe", null, null, null, null, null)).willReturn(new PageResponse<>(
+                List.of(sampleOrderResponse("ORD-ABC123DEF456", "PAID")),
+                0,
+                10,
+                1,
+                1,
+                false,
+                false
+        ));
+
+        mockMvc.perform(get("/api/v1/admin/orders").param("q", "ayşe"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[0].orderNumber").value("ORD-ABC123DEF456"));
     }

@@ -10,6 +10,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.DynamicUpdate;
 import org.hibernate.annotations.UpdateTimestamp;
 import lombok.Getter;
 import lombok.Setter;
@@ -17,9 +18,13 @@ import lombok.Setter;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 
+// DynamicUpdate: UPDATE yalnizca degisen kolonlari yazar. Stok, siparis akisinda ayri atomik
+// sorgularla dusulup geri verildigi icin (bkz. ProductVariantRepository) fiyat ya da beden
+// degisikligi, o sirada rezerve edilmis stogu eski degeriyle ezmemelidir.
 @Getter
 @Setter
 @Entity
+@DynamicUpdate
 @Table(name = "product_variants")
 public class ProductVariant {
 

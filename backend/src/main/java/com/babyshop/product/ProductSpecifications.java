@@ -1,5 +1,6 @@
 package com.babyshop.product;
 
+import com.babyshop.common.search.SearchText;
 import jakarta.persistence.criteria.CriteriaBuilder;
 import jakarta.persistence.criteria.Expression;
 import jakarta.persistence.criteria.Predicate;
@@ -49,11 +50,14 @@ public final class ProductSpecifications {
             }
 
             if (hasText(criteria.query())) {
-                String like = "%" + criteria.query().trim().toLowerCase(Locale.ROOT) + "%";
+                // Buyuk/kucuk harf ve Turkce karakter duyarsiz: "PİJAMA", "pijama" ve "Pijama" ayni sonucu verir.
+                String like = SearchText.containsPattern(criteria.query());
+                char escape = SearchText.likeEscape();
                 predicates.add(cb.or(
-                        cb.like(cb.lower(root.get("name")), like),
-                        cb.like(cb.lower(root.get("brand")), like),
-                        cb.like(cb.lower(root.get("category").get("name")), like)
+                        cb.like(SearchText.fold(cb, root.get("name")), like, escape),
+                        cb.like(SearchText.fold(cb, root.get("brand")), like, escape),
+                        cb.like(SearchText.fold(cb, root.get("productType")), like, escape),
+                        cb.like(SearchText.fold(cb, root.get("category").get("name")), like, escape)
                 ));
             }
 
@@ -89,6 +93,32 @@ public final class ProductSpecifications {
         };
     }
 
+    /**
+     * Admin genel aramasi: urun adi, marka, tip veya herhangi bir varyantin SKU'su icinde gecen metin.
+     * Pasif urunler de dahildir.
+     */
+    public static Specification<Product> adminSearch(String queryText) {
+        String like = SearchText.containsPattern(queryText);
+        char escape = SearchText.likeEscape();
+
+        return (root, query, cb) -> {
+            Subquery<Long> skuMatch = query.subquery(Long.class);
+            Root<ProductVariant> variant = skuMatch.from(ProductVariant.class);
+            skuMatch.select(cb.literal(1L));
+            skuMatch.where(
+                    cb.equal(variant.get("product"), root),
+                    cb.like(SearchText.fold(cb, variant.get("sku")), like, escape)
+            );
+
+            return cb.or(
+                    cb.like(SearchText.fold(cb, root.get("name")), like, escape),
+                    cb.like(SearchText.fold(cb, root.get("brand")), like, escape),
+                    cb.like(SearchText.fold(cb, root.get("productType")), like, escape),
+                    cb.exists(skuMatch)
+            );
+        };
+    }
+
     private static Predicate variantValueExists(
             Root<Product> root,
             jakarta.persistence.criteria.CriteriaQuery<?> query,
@@ -96,13 +126,17 @@ public final class ProductSpecifications {
             String field,
             List<String> values
     ) {
+        // Yazim farklari ("Pembe"/"pembe", "3-4 Yaş"/"3-4 YAŞ") ayni secenek sayilir; filtre secenekleri
+        // de ayni sadelestirmeyle tekillestirilir (bkz. ProductService.getFacets).
+        List<String> foldedValues = values.stream().map(SearchText::fold).toList();
+
         Subquery<Long> sub = query.subquery(Long.class);
         Root<ProductVariant> variant = sub.from(ProductVariant.class);
         sub.select(cb.literal(1L));
         sub.where(
                 cb.equal(variant.get("product"), root),
                 cb.isTrue(variant.get("active")),
-                variant.get(field).in(values)
+                SearchText.fold(cb, variant.get(field)).in(foldedValues)
         );
         return cb.exists(sub);
     }

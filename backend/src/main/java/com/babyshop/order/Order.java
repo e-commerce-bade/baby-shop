@@ -14,6 +14,7 @@ import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.Setter;
+import org.hibernate.annotations.BatchSize;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
@@ -118,6 +119,8 @@ public class Order {
     @UpdateTimestamp
     private OffsetDateTime updatedAt;
 
+    // Sayfali listelerde kalemler, siparis basina ayri sorgu yerine 50'serli gruplar halinde yuklenir.
+    @BatchSize(size = 50)
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<OrderItem> items = new ArrayList<>();
 }

@@ -6,6 +6,7 @@ import FilterGroup from './FilterGroup'
 import CheckboxFilter from './CheckboxFilter'
 import ChipFilter from './ChipFilter'
 import SwatchFilter from './SwatchFilter'
+import { getColorHex } from '@/lib/colors'
 import { filterPriceRanges } from '@/lib/mock/filterData'
 
 type FilterKey = 'category' | 'productType' | 'size' | 'color' | 'price'
@@ -31,7 +32,9 @@ const COLOR_HEX: Record<string, string> = {
 }
 
 function colorHex(name: string): string {
-  return COLOR_HEX[name] ?? '#D9CFC2'
+  // Listede olmayan adlar ortak renk tablosundan bulunur (Haki, Bordo, Antrasit...); boylece
+  // filtredeki kutucuklar birbirinden ayirt edilebilir.
+  return COLOR_HEX[name] ?? getColorHex(name)
 }
 
 const defaultVisibleFilters: Record<FilterKey, boolean> = {
@@ -290,12 +293,13 @@ export default function FilterSidebar() {
 
   return (
     <>
-      {/* Desktop sidebar (in-flow grid column) */}
-      <aside className="sticky top-[18px] rounded-panel border border-line bg-cream-3 px-5 py-[22px] max-[980px]:hidden">
+      {/* Desktop sidebar (in-flow grid column). Pencereden uzun olamaz: gruplar kendi icinde kayar,
+          "Filtreleri Uygula" her zaman gorunur kalir. */}
+      <aside className="sticky top-[18px] flex max-h-[calc(100vh-36px)] flex-col rounded-panel border border-line bg-cream-3 px-5 py-[22px] max-[980px]:hidden">
         <div className="mb-2">
           <h3 className="font-serif text-xl font-semibold text-brown">Filtreler</h3>
         </div>
-        {groups}
+        <div className="-mr-2 min-h-0 flex-1 overflow-y-auto pr-2">{groups}</div>
         <div className="mt-5 border-t border-line pt-4">{actionBar}</div>
       </aside>
 

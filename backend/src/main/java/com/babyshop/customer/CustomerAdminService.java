@@ -3,6 +3,7 @@ package com.babyshop.customer;
 import com.babyshop.auth.UserAccount;
 import com.babyshop.auth.UserAccountRepository;
 import com.babyshop.common.response.PageResponse;
+import com.babyshop.common.search.SearchText;
 import com.babyshop.customer.dto.CustomerStatsResponse;
 import com.babyshop.customer.dto.CustomerSummaryResponse;
 import com.babyshop.order.OrderRepository;
@@ -47,15 +48,40 @@ public class CustomerAdminService {
     public PageResponse<CustomerSummaryResponse> getCustomers(String search, int page, int size) {
         int safePage = Math.max(page, 0);
         int safeSize = size <= 0 ? DEFAULT_PAGE_SIZE : Math.min(size, MAX_PAGE_SIZE);
-        String query = (search == null || search.isBlank())
-                ? null
-                : "%" + search.trim().toLowerCase(Locale.ROOT) + "%";
+        boolean searching = search != null && !search.isBlank();
+        // Ad soyad / e-posta: buyuk-kucuk harf ve Turkce karakter duyarsiz; telefon: yalnizca rakamlar.
+        String query = searching ? SearchText.containsPattern(search) : null;
+        String phoneDigits = searching ? SearchText.phoneDigits(search) : null;
+        String phone = phoneDigits == null ? null : "%" + phoneDigits + "%";
 
         Pageable pageable = PageRequest.of(safePage, safeSize, Sort.by(Sort.Direction.DESC, "createdAt"));
-        Page<UserAccount> users = userAccountRepository.findCustomers(query, pageable);
+        Page<UserAccount> users = userAccountRepository.findCustomers(query, phone, pageable);
 
+        return new PageResponse<>(
+                toResponses(users.getContent()),
+                users.getNumber(),
+                users.getSize(),
+                users.getTotalElements(),
+                users.getTotalPages(),
+                users.hasNext(),
+                users.hasPrevious());
+    }
+
+    // Admin genel aramasi icin: eslesen ilk birkac musteri (en yeni once). Toplam sayi hesaplanmaz.
+    @Transactional(readOnly = true)
+    public List<CustomerSummaryResponse> searchCustomers(String search, int limit) {
+        String phoneDigits = SearchText.phoneDigits(search);
+        Pageable firstPage = PageRequest.of(0, limit, Sort.by(Sort.Direction.DESC, "createdAt"));
+
+        return toResponses(userAccountRepository.searchCustomers(
+                SearchText.containsPattern(search),
+                phoneDigits == null ? null : "%" + phoneDigits + "%",
+                firstPage));
+    }
+
+    private List<CustomerSummaryResponse> toResponses(List<UserAccount> users) {
         // Yalnizca bu sayfadaki musterilerin siparis agregalarini cek (tum tabloyu degil).
-        List<String> emails = users.getContent().stream()
+        List<String> emails = users.stream()
                 .map(user -> normalizeEmail(user.getEmail()))
                 .toList();
         Map<String, CustomerOrderAggregateView> aggregatesByEmail = emails.isEmpty()
@@ -65,18 +91,9 @@ public class CustomerAdminService {
                                 view -> normalizeEmail(view.getEmail()),
                                 Function.identity()));
 
-        List<CustomerSummaryResponse> content = users.getContent().stream()
+        return users.stream()
                 .map(user -> toResponse(user, aggregatesByEmail.get(normalizeEmail(user.getEmail()))))
                 .toList();
-
-        return new PageResponse<>(
-                content,
-                users.getNumber(),
-                users.getSize(),
-                users.getTotalElements(),
-                users.getTotalPages(),
-                users.hasNext(),
-                users.hasPrevious());
     }
 
     @Transactional(readOnly = true)

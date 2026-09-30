@@ -37,6 +37,17 @@ public class GlobalExceptionHandler {
                 ));
     }
 
+    @ExceptionHandler(StockConflictException.class)
+    public ResponseEntity<StockConflictResponse> handleStockConflict(StockConflictException exception) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(new StockConflictResponse(
+                        exception.getMessage(),
+                        HttpStatus.CONFLICT.value(),
+                        OffsetDateTime.now(),
+                        exception.getConflicts()
+                ));
+    }
+
     @ExceptionHandler(InvalidRequestException.class)
     public ResponseEntity<ErrorResponse> handleInvalidRequest(InvalidRequestException exception) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)

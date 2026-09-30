@@ -4,6 +4,7 @@ import type { JSX } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
+import AdminSearchBox from '@/components/admin/AdminSearchBox'
 import { useFavoriteStore } from '@/store/favoriteStore'
 
 type IconProps = { className?: string }
@@ -102,14 +103,6 @@ function IconClose({ className }: IconProps) {
   return (
     <svg className={className} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
       <path d="M5 5l10 10M15 5L5 15" />
-    </svg>
-  )
-}
-
-function IconSearch({ className }: IconProps) {
-  return (
-    <svg className={className} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="9" cy="9" r="5.5" /><path d="M17 17l-3.5-3.5" />
     </svg>
   )
 }
@@ -296,14 +289,7 @@ export default function AdminShell({
             <IconMenu className="h-5 w-5" />
           </button>
 
-          <div className="relative flex-1 max-w-xs">
-            <IconSearch className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#C4B5A5]" />
-            <input
-              type="search"
-              placeholder="Sipariş, ürün, müşteri ara..."
-              className="w-full rounded-[10px] border border-[#ECE3D6] bg-[#FAF6F1] py-2 pl-9 pr-4 text-[13px] text-[#3D2B1F] placeholder:text-[#C4B5A5] transition-colors focus:border-[#A89070] focus:outline-none focus:ring-2 focus:ring-[#A89070]/20"
-            />
-          </div>
+          <AdminSearchBox />
 
           <div className="ml-auto flex items-center gap-2">
             <div ref={profileMenuRef} className="relative">

@@ -1,6 +1,7 @@
 package com.babyshop.product;
 
 import com.babyshop.product.dto.ProductVariantAdminRequest;
+import com.babyshop.product.dto.ProductVariantBulkCreateRequest;
 import com.babyshop.product.dto.ProductVariantResponse;
 import com.babyshop.product.dto.ProductVariantStockUpdateRequest;
 import jakarta.validation.Valid;
@@ -40,6 +41,16 @@ public class ProductVariantAdminController {
                 .body(productVariantService.createProductVariant(productId, request));
     }
 
+    // Mevcut urune toplu beden/renk ekleme ("Beden / renk ekle").
+    @PostMapping("/bulk")
+    public ResponseEntity<List<ProductVariantResponse>> createProductVariants(
+            @PathVariable Long productId,
+            @Valid @RequestBody ProductVariantBulkCreateRequest request
+    ) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(productVariantService.createProductVariants(productId, request.variants()));
+    }
+
     @PutMapping("/{variantId}")
     public ResponseEntity<ProductVariantResponse> updateProductVariant(
             @PathVariable Long productId,
@@ -55,9 +66,8 @@ public class ProductVariantAdminController {
             @PathVariable Long variantId,
             @Valid @RequestBody ProductVariantStockUpdateRequest request
     ) {
-        return ResponseEntity.ok(
-                productVariantService.updateProductVariantStock(productId, variantId, request.stockQuantity())
-        );
+        return ResponseEntity.ok(productVariantService.updateProductVariantStock(
+                productId, variantId, request.stockQuantity(), request.expectedStockQuantity()));
     }
 
     @DeleteMapping("/{variantId}")

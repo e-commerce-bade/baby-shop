@@ -1,9 +1,15 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import AdminShell from '@/components/admin/AdminShell'
-import { formatPrice } from '@/lib/utils'
+import ImageLightbox from '@/components/admin/ImageLightbox'
+import MultiSelect from '@/components/admin/MultiSelect'
+import { downloadCsv } from '@/lib/csv'
+import { PRICE_INPUT_HINT, STOCK_INPUT_HINT, parsePriceInput, parseStockInput } from '@/lib/numberInput'
+import { BABY_MONTH_SIZES, KIDS_AGE_SIZES, compareSizeLabels, sizeOptionsForCategory } from '@/lib/sizes'
+import { STOCK_CONFLICT_HINT, readStockConflicts, type StockConflict } from '@/lib/stockConflict'
+import { foldForSearch, formatPrice } from '@/lib/utils'
 
 interface AdminProfile {
   email: string
@@ -19,6 +25,7 @@ interface ProductVariant {
   colorName: string
   stockQuantity: number
   price: number | string
+  compareAtPrice?: number | string | null
   currency: string
   active: boolean
 }
@@ -51,6 +58,7 @@ interface InventoryRow {
   colorName: string
   stockQuantity: number
   price: number | string
+  compareAtPrice: number | string | null
   currency: string
   active: boolean
 }
@@ -69,8 +77,23 @@ interface VariantEditForm {
 }
 
 const LOW_STOCK_LIMIT = 5
+const PAGE_SIZE = 100
 
-function ProductImage({ src, name }: { src: string | null; name: string }) {
+// `onOpen` verilirse kucuk gorsel tiklanabilir olur ve buyuk onizlemeyi acar.
+function ProductImage({ src, name, onOpen }: { src: string | null; name: string; onOpen?: () => void }) {
+  if (src && onOpen) {
+    return (
+      <button
+        type="button"
+        onClick={onOpen}
+        title="Görseli büyüt"
+        aria-label={`${name} görselini büyüt`}
+        className="shrink-0 cursor-zoom-in rounded-[8px] ring-[#C07B5A] transition-shadow hover:ring-2 focus-visible:outline-none focus-visible:ring-2"
+      >
+        <img src={src} alt={name} className="h-10 w-10 rounded-[8px] object-cover" />
+      </button>
+    )
+  }
   if (src) {
     return <img src={src} alt={name} className="h-10 w-10 rounded-[8px] object-cover" />
   }
@@ -107,26 +130,41 @@ function StockBadge({ row }: { row: InventoryRow }) {
   )
 }
 
-function flattenProducts(products: AdminProduct[]): InventoryRow[] {
-  return products.flatMap((product) =>
-    product.variants.map((variant) => ({
-      productId: product.id,
-      productName: product.name,
-      productActive: product.active,
-      brand: product.brand ?? null,
-      productType: product.productType ?? null,
-      categoryName: product.categoryName,
-      imageUrl: product.primaryImageUrl,
-      variantId: variant.id,
-      sku: variant.sku,
-      sizeLabel: variant.sizeLabel,
-      colorName: variant.colorName,
-      stockQuantity: variant.stockQuantity,
-      price: variant.price,
-      currency: variant.currency,
-      active: variant.active,
-    })),
-  )
+function flattenProduct(product: AdminProduct): InventoryRow[] {
+  return product.variants.map((variant) => ({
+    productId: product.id,
+    productName: product.name,
+    productActive: product.active,
+    brand: product.brand ?? null,
+    productType: product.productType ?? null,
+    categoryName: product.categoryName,
+    imageUrl: product.primaryImageUrl,
+    variantId: variant.id,
+    sku: variant.sku,
+    sizeLabel: variant.sizeLabel,
+    colorName: variant.colorName,
+    stockQuantity: variant.stockQuantity,
+    price: variant.price,
+    compareAtPrice: variant.compareAtPrice ?? null,
+    currency: variant.currency,
+    active: variant.active,
+  }))
+}
+
+// Masaustu tablosu ile mobil kartlar ayni anda degil, ekrana gore yalnizca biri cizilir
+// (1.300+ varyantta iki kopya, her tus vurusunu gozle gorulur sekilde yavaslatiyordu).
+function useIsDesktop() {
+  const [isDesktop, setIsDesktop] = useState(true)
+
+  useEffect(() => {
+    const query = window.matchMedia('(min-width: 1024px)')
+    const update = () => setIsDesktop(query.matches)
+    update()
+    query.addEventListener('change', update)
+    return () => query.removeEventListener('change', update)
+  }, [])
+
+  return isDesktop
 }
 
 export default function AdminInventoryPage() {
@@ -140,18 +178,28 @@ export default function AdminInventoryPage() {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [stockFilter, setStockFilter] = useState<StockFilter>('all')
-  const [categoryFilter, setCategoryFilter] = useState('all')
-  const [productTypeFilter, setProductTypeFilter] = useState('all')
-  const [sizeFilter, setSizeFilter] = useState('all')
-  const [colorFilter, setColorFilter] = useState('all')
-  const [brandFilter, setBrandFilter] = useState('all')
+  // Coklu secim filtreleri: bos dizi = filtre yok; doluysa secilenlerden herhangi birine uyanlar.
+  const [categoryFilter, setCategoryFilter] = useState<string[]>([])
+  const [productTypeFilter, setProductTypeFilter] = useState<string[]>([])
+  const [sizeFilter, setSizeFilter] = useState<string[]>([])
+  const [colorFilter, setColorFilter] = useState<string[]>([])
+  const [brandFilter, setBrandFilter] = useState<string[]>([])
   const [minPriceFilter, setMinPriceFilter] = useState('')
   const [maxPriceFilter, setMaxPriceFilter] = useState('')
   const [draftStocks, setDraftStocks] = useState<Record<number, string>>({})
-  const [updatingVariantId, setUpdatingVariantId] = useState<number | null>(null)
+  // Tek satir kaydi suren varyantlar (Enter ile art arda birkac satir kaydedilebilir).
+  const [updatingIds, setUpdatingIds] = useState<ReadonlySet<number>>(new Set())
   const [editingRow, setEditingRow] = useState<InventoryRow | null>(null)
   const [editForm, setEditForm] = useState<VariantEditForm | null>(null)
   const [savingEdit, setSavingEdit] = useState(false)
+  // Toplu islemler: isaretlenen varyantlar, onlara verilecek stok ve suren toplu istek.
+  const [selected, setSelected] = useState<Set<number>>(new Set())
+  const [bulkStock, setBulkStock] = useState('')
+  const [bulkSize, setBulkSize] = useState('')
+  const [bulkBusy, setBulkBusy] = useState<'save' | 'delete' | null>(null)
+  const [pageIndex, setPageIndex] = useState(0)
+  const listTopRef = useRef<HTMLDivElement>(null)
+  const [previewRow, setPreviewRow] = useState<InventoryRow | null>(null)
 
   useEffect(() => {
     let active = true
@@ -208,7 +256,19 @@ export default function AdminInventoryPage() {
     }
   }, [router])
 
-  const rows = useMemo(() => flattenProducts(products), [products])
+  const isDesktop = useIsDesktop()
+
+  // Satir nesneleri urun bazinda onbelleklenir: bir kayittan sonra yalnizca degisen urunun
+  // satirlari yeni nesne olur, digerleri ayni kalir ve (memo sayesinde) yeniden cizilmez.
+  const rowCache = useRef(new WeakMap<AdminProduct, InventoryRow[]>())
+  const rows = useMemo(() => products.flatMap((product) => {
+    let productRows = rowCache.current.get(product)
+    if (!productRows) {
+      productRows = flattenProduct(product)
+      rowCache.current.set(product, productRows)
+    }
+    return productRows
+  }), [products])
 
   const filterOptions = useMemo(() => {
     const categories = new Set<string>()
@@ -228,14 +288,15 @@ export default function AdminInventoryPage() {
     return {
       categories: Array.from(categories).sort((a, b) => a.localeCompare(b, 'tr')),
       productTypes: Array.from(productTypes).sort((a, b) => a.localeCompare(b, 'tr')),
-      sizes: Array.from(sizes).sort((a, b) => a.localeCompare(b, 'tr', { numeric: true })),
+      sizes: Array.from(sizes).sort(compareSizeLabels),
       colors: Array.from(colors).sort((a, b) => a.localeCompare(b, 'tr')),
       brands: Array.from(brands).sort((a, b) => a.localeCompare(b, 'tr')),
     }
   }, [rows])
 
   const filteredRows = useMemo(() => {
-    const q = search.trim().toLocaleLowerCase('tr-TR')
+    // Buyuk/kucuk harf ve Turkce karakter duyarsiz ("kiz" = "Kız", "GARNİLİ" = "garnili").
+    const q = foldForSearch(search.trim())
     const minPrice = minPriceFilter === '' ? null : Number(minPriceFilter)
     const maxPrice = maxPriceFilter === '' ? null : Number(maxPriceFilter)
 
@@ -244,7 +305,7 @@ export default function AdminInventoryPage() {
       const price = Number(row.price)
 
       if (q) {
-        const haystack = [
+        const haystack = foldForSearch([
           row.productName,
           row.sku,
           row.brand,
@@ -252,7 +313,7 @@ export default function AdminInventoryPage() {
           row.productType,
           row.sizeLabel,
           row.colorName,
-        ].filter(Boolean).join(' ').toLocaleLowerCase('tr-TR')
+        ].filter(Boolean).join(' '))
 
         if (!haystack.includes(q)) return false
       }
@@ -262,11 +323,11 @@ export default function AdminInventoryPage() {
       if (stockFilter === 'in_stock' && (!isActive || row.stockQuantity <= 0)) return false
       if (stockFilter === 'low_stock' && (!isActive || row.stockQuantity <= 0 || row.stockQuantity > LOW_STOCK_LIMIT)) return false
       if (stockFilter === 'out_of_stock' && (!isActive || row.stockQuantity !== 0)) return false
-      if (categoryFilter !== 'all' && row.categoryName !== categoryFilter) return false
-      if (productTypeFilter !== 'all' && row.productType !== productTypeFilter) return false
-      if (sizeFilter !== 'all' && row.sizeLabel !== sizeFilter) return false
-      if (colorFilter !== 'all' && row.colorName !== colorFilter) return false
-      if (brandFilter !== 'all' && row.brand !== brandFilter) return false
+      if (categoryFilter.length > 0 && !categoryFilter.includes(row.categoryName ?? '')) return false
+      if (productTypeFilter.length > 0 && !productTypeFilter.includes(row.productType ?? '')) return false
+      if (sizeFilter.length > 0 && !sizeFilter.includes(row.sizeLabel)) return false
+      if (colorFilter.length > 0 && !colorFilter.includes(row.colorName)) return false
+      if (brandFilter.length > 0 && !brandFilter.includes(row.brand ?? '')) return false
       if (minPrice !== null && Number.isFinite(minPrice) && (!Number.isFinite(price) || price < minPrice)) return false
       if (maxPrice !== null && Number.isFinite(maxPrice) && (!Number.isFinite(price) || price > maxPrice)) return false
       return true
@@ -289,11 +350,11 @@ export default function AdminInventoryPage() {
     search ||
     statusFilter !== 'all' ||
     stockFilter !== 'all' ||
-    categoryFilter !== 'all' ||
-    productTypeFilter !== 'all' ||
-    sizeFilter !== 'all' ||
-    colorFilter !== 'all' ||
-    brandFilter !== 'all' ||
+    categoryFilter.length > 0 ||
+    productTypeFilter.length > 0 ||
+    sizeFilter.length > 0 ||
+    colorFilter.length > 0 ||
+    brandFilter.length > 0 ||
     minPriceFilter ||
     maxPriceFilter,
   )
@@ -302,11 +363,11 @@ export default function AdminInventoryPage() {
     setSearch('')
     setStatusFilter('all')
     setStockFilter('all')
-    setCategoryFilter('all')
-    setProductTypeFilter('all')
-    setSizeFilter('all')
-    setColorFilter('all')
-    setBrandFilter('all')
+    setCategoryFilter([])
+    setProductTypeFilter([])
+    setSizeFilter([])
+    setColorFilter([])
+    setBrandFilter([])
     setMinPriceFilter('')
     setMaxPriceFilter('')
   }
@@ -329,12 +390,291 @@ export default function AdminInventoryPage() {
     return draftStocks[row.variantId] ?? String(row.stockQuantity)
   }
 
-  function setDraft(row: InventoryRow, value: string) {
+  // Satirlara verilen islevler sabit kimlikli olmali; aksi halde her tus vurusunda tum satirlar
+  // yeniden cizilir.
+  const setDraft = useCallback((variantId: number, value: string) => {
     setNotice(null)
-    setDraftStocks((current) => ({ ...current, [row.variantId]: value }))
+    setDraftStocks((current) => ({ ...current, [variantId]: value }))
+  }, [])
+
+  // Kayit, liste acildiktan sonra stok degistigi icin (yeni siparis, iptal) reddedildi: listedeki
+  // stoklar guncel degerlerle yenilenir, yazilan taslaklar korunur; "Kaydet" tekrar basilinca
+  // taslak guncel stogun uzerine yazilir.
+  const applyCurrentStocks = useCallback((conflicts: StockConflict[]) => {
+    const current = new Map(conflicts.map((conflict) => [conflict.variantId, conflict.currentStockQuantity]))
+    setProducts((products) => products.map((product) => (
+      product.variants.some((variant) => current.has(variant.id))
+        ? {
+            ...product,
+            variants: product.variants.map((variant) => {
+              const stockQuantity = current.get(variant.id)
+              return stockQuantity === undefined ? variant : { ...variant, stockQuantity }
+            }),
+          }
+        : product
+    )))
+  }, [])
+
+  // Stogu degistirilip henuz kaydedilmemis satirlar ("Tümünü Kaydet" bunlari tek istekte yazar).
+  const changedRows = useMemo(
+    () => rows.filter((row) => {
+      const draft = draftStocks[row.variantId]
+      return draft !== undefined && draft !== String(row.stockQuantity)
+    }),
+    [rows, draftStocks],
+  )
+
+  // Liste sayfalanir: binlerce satiri ayni anda cizmek eski bilgisayarlarda her tus vurusunu
+  // saniyelerce bekletiyordu. Taslaklar ve secim sayfalar arasinda korunur.
+  const pageCount = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE))
+  const currentPage = Math.min(pageIndex, pageCount - 1)
+  const pageRows = useMemo(
+    () => filteredRows.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE),
+    [filteredRows, currentPage],
+  )
+
+  useEffect(() => {
+    setPageIndex(0)
+  }, [search, statusFilter, stockFilter, categoryFilter, productTypeFilter, sizeFilter, colorFilter, brandFilter, minPriceFilter, maxPriceFilter])
+
+  const selectedOnPage = pageRows.filter((row) => selected.has(row.variantId)).length
+  const allOnPageSelected = pageRows.length > 0 && selectedOnPage === pageRows.length
+  const selectedInFilter = filteredRows.filter((row) => selected.has(row.variantId)).length
+
+  const toggleRow = useCallback((variantId: number) => {
+    setSelected((current) => {
+      const next = new Set(current)
+      if (next.has(variantId)) next.delete(variantId)
+      else next.add(variantId)
+      return next
+    })
+  }, [])
+
+  // Basliktaki kutu yalnizca ekrandaki sayfayi secer/birakir; filtredeki tum satirlar icin alttaki
+  // cubukta ayri bir "tümünü seç" secenegi cikar (yanlislikla binlerce satir secilmesin).
+  function togglePage() {
+    setSelected((current) => {
+      const next = new Set(current)
+      pageRows.forEach((row) => (allOnPageSelected ? next.delete(row.variantId) : next.add(row.variantId)))
+      return next
+    })
   }
 
-  function openVariantEditor(row: InventoryRow) {
+  function selectAllFiltered() {
+    setSelected((current) => {
+      const next = new Set(current)
+      filteredRows.forEach((row) => next.add(row.variantId))
+      return next
+    })
+  }
+
+  function goToPage(nextPage: number) {
+    setPageIndex(Math.min(Math.max(nextPage, 0), pageCount - 1))
+    listTopRef.current?.scrollIntoView({ block: 'start', behavior: 'instant' })
+  }
+
+  function applyBulkStock() {
+    const value = bulkStock.trim()
+    if (value === '') return
+    if (Number.isNaN(parseStockInput(value))) {
+      setError(STOCK_INPUT_HINT)
+      return
+    }
+    setError(null)
+    setNotice(null)
+    setDraftStocks((current) => {
+      const next = { ...current }
+      selected.forEach((variantId) => { next[variantId] = value })
+      return next
+    })
+    setBulkStock('')
+  }
+
+  function discardDrafts() {
+    // "Geri al", "Tümünü Kaydet"in hemen yaninda: birden fazla degisiklik (belki baska sayfalarda)
+    // tek dokunusla kaybolmasin.
+    if (changedRows.length > 1 && !window.confirm(
+      `${changedRows.length} stok değişikliği kaydedilmeden geri alınacak. Devam edilsin mi?`,
+    )) return
+    setError(null)
+    setDraftStocks({})
+  }
+
+  // Kaydedilmemis stok degisikligi varken sayfa yenilenir ya da kapatilirsa tarayici uyarir.
+  const hasUnsavedStock = changedRows.length > 0
+  useEffect(() => {
+    if (!hasUnsavedStock) return
+    function warn(event: BeforeUnloadEvent) {
+      event.preventDefault()
+      event.returnValue = ''
+    }
+    window.addEventListener('beforeunload', warn)
+    return () => window.removeEventListener('beforeunload', warn)
+  }, [hasUnsavedStock])
+
+  // Secili varyantlarin bedenini (farkli urunlerde bile) tek seferde sabit listedeki bir degere
+  // cevirir; orn. "3-4", "3-4 Yas" ve "3-4Yaş" yazimlarini "3-4 Yaş"ta birlestirmek icin.
+  async function applyBulkSize() {
+    if (bulkBusy || !bulkSize || selected.size === 0) return
+    const targets = rows.filter((row) => selected.has(row.variantId) && row.sizeLabel !== bulkSize)
+    if (targets.length === 0) {
+      setError(null)
+      setNotice(`Seçili varyantların bedeni zaten "${bulkSize}".`)
+      return
+    }
+    const confirmed = window.confirm(
+      `${targets.length} varyantın bedeni "${bulkSize}" olarak değiştirilecek. Devam edilsin mi?`,
+    )
+    if (!confirmed) return
+
+    setError(null)
+    setNotice(null)
+    setBulkBusy('save')
+    try {
+      const response = await fetch('/api/admin/variants', {
+        method: 'PATCH',
+        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ variants: targets.map((row) => ({ id: row.variantId, sizeLabel: bulkSize })) }),
+      })
+      const payload = await response.json().catch(() => null)
+      if (!response.ok) throw new Error(payload?.message ?? 'Bedenler değiştirilemedi.')
+
+      const updated = new Map((payload as ProductVariant[]).map((variant) => [variant.id, variant]))
+      setProducts((current) => current.map((product) => (
+        product.variants.some((variant) => updated.has(variant.id))
+          ? { ...product, variants: product.variants.map((variant) => updated.get(variant.id) ?? variant) }
+          : product
+      )))
+      setNotice(`${updated.size} varyantın bedeni "${bulkSize}" yapıldı.`)
+      setBulkSize('')
+      // Beden filtresi aciksa yeni bedeni de kapsar; boylece degisen satirlar listede kalir
+      // (eski etiketler seceneklerden kalkinca filtreden de kendiliginden duser).
+      setSizeFilter((current) => (current.length > 0 && !current.includes(bulkSize) ? [...current, bulkSize] : current))
+      setSelected(new Set())
+    } catch (renameError) {
+      setError(renameError instanceof Error ? renameError.message : 'Bedenler değiştirilemedi.')
+    } finally {
+      setBulkBusy(null)
+    }
+  }
+
+  async function saveAllStocks() {
+    if (bulkBusy || changedRows.length === 0) return
+
+    const updates = changedRows.map((row) => ({ row, stockQuantity: parseStockInput(draftValue(row)) }))
+    const invalid = updates.find((update) => Number.isNaN(update.stockQuantity))
+    if (invalid) {
+      setError(`${invalid.row.productName} (${invalid.row.sizeLabel} / ${invalid.row.colorName}): ${STOCK_INPUT_HINT}`)
+      return
+    }
+
+    setError(null)
+    setNotice(null)
+    setBulkBusy('save')
+    try {
+      const response = await fetch('/api/admin/variants', {
+        method: 'PATCH',
+        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          variants: updates.map((update) => ({
+            id: update.row.variantId,
+            stockQuantity: update.stockQuantity,
+            // Listenin gosterdigi stok: arada bir siparis stogu degistirdiyse sunucu kaydi reddeder.
+            expectedStockQuantity: update.row.stockQuantity,
+          })),
+        }),
+      })
+      const payload = await response.json().catch(() => null)
+      const conflicts = response.status === 409 ? readStockConflicts(payload) : null
+      if (conflicts) {
+        applyCurrentStocks(conflicts)
+        setError(`${payload?.message ?? 'Stok bu arada değişti.'} ${STOCK_CONFLICT_HINT}`)
+        return
+      }
+      if (!response.ok) throw new Error(payload?.message ?? 'Stoklar güncellenemedi.')
+
+      const updated = new Map((payload as ProductVariant[]).map((variant) => [variant.id, variant]))
+      setProducts((current) => current.map((product) => (
+        product.variants.some((variant) => updated.has(variant.id))
+          ? { ...product, variants: product.variants.map((variant) => updated.get(variant.id) ?? variant) }
+          : product
+      )))
+      setDraftStocks((current) => {
+        const next = { ...current }
+        updates.forEach((update) => {
+          // Istek surerken yeniden degistirilen satirin taslagi korunur.
+          if (next[update.row.variantId] === draftValue(update.row)) delete next[update.row.variantId]
+        })
+        return next
+      })
+      setNotice(`${updated.size} varyantın stoğu güncellendi.`)
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : 'Stoklar güncellenemedi.')
+    } finally {
+      setBulkBusy(null)
+    }
+  }
+
+  async function deleteVariants(variantIds: number[], description: string) {
+    if (bulkBusy || variantIds.length === 0) return false
+    // Secim sayfalar ve filtreler arasinda korunur; ekranda olmayan secili satirlar da silinecekse
+    // bunu acikca soyle.
+    const onScreen = new Set(pageRows.map((row) => row.variantId))
+    const offScreen = variantIds.filter((variantId) => !onScreen.has(variantId)).length
+    const offScreenNote = offScreen > 0
+      ? `\n\nDikkat: bunların ${offScreen} tanesi şu an ekranda görünmüyor (başka sayfada ya da filtrenin dışında).`
+      : ''
+    const confirmed = window.confirm(
+      `${description} kalıcı olarak silinecek.${offScreenNote}\n\nBu işlem geri alınamaz. Eski siparişler etkilenmez; sepetlerdeki ilgili satırlar temizlenir. Devam edilsin mi?`,
+    )
+    if (!confirmed) return false
+
+    setError(null)
+    setNotice(null)
+    setBulkBusy('delete')
+    try {
+      const response = await fetch('/api/admin/variants/delete', {
+        method: 'POST',
+        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: variantIds }),
+      })
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null)
+        throw new Error(payload?.message ?? 'Varyantlar silinemedi.')
+      }
+
+      const removed = new Set(variantIds)
+      setProducts((current) => current.map((product) => (
+        product.variants.some((variant) => removed.has(variant.id))
+          ? { ...product, variants: product.variants.filter((variant) => !removed.has(variant.id)) }
+          : product
+      )))
+      setSelected((current) => new Set([...current].filter((variantId) => !removed.has(variantId))))
+      setDraftStocks((current) => {
+        const next = { ...current }
+        removed.forEach((variantId) => { delete next[variantId] })
+        return next
+      })
+      setNotice(`${variantIds.length} varyant silindi.`)
+      return true
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : 'Varyantlar silinemedi.')
+      return false
+    } finally {
+      setBulkBusy(null)
+    }
+  }
+
+  const openImage = useCallback((row: InventoryRow) => setPreviewRow(row), [])
+
+  // Duzenleme paneli acilirken satirda kaydedilmemis bir stok yazilmissa o deger kullanilir;
+  // aksi halde panel eski stoku gonderir ve yazilan deger sessizce kaybolurdu.
+  const draftStocksRef = useRef(draftStocks)
+  useEffect(() => {
+    draftStocksRef.current = draftStocks
+  }, [draftStocks])
+
+  const openVariantEditor = useCallback((row: InventoryRow) => {
     setError(null)
     setNotice(null)
     setEditingRow(row)
@@ -342,15 +682,17 @@ export default function AdminInventoryPage() {
       sku: row.sku ?? '',
       sizeLabel: row.sizeLabel,
       colorName: row.colorName,
-      stockQuantity: String(row.stockQuantity),
+      stockQuantity: draftStocksRef.current[row.variantId] ?? String(row.stockQuantity),
       price: String(row.price),
       currency: row.currency,
       active: row.active,
     })
-  }
+  }, [])
 
   function closeVariantEditor() {
-    if (savingEdit) return
+    // Kayit ya da silme surerken kapatilmaz; sonucu (ya da hatasi) panelde gosterilir.
+    if (savingEdit || bulkBusy === 'delete') return
+    setError(null)
     setEditingRow(null)
     setEditForm(null)
   }
@@ -369,8 +711,8 @@ export default function AdminInventoryPage() {
   async function updateVariant() {
     if (!editingRow || !editForm) return
 
-    const stockQuantity = Number.parseInt(editForm.stockQuantity, 10)
-    const price = Number.parseFloat(editForm.price.replace(',', '.'))
+    const stockQuantity = parseStockInput(editForm.stockQuantity)
+    const price = parsePriceInput(editForm.price)
     const currency = editForm.currency.trim().toUpperCase()
 
     if (!editForm.sizeLabel.trim() || !editForm.colorName.trim()) {
@@ -378,13 +720,13 @@ export default function AdminInventoryPage() {
       return
     }
 
-    if (Number.isNaN(stockQuantity) || stockQuantity < 0) {
-      setError('Stok değeri sıfır veya daha büyük bir sayı olmalı.')
+    if (Number.isNaN(stockQuantity)) {
+      setError(STOCK_INPUT_HINT)
       return
     }
 
-    if (Number.isNaN(price) || price < 0) {
-      setError('Fiyat sıfır veya daha büyük bir sayı olmalı.')
+    if (Number.isNaN(price)) {
+      setError(PRICE_INPUT_HINT)
       return
     }
 
@@ -408,7 +750,13 @@ export default function AdminInventoryPage() {
             sizeLabel: editForm.sizeLabel.trim(),
             colorName: editForm.colorName.trim(),
             stockQuantity,
+            // Panel acildiginda listede gorunen stok: stok elle degistirilmediyse sunucu stoga
+            // dokunmaz (arada gelen siparisin dusumu ezilmez); degistirildiyse ve arada stok
+            // degismisse kayit reddedilir.
+            expectedStockQuantity: editingRow.stockQuantity,
             price,
+            // Bu formda duzenlenmez; gonderilmezse backend indirimsiz fiyati siler.
+            compareAtPrice: editingRow.compareAtPrice != null ? Number(editingRow.compareAtPrice) : null,
             currency,
             active: editForm.active,
           }),
@@ -416,6 +764,15 @@ export default function AdminInventoryPage() {
       )
 
       const payload = await response.json().catch(() => null)
+      const conflicts = response.status === 409 ? readStockConflicts(payload) : null
+      if (conflicts) {
+        applyCurrentStocks(conflicts)
+        const currentStock = conflicts.find((conflict) => conflict.variantId === editingRow.variantId)?.currentStockQuantity
+        // Panel acik kalir; tekrar kaydedince yazilan stok guncel degerin uzerine yazilir.
+        if (currentStock !== undefined) setEditingRow({ ...editingRow, stockQuantity: currentStock })
+        setError(`${payload?.message ?? 'Stok bu arada değişti.'} ${STOCK_CONFLICT_HINT}`)
+        return
+      }
       if (!response.ok) {
         throw new Error(payload?.message ?? 'Varyant güncellenemedi.')
       }
@@ -423,6 +780,9 @@ export default function AdminInventoryPage() {
       const updatedVariant = payload as ProductVariant
       applyUpdatedVariant(editingRow, updatedVariant)
       setDraftStocks((current) => {
+        // Satirdaki taslak ancak panelde kaydedilen degerle aynıysa temizlenir; panelden sonra satira
+        // baska bir deger yazildiysa korunur.
+        if (current[editingRow.variantId] !== editForm.stockQuantity) return current
         const next = { ...current }
         delete next[editingRow.variantId]
         return next
@@ -437,17 +797,19 @@ export default function AdminInventoryPage() {
     }
   }
 
-  async function updateStock(row: InventoryRow) {
-    const nextStock = Number.parseInt(draftValue(row), 10)
+  const updateStock = useCallback(async (row: InventoryRow, draft: string) => {
+    // "Tümünü Kaydet" ile ayni kurallar: "2.5" ya da "1e3" gibi yazimlar reddedilir (eskiden 2 ve 1
+    // olarak sessizce kaydediliyordu).
+    const nextStock = parseStockInput(draft)
 
-    if (Number.isNaN(nextStock) || nextStock < 0) {
-      setError('Stok değeri sıfır veya daha büyük bir sayı olmalı.')
+    if (Number.isNaN(nextStock)) {
+      setError(`${row.productName} (${row.sizeLabel} / ${row.colorName}): ${STOCK_INPUT_HINT}`)
       return
     }
 
     setError(null)
     setNotice(null)
-    setUpdatingVariantId(row.variantId)
+    setUpdatingIds((current) => new Set(current).add(row.variantId))
 
     try {
       const response = await fetch(
@@ -455,11 +817,17 @@ export default function AdminInventoryPage() {
         {
           method: 'PATCH',
           headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
-          body: JSON.stringify({ stockQuantity: nextStock }),
+          body: JSON.stringify({ stockQuantity: nextStock, expectedStockQuantity: row.stockQuantity }),
         },
       )
 
       const payload = await response.json().catch(() => null)
+      const conflicts = response.status === 409 ? readStockConflicts(payload) : null
+      if (conflicts) {
+        applyCurrentStocks(conflicts)
+        setError(`${payload?.message ?? 'Stok bu arada değişti.'} ${STOCK_CONFLICT_HINT}`)
+        return
+      }
       if (!response.ok) {
         throw new Error(payload?.message ?? 'Stok güncellenemedi.')
       }
@@ -474,6 +842,8 @@ export default function AdminInventoryPage() {
           : product),
       )
       setDraftStocks((current) => {
+        // Istek surerken satira yeni bir deger yazildiysa o taslak korunur.
+        if (current[row.variantId] !== draft) return current
         const next = { ...current }
         delete next[row.variantId]
         return next
@@ -482,9 +852,13 @@ export default function AdminInventoryPage() {
     } catch (updateError) {
       setError(updateError instanceof Error ? updateError.message : 'Stok güncellenemedi.')
     } finally {
-      setUpdatingVariantId(null)
+      setUpdatingIds((current) => {
+        const next = new Set(current)
+        next.delete(row.variantId)
+        return next
+      })
     }
-  }
+  }, [applyCurrentStocks])
 
   function exportRows() {
     const csvRows = [
@@ -501,16 +875,7 @@ export default function AdminInventoryPage() {
       ]),
     ]
 
-    const csv = csvRows
-      .map((row) => row.map((cell) => `"${cell.replaceAll('"', '""')}"`).join(','))
-      .join('\n')
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = 'inventory.csv'
-    link.click()
-    URL.revokeObjectURL(url)
+    downloadCsv('inventory.csv', csvRows)
   }
 
   if (loading) {
@@ -543,10 +908,29 @@ export default function AdminInventoryPage() {
         <VariantEditDrawer
           row={editingRow}
           form={editForm}
-          saving={savingEdit}
+          saving={savingEdit || bulkBusy !== null}
+          error={error}
           onChange={setEditForm}
           onClose={closeVariantEditor}
           onSave={() => void updateVariant()}
+          onDelete={async () => {
+            const row = editingRow
+            const deleted = await deleteVariants(
+              [row.variantId],
+              `"${row.productName}" ürününün ${row.sizeLabel} / ${row.colorName} varyantı`,
+            )
+            if (deleted) {
+              setEditingRow(null)
+              setEditForm(null)
+            }
+          }}
+        />
+      ) : null}
+
+      {previewRow?.imageUrl ? (
+        <ImageLightbox
+          images={[{ src: previewRow.imageUrl, alt: previewRow.productName, caption: previewRow.productName }]}
+          onClose={() => setPreviewRow(null)}
         />
       ) : null}
 
@@ -613,60 +997,11 @@ export default function AdminInventoryPage() {
             <option value="out_of_stock">Tükendi</option>
           </select>
 
-          <select
-            value={categoryFilter}
-            onChange={(event) => setCategoryFilter(event.target.value)}
-            className="rounded-[10px] border border-[#ECE3D6] bg-white px-3 py-2 text-[13px] text-[#5B4839] focus:outline-none"
-          >
-            <option value="all">Tüm Kategoriler</option>
-            {filterOptions.categories.map((category) => (
-              <option key={category} value={category}>{category}</option>
-            ))}
-          </select>
-
-          <select
-            value={productTypeFilter}
-            onChange={(event) => setProductTypeFilter(event.target.value)}
-            className="rounded-[10px] border border-[#ECE3D6] bg-white px-3 py-2 text-[13px] text-[#5B4839] focus:outline-none"
-          >
-            <option value="all">Tüm Ürün Tipleri</option>
-            {filterOptions.productTypes.map((type) => (
-              <option key={type} value={type}>{type}</option>
-            ))}
-          </select>
-
-          <select
-            value={sizeFilter}
-            onChange={(event) => setSizeFilter(event.target.value)}
-            className="rounded-[10px] border border-[#ECE3D6] bg-white px-3 py-2 text-[13px] text-[#5B4839] focus:outline-none"
-          >
-            <option value="all">Tüm Yaş/Beden</option>
-            {filterOptions.sizes.map((size) => (
-              <option key={size} value={size}>{size}</option>
-            ))}
-          </select>
-
-          <select
-            value={colorFilter}
-            onChange={(event) => setColorFilter(event.target.value)}
-            className="rounded-[10px] border border-[#ECE3D6] bg-white px-3 py-2 text-[13px] text-[#5B4839] focus:outline-none"
-          >
-            <option value="all">Tüm Renkler</option>
-            {filterOptions.colors.map((color) => (
-              <option key={color} value={color}>{color}</option>
-            ))}
-          </select>
-
-          <select
-            value={brandFilter}
-            onChange={(event) => setBrandFilter(event.target.value)}
-            className="rounded-[10px] border border-[#ECE3D6] bg-white px-3 py-2 text-[13px] text-[#5B4839] focus:outline-none"
-          >
-            <option value="all">Tüm Markalar</option>
-            {filterOptions.brands.map((brand) => (
-              <option key={brand} value={brand}>{brand}</option>
-            ))}
-          </select>
+          <MultiSelect allLabel="Tüm Kategoriler" options={filterOptions.categories} selected={categoryFilter} onChange={setCategoryFilter} />
+          <MultiSelect allLabel="Tüm Ürün Tipleri" options={filterOptions.productTypes} selected={productTypeFilter} onChange={setProductTypeFilter} />
+          <MultiSelect allLabel="Tüm Yaş/Beden" options={filterOptions.sizes} selected={sizeFilter} onChange={setSizeFilter} />
+          <MultiSelect allLabel="Tüm Renkler" options={filterOptions.colors} selected={colorFilter} onChange={setColorFilter} />
+          <MultiSelect allLabel="Tüm Markalar" options={filterOptions.brands} selected={brandFilter} onChange={setBrandFilter} />
 
           <input
             type="number"
@@ -704,14 +1039,6 @@ export default function AdminInventoryPage() {
         </div>
       </div>
 
-      {notice ? (
-        <div className="mb-4 rounded-[10px] bg-[#EDF7F1] px-4 py-3 text-[13px] font-semibold text-[#1A6640]">{notice}</div>
-      ) : null}
-
-      {error ? (
-        <div className="mb-4 rounded-[10px] bg-[#FEEAEA] px-4 py-3 text-[13px] text-[#8A1A1A]">{error}</div>
-      ) : null}
-
       <section className="mb-5 rounded-[16px] border border-[#ECE3D6] bg-white p-4">
         <div className="mb-3 flex items-center justify-between gap-3">
           <div>
@@ -741,10 +1068,25 @@ export default function AdminInventoryPage() {
         </div>
       </section>
 
-      <div className="hidden overflow-hidden rounded-[16px] border border-[#ECE3D6] bg-white lg:block">
+      <div ref={listTopRef} className="scroll-mt-20" />
+      {/* Tablo dar masaustu ekranlarda (iPad yatay, kucuk pencere) sagdan kesilmesin; yatay kayar. */}
+      {isDesktop ? (
+      <div className="overflow-x-auto rounded-[16px] border border-[#ECE3D6] bg-white">
         <table className="w-full text-left text-[13px]">
           <thead>
             <tr className="border-b border-[#ECE3D6] bg-[#FAF6F1] text-[10.5px] font-extrabold uppercase tracking-[0.1em] text-[#A89070]">
+              <th className="w-10 px-4 py-3.5">
+                <input
+                  type="checkbox"
+                  aria-label="Bu sayfadaki varyantları seç"
+                  checked={allOnPageSelected}
+                  ref={(element) => {
+                    if (element) element.indeterminate = selectedOnPage > 0 && !allOnPageSelected
+                  }}
+                  onChange={togglePage}
+                  className="rounded border-[#D5C9BA] accent-[#C07B5A]"
+                />
+              </th>
               <th className="px-4 py-3.5">Ürün</th>
               <th className="px-4 py-3.5">Varyant</th>
               <th className="px-4 py-3.5">SKU</th>
@@ -758,46 +1100,206 @@ export default function AdminInventoryPage() {
           <tbody className="divide-y divide-[#F4EEE6]">
             {filteredRows.length === 0 ? (
               <tr>
-                <td colSpan={8} className="px-4 py-14 text-center text-[13px] text-[#B5A090]">
+                <td colSpan={9} className="px-4 py-14 text-center text-[13px] text-[#B5A090]">
                   Arama kriterlerine uygun stok kaydı bulunamadı.
                 </td>
               </tr>
             ) : (
-              filteredRows.map((row) => (
+              pageRows.map((row) => (
                 <InventoryTableRow
                   key={row.variantId}
                   row={row}
                   draftValue={draftValue(row)}
-                  updating={updatingVariantId === row.variantId}
-                  onDraftChange={(value) => setDraft(row, value)}
-                  onSave={() => void updateStock(row)}
-                  onEdit={() => openVariantEditor(row)}
+                  updating={updatingIds.has(row.variantId)}
+                  selected={selected.has(row.variantId)}
+                  onToggleSelected={toggleRow}
+                  onDraftChange={setDraft}
+                  onSave={updateStock}
+                  onEdit={openVariantEditor}
+                  onOpenImage={openImage}
                 />
               ))
             )}
           </tbody>
         </table>
       </div>
-
-      <div className="space-y-3 lg:hidden">
+      ) : (
+      <div className="space-y-3">
         {filteredRows.length === 0 ? (
           <div className="rounded-[16px] border border-dashed border-[#D5C9BA] bg-white px-5 py-12 text-center text-[13px] text-[#B5A090]">
             Arama kriterlerine uygun stok kaydı bulunamadı.
           </div>
         ) : (
-          filteredRows.map((row) => (
-            <InventoryMobileCard
-              key={row.variantId}
-              row={row}
-              draftValue={draftValue(row)}
-              updating={updatingVariantId === row.variantId}
-              onDraftChange={(value) => setDraft(row, value)}
-              onSave={() => void updateStock(row)}
-              onEdit={() => openVariantEditor(row)}
-            />
-          ))
+          <>
+            <label className="flex cursor-pointer items-center gap-2 px-1 text-[12.5px] font-semibold text-[#7A6656]">
+              <input
+                type="checkbox"
+                checked={allOnPageSelected}
+                onChange={togglePage}
+                className="rounded border-[#D5C9BA] accent-[#C07B5A]"
+              />
+              Bu sayfadaki {pageRows.length} varyantı seç
+            </label>
+            {pageRows.map((row) => (
+              <InventoryMobileCard
+                key={row.variantId}
+                row={row}
+                draftValue={draftValue(row)}
+                updating={updatingIds.has(row.variantId)}
+                selected={selected.has(row.variantId)}
+                onToggleSelected={toggleRow}
+                onDraftChange={setDraft}
+                onSave={updateStock}
+                onEdit={openVariantEditor}
+                onOpenImage={openImage}
+              />
+            ))}
+          </>
         )}
       </div>
+      )}
+
+      {pageCount > 1 ? (
+        <div className="mt-4 flex items-center justify-between gap-3">
+          <p className="text-[12.5px] text-[#B5A090]">
+            {currentPage * PAGE_SIZE + 1}–{currentPage * PAGE_SIZE + pageRows.length} / {filteredRows.length} varyant · sayfa {currentPage + 1} / {pageCount}
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => goToPage(currentPage - 1)}
+              disabled={currentPage === 0}
+              className="rounded-[10px] border border-[#ECE3D6] bg-white px-3.5 py-2 text-[13px] font-semibold text-[#5B4839] transition-colors hover:border-[#A89070] disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Önceki
+            </button>
+            <button
+              type="button"
+              onClick={() => goToPage(currentPage + 1)}
+              disabled={currentPage >= pageCount - 1}
+              className="rounded-[10px] border border-[#ECE3D6] bg-white px-3.5 py-2 text-[13px] font-semibold text-[#5B4839] transition-colors hover:border-[#A89070] disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Sonraki
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {/* Toplu islem cubugu: ekranin altinda sabit durur; boylece uzun listede asagida calisirken
+          secim, kaydedilmemis degisiklikler ve islem sonucu her zaman gorunur. */}
+      {selected.size > 0 || changedRows.length > 0 || notice || error ? <div className="h-56 lg:h-28" aria-hidden="true" /> : null}
+      {selected.size > 0 || changedRows.length > 0 || notice || error ? (
+        <div className="fixed inset-x-0 bottom-[57px] z-30 border-t border-[#ECE3D6] bg-white/95 px-4 py-3 shadow-[0_-10px_24px_-18px_rgba(91,72,57,.7)] backdrop-blur lg:bottom-0 lg:left-64 lg:px-8">
+          {error ? (
+            <div role="alert" className="mb-2 flex items-start justify-between gap-3 rounded-[10px] bg-[#FEEAEA] px-3.5 py-2.5 text-[13px] text-[#8A1A1A]">
+              <span>{error}</span>
+              <button type="button" onClick={() => setError(null)} aria-label="Hatayı kapat" className="shrink-0 font-bold">×</button>
+            </div>
+          ) : null}
+          {notice ? (
+            <div role="status" className="mb-2 flex items-start justify-between gap-3 rounded-[10px] bg-[#EDF7F1] px-3.5 py-2.5 text-[13px] font-semibold text-[#1A6640]">
+              <span>{notice}</span>
+              <button type="button" onClick={() => setNotice(null)} aria-label="Bildirimi kapat" className="shrink-0 font-bold">×</button>
+            </div>
+          ) : null}
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+            {selected.size > 0 ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[13px] font-bold text-[#3D2B1F]">{selected.size} varyant seçili</span>
+                {selected.size > selectedOnPage ? (
+                  // Secim sayfalar ve filtreler arasinda korunur; ekranda olmayan secili satirlar
+                  // toplu islemlere dahildir, bu yuzden acikca gosterilir.
+                  <span className="text-[12px] font-semibold text-[#9A5B12]">
+                    ({selected.size - selectedOnPage} tanesi bu sayfada görünmüyor)
+                  </span>
+                ) : null}
+                {allOnPageSelected && selectedInFilter < filteredRows.length ? (
+                  <button
+                    type="button"
+                    onClick={selectAllFiltered}
+                    className="h-9 rounded-[9px] border border-[#D8CABB] px-3 text-[12px] font-bold text-[#5B4839] transition-colors hover:bg-[#FAF6F1]"
+                  >
+                    Listelenen {filteredRows.length} varyantın tümünü seç
+                  </button>
+                ) : null}
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  aria-label="Seçilenlere verilecek stok"
+                  placeholder="Stok"
+                  value={bulkStock}
+                  onChange={(event) => setBulkStock(event.target.value)}
+                  onKeyDown={(event) => { if (event.key === 'Enter') applyBulkStock() }}
+                  className="h-9 w-24 rounded-[9px] border border-[#ECE3D6] bg-white px-3 text-[13px] font-semibold text-[#3D2B1F] outline-none focus:border-[#A89070] focus:ring-2 focus:ring-[#A89070]/20"
+                />
+                <button
+                  type="button"
+                  onClick={applyBulkStock}
+                  disabled={bulkStock.trim() === ''}
+                  className="h-9 rounded-[9px] bg-[#5B4839] px-3 text-[12px] font-bold text-white transition-colors hover:bg-[#3D2B1F] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Stoğu uygula
+                </button>
+                <select
+                  aria-label="Seçilenlerin yeni bedeni"
+                  value={bulkSize}
+                  onChange={(event) => setBulkSize(event.target.value)}
+                  className="h-9 rounded-[9px] border border-[#ECE3D6] bg-white px-2 text-[13px] text-[#3D2B1F] outline-none focus:border-[#A89070]"
+                >
+                  <option value="">Beden seç…</option>
+                  {[...KIDS_AGE_SIZES, ...BABY_MONTH_SIZES].map((size) => (
+                    <option key={size} value={size}>{size}</option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => void applyBulkSize()}
+                  disabled={!bulkSize || bulkBusy !== null}
+                  className="h-9 rounded-[9px] bg-[#5B4839] px-3 text-[12px] font-bold text-white transition-colors hover:bg-[#3D2B1F] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Bedeni değiştir
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void deleteVariants([...selected], `Seçili ${selected.size} varyant`)}
+                  disabled={bulkBusy !== null}
+                  className="h-9 rounded-[9px] bg-[#FEEAEA] px-3 text-[12px] font-bold text-[#8A1A1A] transition-colors hover:bg-[#FAD4D4] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {bulkBusy === 'delete' ? 'Siliniyor...' : 'Seçilenleri sil'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelected(new Set())}
+                  className="h-9 px-1 text-[12px] font-semibold text-[#A89070] hover:text-[#5B4839]"
+                >
+                  Seçimi kaldır
+                </button>
+              </div>
+            ) : null}
+            {changedRows.length > 0 ? (
+              <div className="ml-auto flex items-center gap-2">
+                <span className="text-[13px] font-semibold text-[#5B4839]">{changedRows.length} stok değişikliği kaydedilmedi</span>
+                <button
+                  type="button"
+                  onClick={discardDrafts}
+                  disabled={bulkBusy !== null}
+                  className="h-9 shrink-0 whitespace-nowrap rounded-[9px] border border-[#ECE3D6] px-3 text-[12px] font-bold text-[#5B4839] transition-colors hover:bg-[#FAF6F1] disabled:opacity-50"
+                >
+                  Geri al
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void saveAllStocks()}
+                  disabled={bulkBusy !== null}
+                  className="h-9 shrink-0 whitespace-nowrap rounded-[9px] bg-[#C07B5A] px-4 text-[12px] font-bold text-white transition-colors hover:bg-[#A86849] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {bulkBusy === 'save' ? 'Kaydediliyor...' : 'Tümünü Kaydet'}
+                </button>
+              </div>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
     </AdminShell>
   )
 }
@@ -806,20 +1308,29 @@ function VariantEditDrawer({
   row,
   form,
   saving,
+  error,
   onChange,
   onClose,
   onSave,
+  onDelete,
 }: {
   row: InventoryRow
   form: VariantEditForm
   saving: boolean
+  // Panel acikken sayfanin alt cubugu panelin arkasinda kalir; hata burada gosterilir.
+  error: string | null
   onChange: (form: VariantEditForm) => void
   onClose: () => void
   onSave: () => void
+  onDelete: () => void
 }) {
   function updateField<K extends keyof VariantEditForm>(field: K, value: VariantEditForm[K]) {
     onChange({ ...form, [field]: value })
   }
+
+  // Beden sabit listeden secilir; listede olmayan eski bir etiket varsa o da secenek olarak kalir.
+  const fixedSizes = sizeOptionsForCategory(row.categoryName).sizes
+  const sizeChoices = fixedSizes.includes(row.sizeLabel) ? fixedSizes : [row.sizeLabel, ...fixedSizes]
 
   return (
     <>
@@ -845,12 +1356,15 @@ function VariantEditDrawer({
           <div className="grid grid-cols-2 gap-3">
             <label className="block">
               <span className="mb-1.5 block text-[12px] font-bold text-[#5B4839]">Beden</span>
-              <input
-                type="text"
+              <select
                 value={form.sizeLabel}
                 onChange={(event) => updateField('sizeLabel', event.target.value)}
-                className="h-10 w-full rounded-[10px] border border-[#ECE3D6] bg-white px-3.5 text-[13px] text-[#3D2B1F] outline-none focus:border-[#A89070] focus:ring-2 focus:ring-[#A89070]/20"
-              />
+                className="h-10 w-full rounded-[10px] border border-[#ECE3D6] bg-white px-3 text-[13px] text-[#3D2B1F] outline-none focus:border-[#A89070] focus:ring-2 focus:ring-[#A89070]/20"
+              >
+                {sizeChoices.map((size) => (
+                  <option key={size} value={size}>{size}</option>
+                ))}
+              </select>
             </label>
 
             <label className="block">
@@ -879,9 +1393,8 @@ function VariantEditDrawer({
             <label className="block">
               <span className="mb-1.5 block text-[12px] font-bold text-[#5B4839]">Stok</span>
               <input
-                type="number"
-                min={0}
-                step={1}
+                type="text"
+                inputMode="numeric"
                 value={form.stockQuantity}
                 onChange={(event) => updateField('stockQuantity', event.target.value)}
                 className="h-10 w-full rounded-[10px] border border-[#ECE3D6] bg-white px-3.5 text-[13px] font-semibold text-[#3D2B1F] outline-none focus:border-[#A89070] focus:ring-2 focus:ring-[#A89070]/20"
@@ -891,9 +1404,8 @@ function VariantEditDrawer({
             <label className="block">
               <span className="mb-1.5 block text-[12px] font-bold text-[#5B4839]">Fiyat</span>
               <input
-                type="number"
-                min={0}
-                step="0.01"
+                type="text"
+                inputMode="decimal"
                 value={form.price}
                 onChange={(event) => updateField('price', event.target.value)}
                 className="h-10 w-full rounded-[10px] border border-[#ECE3D6] bg-white px-3.5 text-[13px] font-semibold text-[#3D2B1F] outline-none focus:border-[#A89070] focus:ring-2 focus:ring-[#A89070]/20"
@@ -925,8 +1437,28 @@ function VariantEditDrawer({
               <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${form.active ? 'translate-x-5' : 'translate-x-0.5'}`} />
             </span>
           </button>
+
+          <div className="rounded-[10px] border border-[#F0B9B1] bg-[#FFF7F5] px-4 py-3">
+            <p className="text-[13px] font-semibold text-[#8A1A1A]">Varyantı sil</p>
+            <p className="mt-0.5 text-[11.5px] leading-5 text-[#8A4A3E]">
+              Yanlış eklenmiş bir beden/rengi kalıcı olarak kaldırır. Eski siparişler etkilenmez.
+            </p>
+            <button
+              type="button"
+              onClick={onDelete}
+              disabled={saving}
+              className="mt-2.5 rounded-[9px] bg-[#B73B35] px-3.5 py-2 text-[12px] font-bold text-white transition-colors hover:bg-[#9F2F2A] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              Kalıcı Olarak Sil
+            </button>
+          </div>
         </div>
 
+        {error ? (
+          <div role="alert" className="mx-6 mb-1 rounded-[10px] bg-[#FEEAEA] px-3.5 py-2.5 text-[12.5px] text-[#8A1A1A]">
+            {error}
+          </div>
+        ) : null}
         <div className="flex gap-3 border-t border-[#ECE3D6] px-6 py-4">
           <button
             type="button"
@@ -978,28 +1510,49 @@ function MetricCard({
   )
 }
 
-function InventoryTableRow({
-  row,
-  draftValue,
-  updating,
-  onDraftChange,
-  onSave,
-  onEdit,
-}: {
+// Satirlar memo'ludur: bir stok kutusuna yazmak ya da bir kutuyu isaretlemek yalnizca o satiri
+// yeniden cizer. Bunun icin islevler satir bilgisini parametre olarak alir (kimlikleri sabit kalir).
+interface InventoryRowProps {
   row: InventoryRow
   draftValue: string
   updating: boolean
-  onDraftChange: (value: string) => void
-  onSave: () => void
-  onEdit: () => void
-}) {
+  selected: boolean
+  onToggleSelected: (variantId: number) => void
+  onDraftChange: (variantId: number, value: string) => void
+  onSave: (row: InventoryRow, draftValue: string) => void
+  onEdit: (row: InventoryRow) => void
+  onOpenImage: (row: InventoryRow) => void
+}
+
+const InventoryTableRow = memo(function InventoryTableRow({
+  row,
+  draftValue,
+  updating,
+  selected,
+  onToggleSelected,
+  onDraftChange,
+  onSave,
+  onEdit,
+  onOpenImage,
+}: InventoryRowProps) {
   const changed = draftValue !== String(row.stockQuantity)
 
+  // Satir renginde gecis animasyonu yok: 100 satirlik tabloda her kare yeniden boyandigi icin
+  // satirlari art arda isaretlemek yavas bilgisayarlarda gozle gorulur sekilde agirlasiyordu.
   return (
-    <tr className="transition-colors hover:bg-[#FAF6F1]">
+    <tr className={`hover:bg-[#FAF6F1] ${changed ? 'bg-[#FFF8EC]' : ''}`}>
+      <td className="px-4 py-3.5">
+        <input
+          type="checkbox"
+          aria-label={`${row.productName} ${row.sizeLabel} / ${row.colorName} seç`}
+          checked={selected}
+          onChange={() => onToggleSelected(row.variantId)}
+          className="rounded border-[#D5C9BA] accent-[#C07B5A]"
+        />
+      </td>
       <td className="px-4 py-3.5">
         <div className="flex items-center gap-3">
-          <ProductImage src={row.imageUrl} name={row.productName} />
+          <ProductImage src={row.imageUrl} name={row.productName} onOpen={() => onOpenImage(row)} />
           <div>
             <p className="font-semibold text-[#3D2B1F]">{row.productName}</p>
             <p className="text-[11.5px] text-[#A89070]">ID #{row.productId}</p>
@@ -1012,11 +1565,14 @@ function InventoryTableRow({
       <td className="px-4 py-3.5 font-semibold text-[#3D2B1F]">{formatPrice(row.price, row.currency)}</td>
       <td className="px-4 py-3.5"><StockBadge row={row} /></td>
       <td className="px-4 py-3.5 text-right">
+        {/* Metin kutusu (number degil): odaktayken fare tekerlegi degeri sessizce degistirmesin. */}
         <input
-          type="number"
-          min={0}
+          type="text"
+          inputMode="numeric"
+          aria-label={`${row.productName} ${row.sizeLabel} / ${row.colorName} stok`}
           value={draftValue}
-          onChange={(event) => onDraftChange(event.target.value)}
+          onChange={(event) => onDraftChange(row.variantId, event.target.value)}
+          onKeyDown={(event) => { if (event.key === 'Enter' && changed && !updating) onSave(row, draftValue) }}
           className="h-9 w-24 rounded-[9px] border border-[#ECE3D6] bg-white px-3 text-right text-[13px] font-semibold text-[#3D2B1F] outline-none focus:border-[#A89070] focus:ring-2 focus:ring-[#A89070]/20"
         />
       </td>
@@ -1024,7 +1580,7 @@ function InventoryTableRow({
         <div className="flex items-center justify-end gap-2">
           <button
             type="button"
-            onClick={onEdit}
+            onClick={() => onEdit(row)}
             className="flex h-9 w-9 items-center justify-center rounded-[9px] border border-[#ECE3D6] text-[#A89070] transition-colors hover:bg-[#FAF6F1] hover:text-[#5B4839]"
             title="Varyantı düzenle"
           >
@@ -1033,7 +1589,7 @@ function InventoryTableRow({
           <button
             type="button"
             disabled={!changed || updating}
-            onClick={onSave}
+            onClick={() => onSave(row, draftValue)}
             className="rounded-[9px] bg-[#C07B5A] px-3 py-2 text-[12px] font-bold text-white transition-colors hover:bg-[#A86849] disabled:cursor-not-allowed disabled:opacity-50"
           >
             {updating ? 'Kaydediliyor' : 'Kaydet'}
@@ -1042,29 +1598,32 @@ function InventoryTableRow({
       </td>
     </tr>
   )
-}
+})
 
-function InventoryMobileCard({
+const InventoryMobileCard = memo(function InventoryMobileCard({
   row,
   draftValue,
   updating,
+  selected,
+  onToggleSelected,
   onDraftChange,
   onSave,
   onEdit,
-}: {
-  row: InventoryRow
-  draftValue: string
-  updating: boolean
-  onDraftChange: (value: string) => void
-  onSave: () => void
-  onEdit: () => void
-}) {
+  onOpenImage,
+}: InventoryRowProps) {
   const changed = draftValue !== String(row.stockQuantity)
 
   return (
-    <article className="rounded-[14px] border border-[#ECE3D6] bg-white p-4">
+    <article className={`rounded-[14px] border border-[#ECE3D6] p-4 ${changed ? 'bg-[#FFF8EC]' : 'bg-white'}`}>
       <div className="flex items-start gap-3">
-        <ProductImage src={row.imageUrl} name={row.productName} />
+        <input
+          type="checkbox"
+          aria-label={`${row.productName} ${row.sizeLabel} / ${row.colorName} seç`}
+          checked={selected}
+          onChange={() => onToggleSelected(row.variantId)}
+          className="mt-3 rounded border-[#D5C9BA] accent-[#C07B5A]"
+        />
+        <ProductImage src={row.imageUrl} name={row.productName} onOpen={() => onOpenImage(row)} />
         <div className="min-w-0 flex-1">
           <p className="font-semibold text-[#3D2B1F]">{row.productName}</p>
           <p className="mt-0.5 text-[11.5px] text-[#A89070]">{row.sizeLabel} / {row.colorName}</p>
@@ -1076,15 +1635,17 @@ function InventoryMobileCard({
 
       <div className="mt-4 grid grid-cols-[1fr_auto_auto] gap-3">
         <input
-          type="number"
-          min={0}
+          type="text"
+          inputMode="numeric"
+          aria-label={`${row.productName} ${row.sizeLabel} / ${row.colorName} stok`}
           value={draftValue}
-          onChange={(event) => onDraftChange(event.target.value)}
+          onChange={(event) => onDraftChange(row.variantId, event.target.value)}
+          onKeyDown={(event) => { if (event.key === 'Enter' && changed && !updating) onSave(row, draftValue) }}
           className="h-10 rounded-[9px] border border-[#ECE3D6] bg-white px-3 text-[13px] font-semibold text-[#3D2B1F] outline-none focus:border-[#A89070] focus:ring-2 focus:ring-[#A89070]/20"
         />
         <button
           type="button"
-          onClick={onEdit}
+          onClick={() => onEdit(row)}
           className="flex h-10 w-10 items-center justify-center rounded-[9px] border border-[#ECE3D6] text-[#A89070] transition-colors hover:bg-[#FAF6F1] hover:text-[#5B4839]"
           title="Varyantı düzenle"
         >
@@ -1093,7 +1654,7 @@ function InventoryMobileCard({
         <button
           type="button"
           disabled={!changed || updating}
-          onClick={onSave}
+          onClick={() => onSave(row, draftValue)}
           className="rounded-[9px] bg-[#C07B5A] px-4 text-[12px] font-bold text-white transition-colors hover:bg-[#A86849] disabled:cursor-not-allowed disabled:opacity-50"
         >
           {updating ? '...' : 'Kaydet'}
@@ -1101,4 +1662,4 @@ function InventoryMobileCard({
       </div>
     </article>
   )
-}
+})

@@ -5,6 +5,7 @@ import com.babyshop.auth.UserAccountRepository;
 import com.babyshop.cart.Cart;
 import com.babyshop.cart.CartItem;
 import com.babyshop.common.response.PageResponse;
+import com.babyshop.common.search.SearchText;
 import com.babyshop.cart.CartRepository;
 import com.babyshop.common.exception.InvalidRequestException;
 import com.babyshop.common.exception.ResourceNotFoundException;
@@ -25,6 +26,8 @@ import com.babyshop.product.ProductImage;
 import com.babyshop.product.ProductImageRepository;
 import com.babyshop.product.ProductVariant;
 import com.babyshop.settings.StoreSettingService;
+import jakarta.persistence.criteria.Expression;
+import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -39,6 +42,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -86,10 +91,25 @@ public class OrderService {
             LocalDate from,
             LocalDate to
     ) {
+        return getAllOrders(page, size, null, orderNumber, status, paymentMethod, from, to);
+    }
+
+    // `query`: siparis no, musteri adi/soyadi, e-posta veya telefon icinde serbest arama (admin).
+    public PageResponse<OrderResponse> getAllOrders(
+            int page,
+            int size,
+            String query,
+            String orderNumber,
+            String status,
+            String paymentMethod,
+            LocalDate from,
+            LocalDate to
+    ) {
         validateDateRange(from, to);
 
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
-        Specification<Order> specification = Specification.where(hasOrderNumber(orderNumber))
+        Specification<Order> specification = Specification.where(matchesQuery(query))
+                .and(hasOrderNumber(orderNumber))
                 .and(hasStatus(status))
                 .and(hasPaymentMethod(paymentMethod))
                 .and(hideExpiredUnlessRequested(status))
@@ -108,6 +128,22 @@ public class OrderService {
                 result.hasNext(),
                 result.hasPrevious()
         );
+    }
+
+    // Admin genel aramasi icin: eslesen en yeni birkac siparis. Buradaki sorguda kalemler fetch
+    // edilmez; boylece LIMIT veritabaninda uygulanir (koleksiyon fetch'li sayfali sorguda Hibernate
+    // eslesen tum siparisleri bellege alir ve her tus vurusunda bunu yapmak pahalidir).
+    public List<OrderResponse> searchOrdersForAdmin(String query, int limit) {
+        Specification<Order> specification = Specification.where(matchesQuery(query))
+                .and(hideExpiredUnlessRequested(null));
+
+        return orderRepository.findBy(specification, fluent -> fluent
+                        .sortBy(Sort.by(Sort.Direction.DESC, "createdAt"))
+                        .limit(limit)
+                        .all())
+                .stream()
+                .map(this::toResponse)
+                .toList();
     }
 
     // Admin/dahili kullanim: sahiplik kontrolu yapmaz (cagrildigi yer ADMIN rolu ile korunur).
@@ -144,7 +180,7 @@ public class OrderService {
     }
 
     private GuestOrderResponse toGuestResponse(Order order) {
-        Map<Long, String> imageUrls = resolveItemImageUrls(order.getItems());
+        Map<OrderItem, String> imageUrls = resolveItemImageUrls(order.getItems());
         return new GuestOrderResponse(
                 order.getOrderNumber(),
                 order.getStatus(),
@@ -242,9 +278,11 @@ public class OrderService {
         Order order = orderRepository.findByOrderNumber(normalizedOrderNumber)
                 .orElseThrow(() -> new ResourceNotFoundException("Order not found for order number: " + orderNumber));
 
-        // Rezerve durumdaki (PENDING/PAID) bir siparis iptal edilirse rezerve stok geri verilir.
+        // Stok siparis olusurken dusulur; kargoya verilmemis (bekleyen, onaylanmis ya da hazirlanan)
+        // bir siparis iptal edilirse urunler rafta kaldigi icin stok geri verilir.
         boolean wasReserved = OrderStatusPolicy.PENDING_PAYMENT.equalsIgnoreCase(order.getStatus())
-                || OrderStatusPolicy.PAID.equalsIgnoreCase(order.getStatus());
+                || OrderStatusPolicy.PAID.equalsIgnoreCase(order.getStatus())
+                || OrderStatusPolicy.PREPARING.equalsIgnoreCase(order.getStatus());
         OrderStatusPolicy.validateTransition(order.getStatus(), normalizedStatus);
         if (OrderStatusPolicy.CANCELLED.equalsIgnoreCase(normalizedStatus)) {
             if (wasReserved) {
@@ -654,6 +692,40 @@ public class OrderService {
                 criteriaBuilder.like(criteriaBuilder.upper(root.get("orderNumber")), "%" + normalizedOrderNumber + "%");
     }
 
+    // Siparisi musteriden yola cikarak bulabilmek icin: siparis no, ad soyad, e-posta veya telefon.
+    // Karsilastirma buyuk/kucuk harf ve Turkce karakter duyarsizdir; telefon yalnizca rakamlariyla eslesir.
+    private Specification<Order> matchesQuery(String query) {
+        if (query == null || query.trim().isEmpty()) {
+            return null;
+        }
+
+        String pattern = SearchText.containsPattern(query);
+        String phoneDigits = SearchText.phoneDigits(query);
+        char escape = SearchText.likeEscape();
+
+        return (root, criteriaQuery, criteriaBuilder) -> {
+            Expression<String> fullName = criteriaBuilder.concat(
+                    criteriaBuilder.concat(criteriaBuilder.coalesce(root.get("customerFirstName"), ""), " "),
+                    criteriaBuilder.coalesce(root.get("customerLastName"), ""));
+
+            List<Predicate> matches = new ArrayList<>();
+            matches.add(criteriaBuilder.like(SearchText.fold(criteriaBuilder, root.get("orderNumber")), pattern, escape));
+            matches.add(criteriaBuilder.like(SearchText.fold(criteriaBuilder, root.get("customerEmail")), pattern, escape));
+            matches.add(criteriaBuilder.like(SearchText.fold(criteriaBuilder, fullName), pattern, escape));
+            if (phoneDigits != null) {
+                Expression<String> storedDigits = criteriaBuilder.function(
+                        "regexp_replace",
+                        String.class,
+                        criteriaBuilder.coalesce(root.get("customerPhone"), ""),
+                        criteriaBuilder.literal("[^0-9]"),
+                        criteriaBuilder.literal(""),
+                        criteriaBuilder.literal("g"));
+                matches.add(criteriaBuilder.like(storedDigits, "%" + phoneDigits + "%"));
+            }
+            return criteriaBuilder.or(matches.toArray(new Predicate[0]));
+        };
+    }
+
     private Specification<Order> createdAtOnOrAfter(LocalDate from) {
         if (from == null) {
             return null;
@@ -675,7 +747,7 @@ public class OrderService {
     }
 
     private OrderResponse toResponse(Order order) {
-        Map<Long, String> imageUrls = resolveItemImageUrls(order.getItems());
+        Map<OrderItem, String> imageUrls = resolveItemImageUrls(order.getItems());
         return new OrderResponse(
                 order.getId(),
                 order.getOrderNumber(),
@@ -710,7 +782,7 @@ public class OrderService {
         );
     }
 
-    private OrderItemResponse toItemResponse(OrderItem item, Map<Long, String> imageUrls) {
+    private OrderItemResponse toItemResponse(OrderItem item, Map<OrderItem, String> imageUrls) {
         return new OrderItemResponse(
                 item.getId(),
                 item.getProductId(),
@@ -722,13 +794,15 @@ public class OrderService {
                 item.getUnitPrice(),
                 item.getLineTotal(),
                 item.getCurrency(),
-                item.getProductId() == null ? null : imageUrls.get(item.getProductId())
+                imageUrls.get(item)
         );
     }
 
-    // Siparis kalemleri gorseli snapshot'lamiyor; urun kimliginden ana gorseli tek sorguyla cozeriz
-    // (siparis basina 1 sorgu, kalem basina N+1 degil). Once primary, yoksa en dusuk sortOrder.
-    private Map<Long, String> resolveItemImageUrls(List<OrderItem> items) {
+    // Siparis kalemleri gorseli snapshot'lamiyor; urun gorselleri tek sorguyla cekilir (siparis basina
+    // 1 sorgu, kalem basina N+1 degil). Kalemin rengine ait bir gorsel varsa o secilir ki siparis
+    // detayinda ve ciktisinda musterinin aldigi renk gorunsun; yoksa ana gorsel, o da yoksa en dusuk
+    // sortOrder.
+    private Map<OrderItem, String> resolveItemImageUrls(List<OrderItem> items) {
         Set<Long> productIds = items.stream()
                 .map(OrderItem::getProductId)
                 .filter(Objects::nonNull)
@@ -737,19 +811,41 @@ public class OrderService {
             return Map.of();
         }
 
-        Map<Long, String> firstByProduct = new HashMap<>();
-        Map<Long, String> primaryByProduct = new HashMap<>();
-        for (ProductImage image : productImageRepository.findAllByProductIdInOrderBySortOrderAscIdAsc(productIds)) {
-            Long productId = image.getProduct().getId();
-            firstByProduct.putIfAbsent(productId, image.getImageUrl());
-            if (image.isPrimary()) {
-                primaryByProduct.putIfAbsent(productId, image.getImageUrl());
+        Map<Long, List<ProductImage>> imagesByProduct = productImageRepository
+                .findAllByProductIdInOrderBySortOrderAscIdAsc(productIds).stream()
+                .collect(Collectors.groupingBy(image -> image.getProduct().getId()));
+
+        Map<OrderItem, String> resolved = new HashMap<>();
+        for (OrderItem item : items) {
+            List<ProductImage> images = item.getProductId() == null ? null : imagesByProduct.get(item.getProductId());
+            if (images == null || images.isEmpty()) {
+                continue;
             }
+
+            // Ayni etiket birden fazla renk adiyla bitebilir ("… / Siyah / Gri" hem "Gri" hem
+            // "Siyah / Gri" ile biter); en uzun eslesen renk, kalemin gercek rengidir.
+            ProductImage image = images.stream()
+                    .filter(candidate -> labelEndsWithColor(item.getVariantLabel(), candidate.getColorName()))
+                    .max(Comparator.comparingInt(candidate -> candidate.getColorName().trim().length()))
+                    .or(() -> images.stream().filter(ProductImage::isPrimary).findFirst())
+                    .orElse(images.get(0));
+            resolved.put(item, image.getImageUrl());
+        }
+        return resolved;
+    }
+
+    // variantLabel "beden / renk" bicimindedir (bkz. createOrder). Renk adinin kendisi de " / "
+    // icerebildigi icin etiket parcalanmaz; gorselin rengiyle bitip bitmedigine bakilir.
+    private boolean labelEndsWithColor(String variantLabel, String colorName) {
+        String label = normalize(variantLabel);
+        String color = normalize(colorName);
+        if (label == null || color == null) {
+            return false;
         }
 
-        Map<Long, String> resolved = new HashMap<>(firstByProduct);
-        resolved.putAll(primaryByProduct);
-        return resolved;
+        String suffix = " / " + color;
+        return label.length() >= suffix.length()
+                && label.regionMatches(true, label.length() - suffix.length(), suffix, 0, suffix.length());
     }
 
     private OrderPaymentSummaryResponse resolvePaymentSummary(Order order) {

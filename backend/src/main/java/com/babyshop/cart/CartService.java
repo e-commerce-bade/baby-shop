@@ -369,7 +369,7 @@ public class CartService {
                 product.getId(),
                 product.getName(),
                 product.getSlug(),
-                extractPrimaryImageUrl(product),
+                extractImageUrl(product, variant.getColorName()),
                 variant.getId(),
                 variant.getSku(),
                 variant.getSizeLabel(),
@@ -381,15 +381,19 @@ public class CartService {
         );
     }
 
-    private String extractPrimaryImageUrl(Product product) {
+    // Sepet satirinda musterinin sectigi rengin gorseli gosterilir; o renge ait gorsel yoksa urunun
+    // ana gorseli, o da yoksa ilk gorseli.
+    private String extractImageUrl(Product product, String colorName) {
+        Comparator<ProductImage> galleryOrder = Comparator.comparingInt(ProductImage::getSortOrder)
+                .thenComparing(ProductImage::getId, Comparator.nullsLast(Comparator.naturalOrder()));
+
         return product.getImages().stream()
-                .filter(ProductImage::isPrimary)
+                .filter(image -> colorName != null && image.getColorName() != null
+                        && colorName.trim().equalsIgnoreCase(image.getColorName().trim()))
+                .min(galleryOrder)
+                .or(() -> product.getImages().stream().filter(ProductImage::isPrimary).findFirst())
+                .or(() -> product.getImages().stream().min(galleryOrder))
                 .map(ProductImage::getImageUrl)
-                .findFirst()
-                .or(() -> product.getImages().stream()
-                        .min(Comparator.comparingInt(ProductImage::getSortOrder)
-                                .thenComparing(ProductImage::getId, Comparator.nullsLast(Comparator.naturalOrder())))
-                        .map(ProductImage::getImageUrl))
                 .orElse(null);
     }
 

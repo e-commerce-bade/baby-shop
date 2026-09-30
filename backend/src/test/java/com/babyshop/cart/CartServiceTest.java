@@ -7,6 +7,7 @@ import com.babyshop.common.exception.ResourceNotFoundException;
 import com.babyshop.customer.CustomerAddress;
 import com.babyshop.customer.CustomerAddressRepository;
 import com.babyshop.product.Product;
+import com.babyshop.product.ProductImage;
 import com.babyshop.product.ProductVariant;
 import com.babyshop.product.ProductVariantRepository;
 import com.babyshop.settings.StoreSettingService;
@@ -19,6 +20,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -385,6 +387,62 @@ class CartServiceTest {
         assertThatThrownBy(() -> cartService.getCart("session-1", "customer@babyshop.local"))
                 .isInstanceOf(InvalidRequestException.class)
                 .hasMessage("Cart session id does not belong to authenticated user: session-1");
+    }
+
+    @Test
+    void shouldShowImageOfTheChosenColourOnCartLine() {
+        Cart cart = buildCart();
+        ProductVariant variant = buildVariant(10L, 12, true, true);
+        variant.getProduct().setImages(new ArrayList<>(List.of(
+                buildImage(1L, "https://cdn.test/blue.jpg", "Blue", 1, true),
+                buildImage(2L, "https://cdn.test/pink-back.jpg", "pink", 3, false),
+                buildImage(3L, "https://cdn.test/pink-front.jpg", "Pink", 2, false)
+        )));
+        addItem(cart, variant);
+        given(cartRepository.findBySessionId("session-1")).willReturn(Optional.of(cart));
+
+        var response = cartService.getCart("session-1");
+
+        assertThat(response.items()).singleElement()
+                .extracting(item -> item.primaryImageUrl())
+                .isEqualTo("https://cdn.test/pink-front.jpg");
+    }
+
+    @Test
+    void shouldFallBackToPrimaryImageWhenColourHasNoImage() {
+        Cart cart = buildCart();
+        ProductVariant variant = buildVariant(10L, 12, true, true);
+        variant.getProduct().setImages(new ArrayList<>(List.of(
+                buildImage(1L, "https://cdn.test/white.jpg", "White", 1, false),
+                buildImage(2L, "https://cdn.test/blue.jpg", "Blue", 2, true)
+        )));
+        addItem(cart, variant);
+        given(cartRepository.findBySessionId("session-1")).willReturn(Optional.of(cart));
+
+        var response = cartService.getCart("session-1");
+
+        assertThat(response.items()).singleElement()
+                .extracting(item -> item.primaryImageUrl())
+                .isEqualTo("https://cdn.test/blue.jpg");
+    }
+
+    private void addItem(Cart cart, ProductVariant variant) {
+        CartItem item = new CartItem();
+        item.setId(5L);
+        item.setCart(cart);
+        item.setProductVariant(variant);
+        item.setQuantity(1);
+        cart.getItems().add(item);
+    }
+
+    private ProductImage buildImage(Long id, String url, String colorName, int sortOrder, boolean primary) {
+        ProductImage image = new ProductImage();
+        image.setId(id);
+        image.setImageUrl(url);
+        image.setColorName(colorName);
+        image.setSortOrder(sortOrder);
+        image.setPrimary(primary);
+        return image;
     }
 
     private Cart buildCart() {

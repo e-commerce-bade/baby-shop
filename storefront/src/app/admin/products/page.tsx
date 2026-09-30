@@ -1,10 +1,21 @@
 'use client'
 
-import { useEffect, useState, useMemo } from 'react'
-import { useRouter } from 'next/navigation'
+import { Suspense, useCallback, useEffect, useRef, useState, useMemo } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import AddVariantsPanel from '@/components/admin/AddVariantsPanel'
 import AdminShell from '@/components/admin/AdminShell'
-import { getColorHex } from '@/lib/colors'
-import { formatPrice } from '@/lib/utils'
+import ImageLightbox, { type LightboxImage } from '@/components/admin/ImageLightbox'
+import NewProductVariants, {
+  EMPTY_NEW_VARIANTS,
+  buildNewVariants,
+  newVariantProblem,
+  type NewVariantsState,
+} from '@/components/admin/NewProductVariants'
+import { parsePriceInput, parseStockInput } from '@/lib/numberInput'
+import ProductVariantEditor, { type AdminVariant } from '@/components/admin/ProductVariantEditor'
+import MultiSelect from '@/components/admin/MultiSelect'
+import { compareSizeLabels, sizeOptionsForCategory } from '@/lib/sizes'
+import { foldForSearch, formatPrice } from '@/lib/utils'
 import { filterProductTypes } from '@/lib/mock/filterData'
 
 interface AdminProfile {
@@ -69,17 +80,6 @@ type StatusFilter = 'all' | 'active' | 'inactive'
 type VariantCountFilter = 'all' | 'single' | 'multiple'
 type ProductDrawerTab = 'details' | 'variant' | 'media'
 
-interface ProductVariantDraft {
-  key: string
-  sku: string
-  sizeLabel: string
-  colorName: string
-  stockQuantity: string
-  price: string
-  compareAtPrice: string
-  active: boolean
-}
-
 interface ColorImageDraft {
   imageUrl: string
   fileName: string
@@ -92,33 +92,9 @@ const drawerTabs: Array<{ id: ProductDrawerTab; label: string }> = [
   { id: 'media', label: 'Gorseller' },
 ]
 
-const BABY_SIZE_PRESETS = ['0-3 Ay', '3-6 Ay', '6-9 Ay', '9-12 Ay', '12-18 Ay', '18-24 Ay', '24-36 Ay']
-const KIDS_SIZE_PRESETS = ['2 Yaş', '3 Yaş', '4 Yaş', '5 Yaş', '6 Yaş', '7 Yaş', '8 Yaş', '9 Yaş', '10 Yaş', '11-12 Yaş', '13-14 Yaş']
-
-function getSizePresetForCategory(categoryName?: string) {
-  const normalized = toSlug(categoryName ?? '')
-  if (
-    normalized.includes('bebek') ||
-    normalized.includes('baby') ||
-    normalized.includes('newborn') ||
-    normalized.includes('yenidogan')
-  ) {
-    return {
-      label: 'Bebek ay araligi',
-      sizes: BABY_SIZE_PRESETS,
-    }
-  }
-  return {
-    label: 'Cocuk yas araligi',
-    sizes: KIDS_SIZE_PRESETS,
-  }
-}
-
-function makeVariantKey(sizeLabel: string, colorName: string) {
-  return `${toSlug(sizeLabel)}-${toSlug(colorName)}`
-}
-
-function generateSku(productName: string, colorName: string, sizeLabel: string, index: number) {
+// `token` urune ozeldir: bas harfleri, rengi ve bedeni ayni olan iki urunun SKU'lari cakismasin diye
+// (SKU tekil olmak zorunda; cakisma urunun yarim kaydedilmesine yol aciyordu).
+function generateSku(productName: string, colorName: string, sizeLabel: string, token: string) {
   const productPart = toSlug(productName)
     .split('-')
     .filter(Boolean)
@@ -128,7 +104,11 @@ function generateSku(productName: string, colorName: string, sizeLabel: string, 
   const colorPart = toSlug(colorName).replace(/-/g, '').slice(0, 6) || 'renk'
   const sizePart = toSlug(sizeLabel).replace(/-/g, '').slice(0, 6) || 'beden'
 
-  return `${productPart}-${colorPart}-${sizePart}-${index + 1}`.toUpperCase()
+  return `${productPart}-${colorPart}-${sizePart}-${token}`.toUpperCase()
+}
+
+function newSkuToken() {
+  return Math.random().toString(36).slice(2, 6).padEnd(4, '0')
 }
 
 function toSlug(value: string) {
@@ -201,7 +181,21 @@ function StockBadge({ qty }: { qty: number | undefined }) {
   return <span className="rounded-full bg-[#EDF7F1] px-2.5 py-1 text-[11px] font-bold text-[#1A6640]">Stokta ({qty})</span>
 }
 
-function ProductImage({ src, name }: { src?: string; name: string }) {
+// `onOpen` verilirse kucuk gorsel tiklanabilir olur ve buyuk onizlemeyi acar.
+function ProductImage({ src, name, onOpen }: { src?: string; name: string; onOpen?: () => void }) {
+  if (src && onOpen) {
+    return (
+      <button
+        type="button"
+        onClick={onOpen}
+        title="Görseli büyüt"
+        aria-label={`${name} görselini büyüt`}
+        className="shrink-0 cursor-zoom-in rounded-[8px] ring-[#C07B5A] transition-shadow hover:ring-2 focus-visible:outline-none focus-visible:ring-2"
+      >
+        <img src={src} alt={name} className="h-10 w-10 rounded-[8px] object-cover" />
+      </button>
+    )
+  }
   if (src) {
     return (
       <img
@@ -365,10 +359,12 @@ function AddProductDrawer({
 
 function WorkingAddProductDrawer({
   categories,
+  knownColors,
   onSaved,
   onClose,
 }: {
   categories: AdminCategory[]
+  knownColors: string[]
   onSaved: () => Promise<void> | void
   onClose: () => void
 }) {
@@ -379,22 +375,20 @@ function WorkingAddProductDrawer({
   const [productType, setProductType] = useState('')
   const [categoryId, setCategoryId] = useState('')
   const [active, setActive] = useState(true)
-  const [currency, setCurrency] = useState('TRY')
-  const [selectedSizes, setSelectedSizes] = useState<string[]>([])
-  const [sizeInput, setSizeInput] = useState('')
-  const [colors, setColors] = useState<string[]>([])
-  const [colorInput, setColorInput] = useState('')
-  const [basePrice, setBasePrice] = useState('')
-  const [baseStock, setBaseStock] = useState('0')
-  const [variants, setVariants] = useState<ProductVariantDraft[]>([])
+  // Beden/renk secimi, ortak fiyat/stok ve satir bazli degisiklikler; varyantlar bundan turetilir.
+  const [variantState, setVariantState] = useState<NewVariantsState>(EMPTY_NEW_VARIANTS)
   const [colorImages, setColorImages] = useState<Record<string, ColorImageDraft[]>>({})
   const [saving, setSaving] = useState(false)
+  const [finished, setFinished] = useState(false)
   const [uploadingColor, setUploadingColor] = useState<string | null>(null)
   const [formError, setFormError] = useState<string | null>(null)
+  const skuToken = useRef(newSkuToken())
 
   const currentTabIndex = drawerTabs.findIndex((item) => item.id === tab)
   const selectedCategory = categories.find((category) => String(category.id) === categoryId)
-  const sizePreset = getSizePresetForCategory(selectedCategory?.name)
+  const sizePreset = sizeOptionsForCategory(selectedCategory?.name)
+  const colors = variantState.colors
+  const variants = useMemo(() => buildNewVariants(variantState), [variantState])
 
   function handleNameChange(value: string) {
     setName(value)
@@ -402,52 +396,9 @@ function WorkingAddProductDrawer({
 
   function handleCategoryChange(value: string) {
     setCategoryId(value)
-    setSelectedSizes([])
-    setVariants([])
-  }
-
-  function toggleSize(sizeLabel: string) {
-    setSelectedSizes((prev) => (
-      prev.includes(sizeLabel)
-        ? prev.filter((item) => item !== sizeLabel)
-        : [...prev, sizeLabel]
-    ))
-    setVariants([])
-  }
-
-  // Hazir listede olmayan ozel beden/yas ekler (orn. "2-3 Yas"). Renklerdeki mantikla ayni.
-  function addCustomSize() {
-    const size = sizeInput.trim()
-    if (!size) return
-    setSelectedSizes((prev) => (
-      prev.some((item) => item.toLocaleLowerCase('tr-TR') === size.toLocaleLowerCase('tr-TR'))
-        ? prev
-        : [...prev, size]
-    ))
-    setSizeInput('')
-    setVariants([])
-  }
-
-  function addColor() {
-    const color = colorInput.trim()
-    if (!color) return
-    setColors((prev) => (
-      prev.some((item) => item.toLocaleLowerCase('tr-TR') === color.toLocaleLowerCase('tr-TR'))
-        ? prev
-        : [...prev, color]
-    ))
-    setColorInput('')
-    setVariants([])
-  }
-
-  function removeColor(color: string) {
-    setColors((prev) => prev.filter((item) => item !== color))
-    setColorImages((prev) => {
-      const next = { ...prev }
-      delete next[color]
-      return next
-    })
-    setVariants([])
+    // Bebek kategorilerinde ay, digerlerinde yas listesi gecerli; yeni listede olmayan secimler duser.
+    const nextSizes = sizeOptionsForCategory(categories.find((category) => String(category.id) === value)?.name).sizes
+    setVariantState((current) => ({ ...current, sizes: current.sizes.filter((size) => nextSizes.includes(size)) }))
   }
 
   function addColorImage(color: string, draft: ColorImageDraft) {
@@ -471,62 +422,23 @@ function WorkingAddProductDrawer({
     }))
   }
 
-  function updateVariant(key: string, patch: Partial<ProductVariantDraft>) {
-    setVariants((prev) => prev.map((variant) => (
-      variant.key === key ? { ...variant, ...patch } : variant
-    )))
-  }
-
-  function removeVariant(key: string) {
-    setVariants((prev) => prev.filter((variant) => variant.key !== key))
-  }
-
-  function generateVariants() {
-    setFormError(null)
-    const trimmedName = name.trim()
-    const normalizedPrice = Number(basePrice)
-    const normalizedStock = Number(baseStock)
-
-    if (!trimmedName) {
-      setTab('details')
-      setFormError('Once urun adi girin.')
-      return
+  // "Varyant & Stok" adiminin eksigini soyler (yoksa null). Hem adim gecisinde hem kayitta kullanilir.
+  function variantStepProblem() {
+    if (variantState.sizes.length === 0) return 'En az bir beden/yaş seçin.'
+    if (colors.length === 0) return 'En az bir renk ekleyin.'
+    if (variants.length === 0) return 'Tüm kombinasyonlar çıkarılmış; en az bir varyant kalmalı.'
+    if (variantState.currency.trim().length !== 3) return 'Para birimi 3 harf olmalı. Örnek: TRY'
+    if (variantState.price.trim() === '' && variants.some((variant) => variant.price.trim() === '')) {
+      return 'Fiyat girin.'
     }
-    if (selectedSizes.length === 0) {
-      setFormError('En az bir beden/yas secin.')
-      return
+    const invalid = variants.find((variant) => newVariantProblem(variant))
+    if (invalid) {
+      return `${invalid.sizeLabel} / ${invalid.colorName}: ${newVariantProblem(invalid)?.message}`
     }
-    if (colors.length === 0) {
-      setFormError('En az bir renk ekleyin.')
-      return
+    if (variantState.compareAtPrice.trim() !== '' && Number.isNaN(parsePriceInput(variantState.compareAtPrice))) {
+      return 'İndirimsiz fiyat geçerli bir tutar olmalı (en fazla 2 ondalık, örn. 499,90).'
     }
-    if (!basePrice.trim() || !Number.isFinite(normalizedPrice) || normalizedPrice < 0) {
-      setFormError('Gecerli bir ortak satis fiyati girin.')
-      return
-    }
-    if (!Number.isInteger(normalizedStock) || normalizedStock < 0) {
-      setFormError('Baslangic stogu 0 veya daha buyuk tam sayi olmali.')
-      return
-    }
-
-    const nextVariants = selectedSizes.flatMap((sizeLabel) => (
-      colors.map((colorName) => {
-        const key = makeVariantKey(sizeLabel, colorName)
-        const existing = variants.find((variant) => variant.key === key)
-        return existing ?? {
-          key,
-          sku: generateSku(trimmedName, colorName, sizeLabel, variants.length),
-          sizeLabel,
-          colorName,
-          stockQuantity: baseStock,
-          price: basePrice,
-          compareAtPrice: '',
-          active: true,
-        }
-      })
-    ))
-
-    setVariants(nextVariants)
+    return null
   }
 
   async function handleColorImageUpload(color: string, files: FileList | null) {
@@ -584,39 +496,31 @@ function WorkingAddProductDrawer({
       setFormError('Urun tipi zorunlu.')
       return
     }
-    if (variants.length === 0) {
+    const variantProblem = variantStepProblem()
+    if (variantProblem) {
       setTab('variant')
-      setFormError('En az bir varyant olusturun.')
-      return
-    }
-    if (currency.trim().length !== 3) {
-      setTab('variant')
-      setFormError('Para birimi 3 harf olmali. Ornek: TRY')
+      setFormError(variantProblem)
       return
     }
 
-    const invalidVariant = variants.find((variant) => {
-      const normalizedPrice = Number(variant.price)
-      const normalizedStock = Number(variant.stockQuantity)
-      return (
-        !variant.sizeLabel.trim() ||
-        !variant.colorName.trim() ||
-        !variant.price.trim() ||
-        !Number.isFinite(normalizedPrice) ||
-        normalizedPrice < 0 ||
-        !Number.isInteger(normalizedStock) ||
-        normalizedStock < 0
-      )
-    })
+    const compareAtPrice = variantState.compareAtPrice.trim() ? parsePriceInput(variantState.compareAtPrice) : null
 
-    if (invalidVariant) {
-      setTab('variant')
-      setFormError('Tum varyantlarda beden/yas, renk, fiyat ve stok bilgisi gecerli olmali.')
-      return
+    // SKU'nun renk parcasi kisaltildigi icin ayni harflerle baslayan iki renk ("Beyaz-Mavi",
+    // "Beyaz-Mor") ayni bedende ayni SKU'yu uretebilir; urun icinde tekil olmasi saglanir.
+    const usedSkus = new Set<string>()
+    const skuFor = (colorName: string, sizeLabel: string) => {
+      const base = generateSku(trimmedName, colorName, sizeLabel, skuToken.current)
+      let sku = base
+      for (let suffix = 2; usedSkus.has(sku); suffix++) sku = `${base}-${suffix}`
+      usedSkus.add(sku)
+      return sku
     }
 
     setSaving(true)
+    let createdId: number | null = null
     try {
+      // Urun once pasif olusturulur, varyant ve gorselleri tamamlaninca istenirse yayina alinir;
+      // boylece yarim kalan bir kayit magazada hic gorunmez.
       const created = await postJson<{ id: number }>('/api/admin/products', {
         categoryId: numericCategoryId,
         name: trimmedName,
@@ -624,19 +528,20 @@ function WorkingAddProductDrawer({
         description: description.trim() || null,
         brand: brand.trim() || null,
         productType: productType.trim(),
-        active,
+        active: false,
       }, 'Urun olusturulamadi.')
+      createdId = created.id
 
       for (const variant of variants) {
         await postJson(`/api/admin/products/${created.id}/variants`, {
-          sku: variant.sku.trim() || null,
-          sizeLabel: variant.sizeLabel.trim(),
-          colorName: variant.colorName.trim(),
-          stockQuantity: Number(variant.stockQuantity),
-          price: Number(variant.price),
-          compareAtPrice: variant.compareAtPrice.trim() ? Number(variant.compareAtPrice) : null,
-          currency: currency.trim().toUpperCase(),
-          active: variant.active,
+          sku: skuFor(variant.colorName, variant.sizeLabel),
+          sizeLabel: variant.sizeLabel,
+          colorName: variant.colorName,
+          stockQuantity: parseStockInput(variant.stock),
+          price: parsePriceInput(variant.price),
+          compareAtPrice,
+          currency: variantState.currency.trim().toUpperCase(),
+          active: true,
         }, 'Urun varyanti olusturulamadi.')
       }
 
@@ -655,14 +560,56 @@ function WorkingAddProductDrawer({
           primary: index === 0,
         }, 'Urun gorseli kaydedilemedi.')
       }
-
-      await onSaved()
-      onClose()
     } catch (e) {
-      setFormError(e instanceof Error ? e.message : 'Urun kaydedilirken hata olustu.')
-    } finally {
+      const reason = e instanceof Error ? e.message : 'Urun kaydedilirken hata olustu.'
+      if (createdId === null) {
+        setFormError(reason)
+      } else {
+        // Urun olustu ama varyant/gorsel adimi yarida kaldi: yarim urun kalmasin diye geri alinir;
+        // form oldugu gibi durur, duzeltip yeniden kaydedilebilir.
+        const rolledBack = await fetch(`/api/admin/products/${createdId}`, { method: 'DELETE' })
+          .then((res) => res.ok)
+          .catch(() => false)
+        skuToken.current = newSkuToken()
+        if (rolledBack) {
+          setFormError(`${reason} Ürün kaydedilmedi; düzeltip yeniden deneyin.`)
+        } else {
+          setFormError(`${reason} Ürün eksik ve pasif olarak kaldı; listeden silip yeniden ekleyin.`)
+          await Promise.resolve(onSaved()).catch(() => undefined)
+        }
+      }
       setSaving(false)
+      return
     }
+
+    // Buradan sonrasi urunu geri almaz: urun tamamen kaydedildi.
+    let publishProblem: string | null = null
+    if (active) {
+      const published = await fetch(`/api/admin/products/${createdId}/active`, {
+        method: 'PATCH',
+        cache: 'no-store',
+        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ active: true }),
+      }).then((res) => res.ok).catch(() => false)
+      if (!published) publishProblem = 'Ürün kaydedildi ama yayına alınamadı; listeden açıp aktif yapın.'
+    }
+    // Liste yenilenemese de kayit yerindedir; bir sonraki yuklemede gorunur.
+    await Promise.resolve(onSaved()).catch(() => undefined)
+    setSaving(false)
+    if (publishProblem) {
+      // Cekmece acik kalir ki mesaj okunsun; ikinci bir kayit (mukerrer urun) engellenir.
+      setFinished(true)
+      setFormError(publishProblem)
+      return
+    }
+    onClose()
+  }
+
+  // Kayit surerken cekmece kapatilamaz: yarida kalan bir kayit, sonucu gosterecek yer kalmadan
+  // geri alinirdi.
+  function requestClose() {
+    if (saving) return
+    onClose()
   }
 
   function validateDetailsStep() {
@@ -682,13 +629,17 @@ function WorkingAddProductDrawer({
   }
 
   function handlePrimaryAction() {
+    if (finished) return
     setFormError(null)
     if (currentTabIndex < drawerTabs.length - 1) {
       // Adim atlamadan once o adimin zorunlu alanlarini dogrula.
       if (tab === 'details' && !validateDetailsStep()) return
-      if (tab === 'variant' && variants.length === 0) {
-        setFormError('Once varyantlari olusturun.')
-        return
+      if (tab === 'variant') {
+        const variantProblem = variantStepProblem()
+        if (variantProblem) {
+          setFormError(variantProblem)
+          return
+        }
       }
       setTab(drawerTabs[currentTabIndex + 1].id)
       return
@@ -698,14 +649,16 @@ function WorkingAddProductDrawer({
 
   return (
     <>
-      <div className="fixed inset-0 z-40 bg-black/20 backdrop-blur-sm" onClick={onClose} />
+      <div className="fixed inset-0 z-40 bg-black/20 backdrop-blur-sm" onClick={requestClose} />
       <div className="fixed inset-y-0 right-0 z-50 flex w-full max-w-md flex-col border-l border-[#ECE3D6] bg-white shadow-xl">
         <div className="flex items-center justify-between border-b border-[#ECE3D6] px-6 py-4">
           <h2 className="text-[16px] font-bold text-[#3D2B1F]">Yeni Urun Ekle</h2>
           <button
             type="button"
-            onClick={onClose}
-            className="flex h-8 w-8 items-center justify-center rounded-full text-[#C4B5A5] hover:bg-[#FAF6F1] hover:text-[#5B4839]"
+            onClick={requestClose}
+            disabled={saving}
+            aria-label="Kapat"
+            className="flex h-8 w-8 items-center justify-center rounded-full text-[#C4B5A5] hover:bg-[#FAF6F1] hover:text-[#5B4839] disabled:opacity-40"
           >
             <svg className="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
               <path d="M5 5l10 10M15 5L5 15" />
@@ -834,249 +787,16 @@ function WorkingAddProductDrawer({
           ) : null}
 
           {tab === 'variant' ? (
-            <div className="space-y-4">
-              <div className="rounded-[12px] border border-[#ECE3D6] bg-[#FAF6F1] px-4 py-3">
-                <p className="text-[12px] font-bold text-[#5B4839]">{sizePreset.label}</p>
-                <p className="mt-1 text-[11.5px] text-[#B5A090]">
-                  Kategoriye gore uygun beden listesi otomatik secilir.
-                </p>
-              </div>
-
-              <div>
-                <label className="mb-2 block text-[12px] font-bold text-[#5B4839]">
-                  Beden / Yas Secenekleri <span className="text-[#C07B5A]">*</span>
-                </label>
-                <div className="flex flex-wrap gap-2">
-                  {sizePreset.sizes.map((size) => {
-                    const selected = selectedSizes.includes(size)
-                    return (
-                      <button
-                        key={size}
-                        type="button"
-                        onClick={() => toggleSize(size)}
-                        className={`rounded-full px-3 py-1.5 text-[12px] font-bold transition-colors ${
-                          selected
-                            ? 'bg-[#C07B5A] text-white'
-                            : 'bg-white text-[#5B4839] ring-1 ring-[#ECE3D6] hover:bg-[#FFFDFC]'
-                        }`}
-                      >
-                        {size}
-                      </button>
-                    )
-                  })}
-                </div>
-
-                {/* Ozel beden/yas ekleme (orn. "2-3 Yas"). Hazir listede olmayanlar buradan eklenir. */}
-                <div className="mt-3">
-                  <p className="mb-1.5 text-[11.5px] text-[#B5A090]">
-                    Listede yoksa ozel yas/beden ekleyin (orn. 2-3 Yas)
-                  </p>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      placeholder="2-3 Yas"
-                      value={sizeInput}
-                      onChange={(e) => setSizeInput(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault()
-                          addCustomSize()
-                        }
-                      }}
-                      className="min-w-0 flex-1 rounded-[10px] border border-[#ECE3D6] bg-white px-3.5 py-2.5 text-[13px] text-[#3D2B1F] placeholder:text-[#C4B5A5] focus:border-[#A89070] focus:outline-none"
-                    />
-                    <button
-                      type="button"
-                      onClick={addCustomSize}
-                      className="rounded-[10px] border border-[#ECE3D6] bg-white px-3.5 py-2.5 text-[12px] font-bold text-[#C07B5A] hover:bg-[#FFFDFC]"
-                    >
-                      Ekle
-                    </button>
-                  </div>
-
-                  {/* Hazir listede olmayan secili ozel bedenler (kaldirilabilir chip) */}
-                  {selectedSizes.filter((size) => !sizePreset.sizes.includes(size)).length > 0 ? (
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {selectedSizes
-                        .filter((size) => !sizePreset.sizes.includes(size))
-                        .map((size) => (
-                          <button
-                            key={size}
-                            type="button"
-                            onClick={() => toggleSize(size)}
-                            className="inline-flex items-center gap-1.5 rounded-full bg-[#C07B5A] px-3 py-1.5 text-[12px] font-bold text-white hover:bg-[#A9694C]"
-                          >
-                            {size}
-                            <span className="text-[13px] leading-none">×</span>
-                          </button>
-                        ))}
-                    </div>
-                  ) : null}
-                </div>
-              </div>
-
-              <div>
-                <label className="mb-1.5 block text-[12px] font-bold text-[#5B4839]">
-                  Renkler <span className="text-[#C07B5A]">*</span>
-                </label>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    placeholder="Krem"
-                    value={colorInput}
-                    onChange={(e) => setColorInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault()
-                        addColor()
-                      }
-                    }}
-                    className="min-w-0 flex-1 rounded-[10px] border border-[#ECE3D6] bg-white px-3.5 py-2.5 text-[13px] text-[#3D2B1F] placeholder:text-[#C4B5A5] focus:border-[#A89070] focus:outline-none"
-                  />
-                  <button
-                    type="button"
-                    onClick={addColor}
-                    className="rounded-[10px] border border-[#ECE3D6] bg-white px-3.5 py-2.5 text-[12px] font-bold text-[#C07B5A] hover:bg-[#FFFDFC]"
-                  >
-                    Ekle
-                  </button>
-                </div>
-                {colors.length > 0 ? (
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {colors.map((color) => (
-                      <button
-                        key={color}
-                        type="button"
-                        onClick={() => removeColor(color)}
-                        className="inline-flex items-center gap-1.5 rounded-full bg-[#F4EEE6] px-3 py-1.5 text-[12px] font-bold text-[#5B4839] hover:bg-[#ECE3D6]"
-                      >
-                        <span
-                          className="h-3 w-3 rounded-full border border-white shadow-[0_0_0_1px_#D5C9BA]"
-                          style={{ backgroundColor: getColorHex(color) }}
-                        />
-                        {color} x
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
-
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <label className="mb-1.5 block text-[12px] font-bold text-[#5B4839]">
-                    Ortak Fiyat <span className="text-[#C07B5A]">*</span>
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    placeholder="0.00"
-                    value={basePrice}
-                    onChange={(e) => setBasePrice(e.target.value)}
-                    className="w-full rounded-[10px] border border-[#ECE3D6] bg-white px-3 py-2.5 text-[13px] text-[#3D2B1F] placeholder:text-[#C4B5A5] focus:border-[#A89070] focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1.5 block text-[12px] font-bold text-[#5B4839]">Baslangic Stok</label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="1"
-                    value={baseStock}
-                    onChange={(e) => setBaseStock(e.target.value)}
-                    className="w-full rounded-[10px] border border-[#ECE3D6] bg-white px-3 py-2.5 text-[13px] text-[#3D2B1F] placeholder:text-[#C4B5A5] focus:border-[#A89070] focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1.5 block text-[12px] font-bold text-[#5B4839]">Para Birimi</label>
-                  <input
-                    type="text"
-                    maxLength={3}
-                    value={currency}
-                    onChange={(e) => setCurrency(e.target.value.toUpperCase())}
-                    className="w-full rounded-[10px] border border-[#ECE3D6] bg-white px-3 py-2.5 text-[13px] text-[#3D2B1F] placeholder:text-[#C4B5A5] focus:border-[#A89070] focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={generateVariants}
-                className="w-full rounded-[10px] bg-[#C07B5A] py-2.5 text-[13px] font-bold text-white transition-colors hover:bg-[#A86849]"
-              >
-                Varyantlari Olustur
-              </button>
-
-              {variants.length > 0 ? (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <p className="text-[12px] font-bold text-[#5B4839]">{variants.length} varyant</p>
-                    <p className="text-[11.5px] text-[#B5A090]">Stok, fiyat ve SKU duzenlenebilir.</p>
-                  </div>
-                  <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
-                    {variants.map((variant) => (
-                      <div key={variant.key} className="rounded-[10px] border border-[#ECE3D6] bg-white p-3">
-                        <div className="mb-2 flex items-center justify-between gap-2">
-                          <div>
-                            <p className="flex items-center gap-1.5 text-[12.5px] font-bold text-[#3D2B1F]">
-                              <span
-                                className="h-3 w-3 rounded-full border border-white shadow-[0_0_0_1px_#D5C9BA]"
-                                style={{ backgroundColor: getColorHex(variant.colorName) }}
-                              />
-                              {variant.colorName} / {variant.sizeLabel}
-                            </p>
-                            <p className="text-[11px] text-[#B5A090]">{variant.sku}</p>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => removeVariant(variant.key)}
-                            className="rounded-full px-2 py-1 text-[12px] font-bold text-[#C07B5A] hover:bg-[#FAF6F1]"
-                          >
-                            Sil
-                          </button>
-                        </div>
-                        <div className="grid grid-cols-2 gap-2">
-                          <input
-                            type="text"
-                            value={variant.sku}
-                            placeholder="SKU"
-                            onChange={(e) => updateVariant(variant.key, { sku: e.target.value })}
-                            className="rounded-[8px] border border-[#ECE3D6] px-2.5 py-2 text-[12px] text-[#3D2B1F] focus:border-[#A89070] focus:outline-none"
-                          />
-                          <input
-                            type="number"
-                            min="0"
-                            step="1"
-                            value={variant.stockQuantity}
-                            placeholder="Stok"
-                            onChange={(e) => updateVariant(variant.key, { stockQuantity: e.target.value })}
-                            className="rounded-[8px] border border-[#ECE3D6] px-2.5 py-2 text-[12px] text-[#3D2B1F] focus:border-[#A89070] focus:outline-none"
-                          />
-                          <input
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            value={variant.price}
-                            placeholder="Fiyat"
-                            onChange={(e) => updateVariant(variant.key, { price: e.target.value })}
-                            className="rounded-[8px] border border-[#ECE3D6] px-2.5 py-2 text-[12px] text-[#3D2B1F] focus:border-[#A89070] focus:outline-none"
-                          />
-                          <input
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            value={variant.compareAtPrice}
-                            placeholder="İndirimsiz fiyat (ops.)"
-                            onChange={(e) => updateVariant(variant.key, { compareAtPrice: e.target.value })}
-                            className="rounded-[8px] border border-[#ECE3D6] px-2.5 py-2 text-[12px] text-[#3D2B1F] focus:border-[#A89070] focus:outline-none"
-                          />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-            </div>
+            <NewProductVariants
+              state={variantState}
+              onChange={(next) => {
+                setFormError(null)
+                setVariantState(next)
+              }}
+              sizeListLabel={sizePreset.label}
+              sizeOptions={sizePreset.sizes}
+              knownColors={knownColors}
+            />
           ) : null}
 
           {tab === 'media' ? (
@@ -1178,18 +898,19 @@ function WorkingAddProductDrawer({
         <div className="flex gap-3 border-t border-[#ECE3D6] px-6 py-4">
           <button
             type="button"
-            onClick={onClose}
-            className="flex-1 rounded-[10px] border border-[#ECE3D6] py-2.5 text-[13px] font-bold text-[#5B4839] transition-colors hover:bg-[#FAF6F1]"
+            onClick={requestClose}
+            disabled={saving}
+            className="flex-1 rounded-[10px] border border-[#ECE3D6] py-2.5 text-[13px] font-bold text-[#5B4839] transition-colors hover:bg-[#FAF6F1] disabled:opacity-50"
           >
-            Iptal
+            {finished ? 'Kapat' : 'Iptal'}
           </button>
           <button
             type="button"
             onClick={handlePrimaryAction}
-            disabled={saving || Boolean(uploadingColor)}
+            disabled={saving || finished || Boolean(uploadingColor)}
             className="flex-1 rounded-[10px] bg-[#C07B5A] py-2.5 text-[13px] font-bold text-white transition-colors hover:bg-[#A86849] disabled:cursor-not-allowed disabled:opacity-70"
           >
-            {saving ? 'Kaydediliyor...' : currentTabIndex < drawerTabs.length - 1 ? `Sonraki: ${drawerTabs[currentTabIndex + 1].label}` : 'Urunu Kaydet'}
+            {saving ? 'Kaydediliyor...' : finished ? 'Kaydedildi' : currentTabIndex < drawerTabs.length - 1 ? `Sonraki: ${drawerTabs[currentTabIndex + 1].label}` : 'Urunu Kaydet'}
           </button>
         </div>
       </div>
@@ -1200,21 +921,25 @@ function WorkingAddProductDrawer({
 function ProductManagementDrawer({
   product,
   categories,
+  knownColors,
   busyAction,
   onClose,
   onToggleActive,
   onDelete,
   onImagesChanged,
   onUpdated,
+  onVariantsChanged,
 }: {
   product: AdminProduct
   categories: AdminCategory[]
+  knownColors: string[]
   busyAction: 'active' | 'delete' | null
   onClose: () => void
   onToggleActive: (product: AdminProduct) => Promise<void> | void
   onDelete: (product: AdminProduct) => Promise<void> | void
   onImagesChanged: () => Promise<void> | void
   onUpdated: () => Promise<void> | void
+  onVariantsChanged: (productId: number, variants: AdminVariant[]) => void
 }) {
   const variants = product.variants ?? []
   const price = product.basePrice ?? product.price ?? product.minPrice
@@ -1226,6 +951,8 @@ function ProductManagementDrawer({
   const [uploadingImage, setUploadingImage] = useState(false)
   const [imageAltText, setImageAltText] = useState(product.name)
   const [imageColorName, setImageColorName] = useState('')
+  // Buyuk onizlemede acilacak gorselin sirasi (null = kapali).
+  const [previewIndex, setPreviewIndex] = useState<number | null>(null)
 
   // Urun cekirdek alanlari (ad/kategori/tip/marka/aciklama/slug) duzenleme formu.
   const [detailForm, setDetailForm] = useState({
@@ -1236,54 +963,35 @@ function ProductManagementDrawer({
   const [detailError, setDetailError] = useState<string | null>(null)
   const [detailNotice, setDetailNotice] = useState<string | null>(null)
 
-  // Varyant hizli editoru: fiyat + stok (tam duzenleme Stok/Envanter sayfasinda da mevcut).
-  type VariantRow = {
-    id: number; sku: string | null; sizeLabel: string; colorName: string
-    currency: string; compareAtPrice: number | string | null; active: boolean
-    price: string; stock: string
-  }
-  const [variantRows, setVariantRows] = useState<VariantRow[]>([])
-  const [savingVariantId, setSavingVariantId] = useState<number | null>(null)
-  const [variantError, setVariantError] = useState<string | null>(null)
-  const [variantNotice, setVariantNotice] = useState<string | null>(null)
+  // Varyantlar (pasifler dahil) urun detayindan bir kez yuklenir; duzenleme ProductVariantEditor'da,
+  // yeni beden/renk AddVariantsPanel'de yapilir. Iki bilesen de degisikligi buraya bildirir.
+  const [detailVariants, setDetailVariants] = useState<AdminVariant[]>([])
+  const [variantsLoaded, setVariantsLoaded] = useState(false)
+  const [unsavedVariantCount, setUnsavedVariantCount] = useState(0)
+  const [pendingNewVariantCount, setPendingNewVariantCount] = useState(0)
+  const detailVariantsRef = useRef(detailVariants)
+  useEffect(() => {
+    detailVariantsRef.current = detailVariants
+  }, [detailVariants])
 
-  function updateVariantRow(id: number, patch: Partial<VariantRow>) {
-    setVariantRows((rows) => rows.map((row) => (row.id === id ? { ...row, ...patch } : row)))
+  function handleVariantsEdited(next: AdminVariant[]) {
+    setDetailVariants(next)
+    onVariantsChanged(product.id, next)
   }
 
-  async function handleSaveVariant(row: VariantRow) {
-    setVariantError(null)
-    setVariantNotice(null)
-    const price = Number(row.price.replace(',', '.'))
-    const stock = Number(row.stock)
-    if (Number.isNaN(price) || price < 0) { setVariantError('Fiyat sifir veya daha buyuk olmali.'); return }
-    if (!Number.isInteger(stock) || stock < 0) { setVariantError('Stok sifir veya daha buyuk tam sayi olmali.'); return }
-
-    setSavingVariantId(row.id)
-    try {
-      const res = await fetch(`/api/admin/products/${product.id}/variants/${row.id}`, {
-        method: 'PUT',
-        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sku: row.sku,
-          sizeLabel: row.sizeLabel,
-          colorName: row.colorName,
-          stockQuantity: stock,
-          price,
-          compareAtPrice: row.compareAtPrice != null ? Number(row.compareAtPrice) : null,
-          currency: row.currency,
-          active: row.active,
-        }),
-      })
-      if (!res.ok) throw new Error(await readApiError(res, 'Varyant guncellenemedi.'))
-      setVariantNotice(`${row.sizeLabel} / ${row.colorName} kaydedildi.`)
-      await onUpdated()
-    } catch (e) {
-      setVariantError(e instanceof Error ? e.message : 'Varyant guncellenemedi.')
-    } finally {
-      setSavingVariantId(null)
-    }
+  function handleVariantsAdded(created: AdminVariant[]) {
+    const next = [...detailVariantsRef.current, ...created]
+    setDetailVariants(next)
+    onVariantsChanged(product.id, next)
   }
+
+  // Katalog yenilendiginde `categories` dizisi yeni bir referans olur. Detayi buna baglamak her
+  // kayitta paneli bastan yukluyordu (liste kayboluyor, yazilanlar siliniyordu); bu yuzden guncel
+  // liste ref'ten okunur ve detay yalnizca urun degisince yuklenir.
+  const categoriesRef = useRef(categories)
+  useEffect(() => {
+    categoriesRef.current = categories
+  }, [categories])
 
   useEffect(() => {
     let active = true
@@ -1300,14 +1008,10 @@ function ProductManagementDrawer({
         const detail = (await res.json()) as {
           name?: string; slug?: string; description?: string | null; brand?: string | null
           productType?: string | null; categoryName?: string
-          variants?: Array<{
-            id: number; sku: string | null; sizeLabel: string; colorName: string
-            stockQuantity: number; price: number | string; compareAtPrice: number | string | null
-            currency: string; active: boolean
-          }>
+          variants?: AdminVariant[]
         }
         // Kategori id'sini mevcut kategori adindan cozumle (AdminCategory'de slug yok).
-        const categoryId = categories.find((category) => category.name === detail.categoryName)?.id
+        const categoryId = categoriesRef.current.find((category) => category.name === detail.categoryName)?.id
         if (active) {
           setDetailForm({
             name: detail.name ?? '',
@@ -1317,17 +1021,8 @@ function ProductManagementDrawer({
             description: detail.description ?? '',
             slug: detail.slug ?? '',
           })
-          setVariantRows((detail.variants ?? []).map((variant) => ({
-            id: variant.id,
-            sku: variant.sku,
-            sizeLabel: variant.sizeLabel,
-            colorName: variant.colorName,
-            currency: variant.currency,
-            compareAtPrice: variant.compareAtPrice,
-            active: variant.active,
-            price: String(variant.price),
-            stock: String(variant.stockQuantity),
-          })))
+          setDetailVariants(detail.variants ?? [])
+          setVariantsLoaded(true)
         }
       } catch (e) {
         if (active) setDetailError(e instanceof Error ? e.message : 'Urun bilgileri yuklenemedi.')
@@ -1338,7 +1033,33 @@ function ProductManagementDrawer({
 
     void loadDetail()
     return () => { active = false }
-  }, [product.id, categories])
+  }, [product.id])
+
+  function handleClose() {
+    const pending = [
+      unsavedVariantCount > 0 ? `Varyantlarda kaydedilmemiş ${unsavedVariantCount} değişiklik` : null,
+      pendingNewVariantCount > 0 ? `eklenmemiş ${pendingNewVariantCount} yeni varyant` : null,
+    ].filter(Boolean).join(' ve ')
+    if (pending && !window.confirm(
+      `${pending.charAt(0).toLocaleUpperCase('tr-TR')}${pending.slice(1)} var. Kaydetmeden kapatılsın mı?`
+    )) return
+    onClose()
+  }
+
+  // Kaydedilmemis varyant degisikligi ya da eklenmemis yeni varyant varken sayfa yenilenir ya da
+  // kapatilirsa tarayici uyarir.
+  const hasPendingVariantWork = unsavedVariantCount > 0 || pendingNewVariantCount > 0
+  useEffect(() => {
+    if (!hasPendingVariantWork) return
+    function warn(event: BeforeUnloadEvent) {
+      event.preventDefault()
+      event.returnValue = ''
+    }
+    window.addEventListener('beforeunload', warn)
+    return () => window.removeEventListener('beforeunload', warn)
+  }, [hasPendingVariantWork])
+
+  const selectedCategoryName = categories.find((item) => String(item.id) === detailForm.categoryId)?.name ?? category
 
   async function handleSaveDetail() {
     setDetailError(null)
@@ -1487,8 +1208,8 @@ function ProductManagementDrawer({
 
   return (
     <>
-      <div className="fixed inset-0 z-40 bg-black/20 backdrop-blur-sm" onClick={onClose} />
-      <div className="fixed inset-y-0 right-0 z-50 flex w-full max-w-md flex-col border-l border-[#ECE3D6] bg-white shadow-xl">
+      <div className="fixed inset-0 z-40 bg-black/20 backdrop-blur-sm" onClick={handleClose} />
+      <div className="fixed inset-y-0 right-0 z-50 flex w-full max-w-lg flex-col border-l border-[#ECE3D6] bg-white shadow-xl">
         <div className="flex items-center justify-between border-b border-[#ECE3D6] px-6 py-4">
           <div>
             <h2 className="text-[16px] font-bold text-[#3D2B1F]">Urun Detayi</h2>
@@ -1496,7 +1217,7 @@ function ProductManagementDrawer({
           </div>
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleClose}
             className="flex h-8 w-8 items-center justify-center rounded-full text-[#C4B5A5] hover:bg-[#FAF6F1] hover:text-[#5B4839]"
             aria-label="Paneli kapat"
           >
@@ -1509,7 +1230,11 @@ function ProductManagementDrawer({
         <div className="flex-1 overflow-y-auto px-6 py-5">
           <div className="rounded-[14px] border border-[#ECE3D6] bg-[#FAF6F1] p-4">
             <div className="flex items-start gap-3">
-              <ProductImage src={product.thumbnailUrl ?? product.imageUrl ?? product.primaryImageUrl ?? undefined} name={product.name} />
+              <ProductImage
+                src={product.thumbnailUrl ?? product.imageUrl ?? product.primaryImageUrl ?? undefined}
+                name={product.name}
+                onOpen={images.length > 0 ? () => setPreviewIndex(Math.max(0, images.findIndex((image) => image.primary))) : undefined}
+              />
               <div className="min-w-0 flex-1">
                 <p className="text-[15px] font-bold text-[#3D2B1F]">{product.name}</p>
                 <p className="mt-0.5 text-[12px] text-[#B5A090]">
@@ -1640,76 +1365,36 @@ function ProductManagementDrawer({
           </div>
 
           <div className="mt-4 rounded-[14px] border border-[#ECE3D6] bg-white p-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-[13px] font-bold text-[#3D2B1F]">Varyantlar</h3>
-              {variantRows.length > 0 ? (
-                <span className="rounded-full bg-[#FAF6F1] px-2.5 py-1 text-[11px] font-bold text-[#A89070]">{variantRows.length} varyant</span>
-              ) : null}
-            </div>
-            <p className="mt-1 text-[12.5px] leading-5 text-[#7A6656]">Her varyantin fiyat ve stogunu buradan guncelleyin.</p>
-
-            {variantError ? (
-              <div className="mt-3 rounded-[10px] bg-[#FEEAEA] px-3 py-2 text-[12px] text-[#8A1A1A]">{variantError}</div>
-            ) : null}
-            {variantNotice ? (
-              <div className="mt-3 rounded-[10px] bg-[#EDF7F1] px-3 py-2 text-[12px] font-semibold text-[#1A6640]">{variantNotice}</div>
-            ) : null}
+            <h3 className="text-[13px] font-bold text-[#3D2B1F]">Varyantlar</h3>
+            <p className="mt-1 text-[12.5px] leading-5 text-[#7A6656]">
+              Fiyat ve stokları değiştirip tek seferde kaydedin. Birden fazla varyantı işaretleyerek toplu stok/fiyat
+              verebilir veya silebilirsiniz; bedeni değiştirmek için beden başlığındaki listeyi kullanın.
+            </p>
 
             {detailLoading ? (
               <p className="mt-3 text-[12.5px] text-[#B5A090]">Yukleniyor...</p>
-            ) : variantRows.length === 0 ? (
-              <p className="mt-3 text-[12.5px] text-[#B5A090]">Bu urunun varyanti yok.</p>
             ) : (
-              <div className="mt-3 space-y-2.5">
-                {variantRows.map((row) => (
-                  <div key={row.id} className="rounded-[10px] border border-[#ECE3D6] p-3">
-                    <p className="text-[12px] font-bold text-[#3D2B1F]">
-                      {row.sizeLabel} / {row.colorName}
-                      {row.active ? null : <span className="ml-1 text-[11px] font-semibold text-[#B5A090]">(Pasif)</span>}
-                    </p>
-                    <div className="mt-2">
-                      <label className="mb-1 block text-[11px] font-bold text-[#5B4839]">Beden / Yas</label>
-                      <input
-                        type="text"
-                        value={row.sizeLabel}
-                        onChange={(event) => updateVariantRow(row.id, { sizeLabel: event.target.value })}
-                        placeholder="Orn. 2-3 Yas"
-                        className="h-9 w-full rounded-[9px] border border-[#ECE3D6] bg-white px-2.5 text-[12.5px] text-[#3D2B1F] outline-none focus:border-[#A89070] focus:ring-2 focus:ring-[#A89070]/20"
-                      />
-                    </div>
-                    <div className="mt-2 grid grid-cols-[1fr_1fr_auto] items-end gap-2">
-                      <div>
-                        <label className="mb-1 block text-[11px] font-bold text-[#5B4839]">Fiyat ({row.currency})</label>
-                        <input
-                          type="text"
-                          inputMode="decimal"
-                          value={row.price}
-                          onChange={(event) => updateVariantRow(row.id, { price: event.target.value })}
-                          className="h-9 w-full rounded-[9px] border border-[#ECE3D6] bg-white px-2.5 text-[12.5px] text-[#3D2B1F] outline-none focus:border-[#A89070] focus:ring-2 focus:ring-[#A89070]/20"
-                        />
-                      </div>
-                      <div>
-                        <label className="mb-1 block text-[11px] font-bold text-[#5B4839]">Stok</label>
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          value={row.stock}
-                          onChange={(event) => updateVariantRow(row.id, { stock: event.target.value })}
-                          className="h-9 w-full rounded-[9px] border border-[#ECE3D6] bg-white px-2.5 text-[12.5px] text-[#3D2B1F] outline-none focus:border-[#A89070] focus:ring-2 focus:ring-[#A89070]/20"
-                        />
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => void handleSaveVariant(row)}
-                        disabled={savingVariantId === row.id}
-                        className="h-9 rounded-[9px] bg-[#5B4839] px-3 text-[12px] font-bold text-white transition-colors hover:bg-[#3D2B1F] disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        {savingVariantId === row.id ? '...' : 'Kaydet'}
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
+              <>
+                <ProductVariantEditor
+                  key={product.id}
+                  variants={detailVariants}
+                  sizeOptions={sizeOptionsForCategory(selectedCategoryName).sizes}
+                  onChange={handleVariantsEdited}
+                  onDirtyChange={setUnsavedVariantCount}
+                />
+                {variantsLoaded ? (
+                  <AddVariantsPanel
+                    key={`add-${product.id}`}
+                    productId={product.id}
+                    variants={detailVariants}
+                    sizeOptions={sizeOptionsForCategory(selectedCategoryName).sizes}
+                    sizeListLabel={sizeOptionsForCategory(selectedCategoryName).label}
+                    knownColors={knownColors}
+                    onAdded={handleVariantsAdded}
+                    onPendingChange={setPendingNewVariantCount}
+                  />
+                ) : null}
+              </>
             )}
           </div>
 
@@ -1788,10 +1473,18 @@ function ProductManagementDrawer({
                   Bu urun icin henuz gorsel yok.
                 </div>
               ) : (
-                images.map((image) => (
+                images.map((image, imageIndex) => (
                   <div key={image.id} className="rounded-[12px] border border-[#F4EEE6] p-2.5">
                     <div className="flex gap-3">
-                      <img src={image.imageUrl} alt={image.altText ?? product.name} className="h-20 w-20 rounded-[10px] object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => setPreviewIndex(imageIndex)}
+                        title="Görseli büyüt"
+                        aria-label={`${image.colorName || image.altText || product.name} görselini büyüt`}
+                        className="shrink-0 cursor-zoom-in rounded-[10px] ring-[#C07B5A] transition-shadow hover:ring-2 focus-visible:outline-none focus-visible:ring-2"
+                      >
+                        <img src={image.imageUrl} alt={image.altText ?? product.name} className="h-20 w-20 rounded-[10px] object-cover" />
+                      </button>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">
@@ -1845,26 +1538,54 @@ function ProductManagementDrawer({
           </div>
         </div>
       </div>
+
+      {previewIndex !== null && images.length > 0 ? (
+        <ImageLightbox
+          images={images.map((image) => ({
+            src: image.imageUrl,
+            alt: image.altText ?? product.name,
+            caption: image.colorName,
+          }))}
+          startIndex={previewIndex}
+          onClose={() => setPreviewIndex(null)}
+        />
+      ) : null}
     </>
   )
 }
 
+// useSearchParams kullanan icerik, statik on-isleme icin Suspense siniri icinde olmalidir.
 export default function AdminProductsPage() {
+  return (
+    <Suspense fallback={null}>
+      <AdminProductsContent />
+    </Suspense>
+  )
+}
+
+function AdminProductsContent() {
   const router = useRouter()
+  // Ust cubuktaki genel aramadan gelinir: ?q=... arama kutusunu doldurur, ?open=<id> o urunun
+  // panelini acar.
+  const searchParams = useSearchParams()
+  const urlQuery = searchParams.get('q') ?? ''
+  const urlOpenId = searchParams.get('open')
   const [profile, setProfile] = useState<AdminProfile | null>(null)
   const [products, setProducts] = useState<AdminProduct[]>([])
   const [categories, setCategories] = useState<AdminCategory[]>([])
   const [loading, setLoading] = useState(true)
   const [forbidden, setForbidden] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [search, setSearch] = useState('')
+  const [search, setSearch] = useState(urlQuery)
+  const [lightbox, setLightbox] = useState<LightboxImage[] | null>(null)
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [stockFilter, setStockFilter] = useState<StockFilter>('all')
-  const [categoryFilter, setCategoryFilter] = useState('all')
-  const [productTypeFilter, setProductTypeFilter] = useState('all')
-  const [ageFilter, setAgeFilter] = useState('all')
-  const [colorFilter, setColorFilter] = useState('all')
-  const [brandFilter, setBrandFilter] = useState('all')
+  // Coklu secim filtreleri: bos dizi = filtre yok; doluysa secilenlerden herhangi birine uyanlar.
+  const [categoryFilter, setCategoryFilter] = useState<string[]>([])
+  const [productTypeFilter, setProductTypeFilter] = useState<string[]>([])
+  const [ageFilter, setAgeFilter] = useState<string[]>([])
+  const [colorFilter, setColorFilter] = useState<string[]>([])
+  const [brandFilter, setBrandFilter] = useState<string[]>([])
   const [variantCountFilter, setVariantCountFilter] = useState<VariantCountFilter>('all')
   const [minPriceFilter, setMinPriceFilter] = useState('')
   const [maxPriceFilter, setMaxPriceFilter] = useState('')
@@ -1903,6 +1624,60 @@ export default function AdminProductsPage() {
     return () => { active = false }
   }, [router])
 
+  // Genel aramadan gelen parametre bir kez uygulanip adres cubugundan silinir: ayni sonuca yeniden
+  // tiklanabilsin, sayfa yenilenince ya da geri gelinince panel kendiliginden acilmasin.
+  const dropSearchParam = useCallback((name: string) => {
+    const params = new URLSearchParams(window.location.search)
+    params.delete(name)
+    const query = params.toString()
+    router.replace(`${window.location.pathname}${query ? `?${query}` : ''}`, { scroll: false })
+  }, [router])
+
+  useEffect(() => {
+    if (!urlQuery) return
+    setSearch(urlQuery)
+    dropSearchParam('q')
+  }, [urlQuery, dropSearchParam])
+
+  const handledOpenId = useRef<string | null>(null)
+  useEffect(() => {
+    if (!urlOpenId || products.length === 0 || handledOpenId.current === urlOpenId) return
+    handledOpenId.current = urlOpenId
+    const target = products.find((product) => String(product.id) === urlOpenId)
+    if (target) setManagingProduct(target)
+    dropSearchParam('open')
+  }, [urlOpenId, products, dropSearchParam])
+
+  // Ayni urun genel aramadan yeniden secilebilsin diye, parametre silinince isaret de sifirlanir.
+  useEffect(() => {
+    if (!urlOpenId) handledOpenId.current = null
+  }, [urlOpenId])
+
+  // Listedeki kucuk gorsele tiklaninca: once eldeki ana gorsel buyuk acilir, ardindan urunun tum
+  // gorselleri (renk adlariyla) yuklenip ayni onizlemede gezilebilir hale gelir.
+  async function openProductImages(product: AdminProduct) {
+    const primaryUrl = product.thumbnailUrl ?? product.imageUrl ?? product.primaryImageUrl
+    if (!primaryUrl) return
+    const initial = [{ src: primaryUrl, alt: product.name }]
+    setLightbox(initial)
+    try {
+      const res = await fetch(`/api/admin/products/${product.id}/images`, {
+        cache: 'no-store',
+        headers: { Accept: 'application/json' },
+      })
+      if (!res.ok) return
+      const images = (await res.json()) as AdminProductImage[]
+      if (images.length <= 1) return
+      const ordered = [...images].sort((a, b) => Number(b.primary) - Number(a.primary) || a.sortOrder - b.sortOrder)
+      // Bu arada onizleme kapatildiysa ya da baska urune gecildiyse dokunma.
+      setLightbox((current) => current === initial
+        ? ordered.map((image) => ({ src: image.imageUrl, alt: image.altText ?? product.name, caption: image.colorName }))
+        : current)
+    } catch {
+      // Tek gorselle devam edilir.
+    }
+  }
+
   const displayName = profile
     ? [profile.firstName, profile.lastName].filter(Boolean).join(' ') || profile.email
     : undefined
@@ -1928,7 +1703,7 @@ export default function AdminProductsPage() {
     return {
       categories: Array.from(categories).sort((a, b) => a.localeCompare(b, 'tr')),
       productTypes: Array.from(productTypes).sort((a, b) => a.localeCompare(b, 'tr')),
-      ages: Array.from(ages).sort((a, b) => a.localeCompare(b, 'tr', { numeric: true })),
+      ages: Array.from(ages).sort(compareSizeLabels),
       colors: Array.from(colors).sort((a, b) => a.localeCompare(b, 'tr')),
       brands: Array.from(brands).sort((a, b) => a.localeCompare(b, 'tr')),
     }
@@ -1942,16 +1717,17 @@ export default function AdminProductsPage() {
       const qty = p.stockQuantity ?? p.totalStock ?? variants.reduce((sum, variant) => sum + variant.stockQuantity, 0)
       const price = Number(p.basePrice ?? p.price ?? p.minPrice ?? variants[0]?.price ?? NaN)
 
-      if (search) {
-        const q = search.toLowerCase()
-        const searchable = [
+      if (search.trim()) {
+        // Buyuk/kucuk harf ve Turkce karakter duyarsiz ("garnili" = "GARNİLİ", "kiz" = "Kız").
+        const q = foldForSearch(search.trim())
+        const searchable = foldForSearch([
           p.name,
           p.sku,
           p.brand,
           category,
           productType,
           ...variants.flatMap((variant) => [variant.sku, variant.sizeLabel, variant.colorName]),
-        ].filter(Boolean).join(' ').toLowerCase()
+        ].filter(Boolean).join(' '))
 
         if (!searchable.includes(q)) return false
       }
@@ -1960,11 +1736,11 @@ export default function AdminProductsPage() {
       if (stockFilter === 'in_stock' && qty === 0) return false
       if (stockFilter === 'out_of_stock' && qty > 0) return false
       if (stockFilter === 'low_stock' && (qty === 0 || qty > 5)) return false
-      if (categoryFilter !== 'all' && category !== categoryFilter) return false
-      if (productTypeFilter !== 'all' && productType !== productTypeFilter) return false
-      if (ageFilter !== 'all' && !variants.some((variant) => variant.sizeLabel === ageFilter)) return false
-      if (colorFilter !== 'all' && !variants.some((variant) => variant.colorName === colorFilter)) return false
-      if (brandFilter !== 'all' && (p.brand ?? '') !== brandFilter) return false
+      if (categoryFilter.length > 0 && !categoryFilter.includes(category)) return false
+      if (productTypeFilter.length > 0 && !productTypeFilter.includes(productType)) return false
+      if (ageFilter.length > 0 && !variants.some((variant) => ageFilter.includes(variant.sizeLabel))) return false
+      if (colorFilter.length > 0 && !variants.some((variant) => colorFilter.includes(variant.colorName))) return false
+      if (brandFilter.length > 0 && !brandFilter.includes(p.brand ?? '')) return false
       if (variantCountFilter === 'single' && variants.length !== 1) return false
       if (variantCountFilter === 'multiple' && variants.length <= 1) return false
       if (minPriceFilter && !Number.isNaN(price) && price < Number(minPriceFilter)) return false
@@ -1986,6 +1762,53 @@ export default function AdminProductsPage() {
     maxPriceFilter,
   ])
 
+  const hasActiveFilters = Boolean(
+    search ||
+    statusFilter !== 'all' ||
+    stockFilter !== 'all' ||
+    categoryFilter.length > 0 ||
+    productTypeFilter.length > 0 ||
+    ageFilter.length > 0 ||
+    colorFilter.length > 0 ||
+    brandFilter.length > 0 ||
+    variantCountFilter !== 'all' ||
+    minPriceFilter ||
+    maxPriceFilter,
+  )
+
+  function clearFilters() {
+    setSearch('')
+    setStatusFilter('all')
+    setStockFilter('all')
+    setCategoryFilter([])
+    setProductTypeFilter([])
+    setAgeFilter([])
+    setColorFilter([])
+    setBrandFilter([])
+    setVariantCountFilter('all')
+    setMinPriceFilter('')
+    setMaxPriceFilter('')
+  }
+
+  // Katalogdaki renk adlari (en cok kullanilan once, ayni rengin farkli yazimlarindan yaygin olani):
+  // yeni urun eklerken oneri olarak sunulur, boylece "pembe"/"Pembe" gibi ikilikler olusmaz.
+  const knownColors = useMemo(() => {
+    const counts = new Map<string, number>()
+    products.forEach((product) => product.variants?.forEach((variant) => {
+      if (variant.colorName) counts.set(variant.colorName, (counts.get(variant.colorName) ?? 0) + 1)
+    }))
+    const seen = new Set<string>()
+    return [...counts.entries()]
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'tr'))
+      .map(([color]) => color)
+      .filter((color) => {
+        const key = foldForSearch(color)
+        if (seen.has(key)) return false
+        seen.add(key)
+        return true
+      })
+  }, [products])
+
   function toggleSelect(id: number) {
     setSelected((prev) => {
       const next = new Set(prev)
@@ -2000,11 +1823,46 @@ export default function AdminProductsPage() {
     else setSelected(new Set(filtered.map((p) => p.id)))
   }
 
+  // Yalnizca en son baslatilan yenilemenin sonucu uygulanir; daha once baslayip gec donen bir
+  // yanit (orn. gorsel yuklemesinden), arada kaydedilen varyant degisikliklerini eski haliyle ezmez.
+  const catalogRequest = useRef(0)
+  const refreshInFlight = useRef(false)
+
   async function refreshCatalog() {
-    const catalog = await loadAdminCatalog()
-    setProducts(catalog.products)
-    setCategories(catalog.categories)
-    setSelected(new Set())
+    const request = ++catalogRequest.current
+    refreshInFlight.current = true
+    try {
+      const catalog = await loadAdminCatalog()
+      if (request !== catalogRequest.current) return
+      setProducts(catalog.products)
+      setCategories(catalog.categories)
+      setSelected(new Set())
+      // Acik paneldeki urun ozeti (ad, gorsel, fiyat) de yenilensin.
+      setManagingProduct((current) => current
+        ? catalog.products.find((product) => product.id === current.id) ?? current
+        : current)
+    } finally {
+      if (request === catalogRequest.current) refreshInFlight.current = false
+    }
+  }
+
+  // Varyant kaydi/silinmesi sonrasi tum katalogu yeniden cekmek yerine yalnizca o urunun satiri
+  // guncellenir. Liste yalnizca aktif varyantlari tasir (backend ozeti ile ayni).
+  function applyVariantChanges(productId: number, variants: AdminVariant[]) {
+    // Suren bir yenileme bu kayittan once baslamissa sonucu eskidir: yerine yenisi baslatilir.
+    if (refreshInFlight.current) void refreshCatalog().catch(() => undefined)
+    const patch = (product: AdminProduct): AdminProduct => {
+      if (product.id !== productId) return product
+      const activeVariants = variants.filter((variant) => variant.active)
+      const prices = activeVariants.map((variant) => Number(variant.price)).filter(Number.isFinite)
+      return {
+        ...product,
+        variants: activeVariants,
+        minPrice: prices.length > 0 ? Math.min(...prices) : 0,
+      }
+    }
+    setProducts((current) => current.map(patch))
+    setManagingProduct((current) => (current ? patch(current) : current))
   }
 
   async function handleToggleProductActive(product: AdminProduct) {
@@ -2087,9 +1945,12 @@ export default function AdminProductsPage() {
 
   return (
     <AdminShell displayName={displayName}>
+      {lightbox ? <ImageLightbox images={lightbox} onClose={() => setLightbox(null)} /> : null}
+
       {showAddDrawer && (
         <WorkingAddProductDrawer
           categories={categories}
+          knownColors={knownColors}
           onSaved={refreshCatalog}
           onClose={() => setShowAddDrawer(false)}
         />
@@ -2099,12 +1960,14 @@ export default function AdminProductsPage() {
         <ProductManagementDrawer
           product={managingProduct}
           categories={categories}
+          knownColors={knownColors}
           busyAction={busyAction}
           onClose={() => setManagingProduct(null)}
           onToggleActive={handleToggleProductActive}
           onDelete={handleDeleteProduct}
           onImagesChanged={refreshCatalog}
           onUpdated={refreshCatalog}
+          onVariantsChanged={applyVariantChanges}
         />
       )}
 
@@ -2161,60 +2024,11 @@ export default function AdminProductsPage() {
           <option value="out_of_stock">Tükendi</option>
         </select>
 
-          <select
-            value={categoryFilter}
-            onChange={(e) => setCategoryFilter(e.target.value)}
-            className="rounded-[10px] border border-[#ECE3D6] bg-white px-3 py-2 text-[13px] text-[#5B4839] focus:outline-none"
-          >
-            <option value="all">Tüm Kategoriler</option>
-            {filterOptions.categories.map((category) => (
-              <option key={category} value={category}>{category}</option>
-            ))}
-          </select>
-
-          <select
-            value={productTypeFilter}
-            onChange={(e) => setProductTypeFilter(e.target.value)}
-            className="rounded-[10px] border border-[#ECE3D6] bg-white px-3 py-2 text-[13px] text-[#5B4839] focus:outline-none"
-          >
-            <option value="all">Tum Urun Tipleri</option>
-            {filterOptions.productTypes.map((type) => (
-              <option key={type} value={type}>{type}</option>
-            ))}
-          </select>
-
-          <select
-            value={ageFilter}
-            onChange={(e) => setAgeFilter(e.target.value)}
-            className="rounded-[10px] border border-[#ECE3D6] bg-white px-3 py-2 text-[13px] text-[#5B4839] focus:outline-none"
-          >
-            <option value="all">Tüm Yaş/Beden</option>
-            {filterOptions.ages.map((age) => (
-              <option key={age} value={age}>{age}</option>
-            ))}
-          </select>
-
-          <select
-            value={colorFilter}
-            onChange={(e) => setColorFilter(e.target.value)}
-            className="rounded-[10px] border border-[#ECE3D6] bg-white px-3 py-2 text-[13px] text-[#5B4839] focus:outline-none"
-          >
-            <option value="all">Tüm Renkler</option>
-            {filterOptions.colors.map((color) => (
-              <option key={color} value={color}>{color}</option>
-            ))}
-          </select>
-
-          <select
-            value={brandFilter}
-            onChange={(e) => setBrandFilter(e.target.value)}
-            className="rounded-[10px] border border-[#ECE3D6] bg-white px-3 py-2 text-[13px] text-[#5B4839] focus:outline-none"
-          >
-            <option value="all">Tüm Markalar</option>
-            {filterOptions.brands.map((brand) => (
-              <option key={brand} value={brand}>{brand}</option>
-            ))}
-          </select>
+          <MultiSelect allLabel="Tüm Kategoriler" options={filterOptions.categories} selected={categoryFilter} onChange={setCategoryFilter} />
+          <MultiSelect allLabel="Tüm Ürün Tipleri" options={filterOptions.productTypes} selected={productTypeFilter} onChange={setProductTypeFilter} />
+          <MultiSelect allLabel="Tüm Yaş/Beden" options={filterOptions.ages} selected={ageFilter} onChange={setAgeFilter} />
+          <MultiSelect allLabel="Tüm Renkler" options={filterOptions.colors} selected={colorFilter} onChange={setColorFilter} />
+          <MultiSelect allLabel="Tüm Markalar" options={filterOptions.brands} selected={brandFilter} onChange={setBrandFilter} />
 
           <select
             value={variantCountFilter}
@@ -2250,22 +2064,10 @@ export default function AdminProductsPage() {
             {filtered.length} ürün gösteriliyor
           </span>
 
-          {(search || statusFilter !== 'all' || stockFilter !== 'all' || categoryFilter !== 'all' || productTypeFilter !== 'all' || ageFilter !== 'all' || colorFilter !== 'all' || brandFilter !== 'all' || variantCountFilter !== 'all' || minPriceFilter || maxPriceFilter) && (
+          {hasActiveFilters && (
             <button
               type="button"
-              onClick={() => {
-                setSearch('')
-                setStatusFilter('all')
-                setStockFilter('all')
-                setCategoryFilter('all')
-                setProductTypeFilter('all')
-                setAgeFilter('all')
-                setColorFilter('all')
-                setBrandFilter('all')
-                setVariantCountFilter('all')
-                setMinPriceFilter('')
-                setMaxPriceFilter('')
-              }}
+              onClick={clearFilters}
               className="rounded-[10px] border border-[#ECE3D6] bg-white px-3 py-2 text-[12.5px] font-semibold text-[#C07B5A] transition-colors hover:bg-[#FAF6F1]"
             >
               Filtreleri Temizle
@@ -2305,7 +2107,7 @@ export default function AdminProductsPage() {
             {filtered.length === 0 ? (
               <tr>
                 <td colSpan={9} className="px-4 py-14 text-center text-[13px] text-[#B5A090]">
-                  {search || statusFilter !== 'all' || stockFilter !== 'all' || categoryFilter !== 'all' || productTypeFilter !== 'all' || ageFilter !== 'all' || colorFilter !== 'all' || brandFilter !== 'all' || variantCountFilter !== 'all' || minPriceFilter || maxPriceFilter
+                  {hasActiveFilters
                     ? 'Arama kriterlerine uygun ürün bulunamadı.'
                     : 'Henüz ürün eklenmemiş.'}
                 </td>
@@ -2329,9 +2131,19 @@ export default function AdminProductsPage() {
                     </td>
                     <td className="px-4 py-3.5">
                       <div className="flex items-center gap-3">
-                        <ProductImage src={product.thumbnailUrl ?? product.imageUrl ?? product.primaryImageUrl ?? undefined} name={product.name} />
+                        <ProductImage
+                          src={product.thumbnailUrl ?? product.imageUrl ?? product.primaryImageUrl ?? undefined}
+                          name={product.name}
+                          onOpen={() => void openProductImages(product)}
+                        />
                         <div>
-                          <p className="font-semibold text-[#3D2B1F]">{product.name}</p>
+                          <button
+                            type="button"
+                            onClick={() => setManagingProduct(product)}
+                            className="text-left font-semibold text-[#3D2B1F] hover:text-[#C07B5A] hover:underline"
+                          >
+                            {product.name}
+                          </button>
                           <p className="text-[11.5px] text-[#C4B5A5]">
                             {product.sku ?? `MM-${String(product.id).padStart(3, '0')}`}
                           </p>
@@ -2386,7 +2198,7 @@ export default function AdminProductsPage() {
         {filtered.length === 0 ? (
           <div className="rounded-[16px] border border-dashed border-[#D5C9BA] bg-white px-5 py-12 text-center">
             <p className="text-[13px] text-[#B5A090]">
-              {search || statusFilter !== 'all' || stockFilter !== 'all' || categoryFilter !== 'all' || productTypeFilter !== 'all' || ageFilter !== 'all' || colorFilter !== 'all' || brandFilter !== 'all' || variantCountFilter !== 'all' || minPriceFilter || maxPriceFilter
+              {hasActiveFilters
                 ? 'Sonuç bulunamadı.'
                 : 'Henüz ürün eklenmemiş.'}
             </p>
@@ -2400,9 +2212,19 @@ export default function AdminProductsPage() {
             return (
               <div key={product.id} className="rounded-[14px] border border-[#ECE3D6] bg-white p-4">
                 <div className="flex items-start gap-3">
-                  <ProductImage src={product.thumbnailUrl ?? product.imageUrl ?? product.primaryImageUrl ?? undefined} name={product.name} />
+                  <ProductImage
+                    src={product.thumbnailUrl ?? product.imageUrl ?? product.primaryImageUrl ?? undefined}
+                    name={product.name}
+                    onOpen={() => void openProductImages(product)}
+                  />
                   <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-[#3D2B1F]">{product.name}</p>
+                    <button
+                      type="button"
+                      onClick={() => setManagingProduct(product)}
+                      className="text-left font-semibold text-[#3D2B1F] hover:text-[#C07B5A] hover:underline"
+                    >
+                      {product.name}
+                    </button>
                     <p className="text-[11.5px] text-[#C4B5A5]">
                       {product.sku ?? `MM-${String(product.id).padStart(3, '0')}`}
                       {category ? ` · ${category}` : ''}

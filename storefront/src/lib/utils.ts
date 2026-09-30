@@ -20,6 +20,21 @@ export function formatPrice(
   }).format(num)
 }
 
+// Arama karsilastirmalari icin metni sadelestirir: buyuk/kucuk harf ve Turkce karakter farki
+// yok sayilir ("KIZ", "kız" ve "kiz" ayni anahtara iner; "PİJAMA" = "pijama").
+export function foldForSearch(text: string): string {
+  return text
+    .toLocaleLowerCase('tr-TR')
+    .replace(/ı/g, 'i')
+    .replace(/ğ/g, 'g')
+    .replace(/ü/g, 'u')
+    .replace(/ş/g, 's')
+    .replace(/ö/g, 'o')
+    .replace(/ç/g, 'c')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+}
+
 export function slugify(text: string): string {
   return text
     .toLowerCase()

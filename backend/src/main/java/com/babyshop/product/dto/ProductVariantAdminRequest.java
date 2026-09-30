@@ -1,6 +1,7 @@
 package com.babyshop.product.dto;
 
 import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -22,13 +23,31 @@ public record ProductVariantAdminRequest(
         Integer stockQuantity,
         @NotNull(message = "Product variant price is required")
         @DecimalMin(value = "0.00", inclusive = true, message = "Product variant price must be zero or greater")
+        @Digits(integer = 10, fraction = 2, message = "Product variant price must have at most 10 integer and 2 decimal digits")
         BigDecimal price,
         @DecimalMin(value = "0.00", inclusive = true, message = "Product variant compare-at price must be zero or greater")
+        @Digits(integer = 10, fraction = 2, message = "Product variant compare-at price must have at most 10 integer and 2 decimal digits")
         BigDecimal compareAtPrice,
         @NotBlank(message = "Product variant currency is required")
         @Size(min = 3, max = 3, message = "Product variant currency must be exactly 3 characters")
         String currency,
         @NotNull(message = "Product variant active flag is required")
-        Boolean active
+        Boolean active,
+        // Guncellemede panelin gosterdigi stok; verilirse stok ancak veritabanindaki deger hala buysa
+        // yazilir (olusturmada kullanilmaz).
+        @Min(value = 0, message = "Expected stock quantity must be zero or greater")
+        Integer expectedStockQuantity
 ) {
+    public ProductVariantAdminRequest(
+            String sku,
+            String sizeLabel,
+            String colorName,
+            Integer stockQuantity,
+            BigDecimal price,
+            BigDecimal compareAtPrice,
+            String currency,
+            Boolean active
+    ) {
+        this(sku, sizeLabel, colorName, stockQuantity, price, compareAtPrice, currency, active, null);
+    }
 }

@@ -5,6 +5,7 @@ import com.babyshop.category.CategoryRepository;
 import com.babyshop.cart.CartItemRepository;
 import com.babyshop.common.exception.DuplicateResourceException;
 import com.babyshop.common.response.PageResponse;
+import com.babyshop.common.search.SearchText;
 import com.babyshop.product.dto.ProductDetailResponse;
 import com.babyshop.product.dto.ProductAdminRequest;
 import com.babyshop.product.dto.ProductFacetsResponse;
@@ -16,6 +17,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,6 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -108,8 +111,10 @@ public class ProductService {
 
         Map<String, String> categoryNameBySlug = new LinkedHashMap<>();
         Set<String> productTypes = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
-        Set<String> colors = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
-        Set<String> sizes = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
+        // Renk ve beden: ayni secenegin farkli yazimlari ("Pembe"/"pembe", "3-4 Yaş"/"3-4 YAŞ") tek
+        // secenek olarak sunulur; filtre de ayni sadelestirmeyle eslestigi icin hepsini bulur.
+        Map<String, Map<String, Integer>> colorSpellings = new HashMap<>();
+        Map<String, Map<String, Integer>> sizeSpellings = new HashMap<>();
 
         for (Product product : products) {
             Category category = product.getCategory();
@@ -124,10 +129,10 @@ public class ProductService {
                     continue;
                 }
                 if (hasText(variant.getColorName())) {
-                    colors.add(variant.getColorName().trim());
+                    countSpelling(colorSpellings, variant.getColorName().trim());
                 }
                 if (hasText(variant.getSizeLabel())) {
-                    sizes.add(variant.getSizeLabel().trim());
+                    countSpelling(sizeSpellings, variant.getSizeLabel().trim());
                 }
             }
         }
@@ -140,9 +145,34 @@ public class ProductService {
         return new ProductFacetsResponse(
                 categories,
                 List.copyOf(productTypes),
-                List.copyOf(colors),
-                List.copyOf(sizes)
+                mostCommonSpellings(colorSpellings, String.CASE_INSENSITIVE_ORDER),
+                mostCommonSpellings(sizeSpellings, SizeLabels.ORDER)
         );
+    }
+
+    private void countSpelling(Map<String, Map<String, Integer>> spellingsByKey, String value) {
+        spellingsByKey.computeIfAbsent(SearchText.fold(value), key -> new HashMap<>()).merge(value, 1, Integer::sum);
+    }
+
+    // Her secenek icin en cok kullanilan yazimi (esitlikte alfabetik ilkini) secer.
+    private List<String> mostCommonSpellings(Map<String, Map<String, Integer>> spellingsByKey, Comparator<String> order) {
+        return spellingsByKey.values().stream()
+                .map(counts -> counts.entrySet().stream()
+                        .max(Map.Entry.<String, Integer>comparingByValue()
+                                .thenComparing(Map.Entry.comparingByKey(Comparator.reverseOrder())))
+                        .orElseThrow()
+                        .getKey())
+                .sorted(order)
+                .toList();
+    }
+
+    // Admin genel aramasi icin: eslesen ilk birkac urun (en yeni once), pasifler dahil.
+    public List<ProductSummaryResponse> searchProductsForAdmin(String query, int limit) {
+        Pageable pageable = PageRequest.of(0, limit, Sort.by(Sort.Direction.DESC, "createdAt"));
+
+        return productRepository.findAll(ProductSpecifications.adminSearch(query), pageable)
+                .map(this::toSummaryResponse)
+                .getContent();
     }
 
     public List<ProductSummaryResponse> getAllProductsForAdmin() {
@@ -172,7 +202,8 @@ public class ProductService {
         Product product = productRepository.findBySlugAndActiveTrue(slug)
                 .orElseThrow(() -> new ResourceNotFoundException("Product not found for slug: " + slug));
 
-        return toDetailResponse(product);
+        // Magaza: pasif varyantlar urun sayfasinda secilebilir beden/renk olarak gorunmemeli.
+        return toDetailResponse(product, true);
     }
 
     public ProductDetailResponse getProductById(Long id) {
@@ -282,14 +313,21 @@ public class ProductService {
         );
     }
 
+    // Admin yanitlari: pasif varyantlar dahil tum varyantlar.
     private ProductDetailResponse toDetailResponse(Product product) {
+        return toDetailResponse(product, false);
+    }
+
+    private ProductDetailResponse toDetailResponse(Product product, boolean activeVariantsOnly) {
         List<ProductImageResponse> images = product.getImages().stream()
                 .sorted(Comparator.comparingInt(ProductImage::getSortOrder))
                 .map(this::toImageResponse)
                 .toList();
 
         List<ProductVariantResponse> variants = product.getVariants().stream()
-                .sorted(Comparator.comparing(ProductVariant::getSizeLabel).thenComparing(ProductVariant::getColorName))
+                .filter(variant -> !activeVariantsOnly || variant.isActive())
+                .sorted(Comparator.comparing(ProductVariant::getSizeLabel, SizeLabels.ORDER)
+                        .thenComparing(ProductVariant::getColorName))
                 .map(this::toVariantResponse)
                 .toList();
 
