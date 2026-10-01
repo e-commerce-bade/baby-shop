@@ -1,0 +1,2 @@
+# The script runs in a Linux container; a Windows checkout with CRLF would break its #!/bin/sh line.
+*.sh text eol=lf

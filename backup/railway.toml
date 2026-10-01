@@ -1,0 +1,8 @@
+# Railway service "db-backup" (root directory /backup). Each run executes backup.sh once and exits;
+# the nightly time is set under Settings > Cron Schedule (e.g. "0 3 * * *" = 06:00 Turkey time).
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+restartPolicyType = "NEVER"
