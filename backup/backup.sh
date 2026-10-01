@@ -16,11 +16,19 @@
 # "transaction_timeout" (a setting newer pg_dump versions write) and carries on.
 set -eu
 
+# Connecting the Railway bucket to this service adds its credentials under the bucket's own names
+# (BUCKET, ENDPOINT, ACCESS_KEY_ID, SECRET_ACCESS_KEY, REGION); BUCKET_* names win if both are set.
+BUCKET_NAME="${BUCKET_NAME:-${BUCKET:-}}"
+BUCKET_ENDPOINT="${BUCKET_ENDPOINT:-${ENDPOINT:-}}"
+BUCKET_ACCESS_KEY_ID="${BUCKET_ACCESS_KEY_ID:-${ACCESS_KEY_ID:-}}"
+BUCKET_SECRET_ACCESS_KEY="${BUCKET_SECRET_ACCESS_KEY:-${SECRET_ACCESS_KEY:-}}"
+BUCKET_REGION="${BUCKET_REGION:-${REGION:-auto}}"
+
 : "${DATABASE_URL:?DATABASE_URL is required (the Postgres service's connection string)}"
-: "${BUCKET_NAME:?BUCKET_NAME is required (the bucket's BUCKET variable)}"
-: "${BUCKET_ENDPOINT:?BUCKET_ENDPOINT is required (the bucket's ENDPOINT variable)}"
-: "${BUCKET_ACCESS_KEY_ID:?BUCKET_ACCESS_KEY_ID is required}"
-: "${BUCKET_SECRET_ACCESS_KEY:?BUCKET_SECRET_ACCESS_KEY is required}"
+: "${BUCKET_NAME:?BUCKET is required (connect the Railway bucket to this service)}"
+: "${BUCKET_ENDPOINT:?ENDPOINT is required (connect the Railway bucket to this service)}"
+: "${BUCKET_ACCESS_KEY_ID:?ACCESS_KEY_ID is required (connect the Railway bucket to this service)}"
+: "${BUCKET_SECRET_ACCESS_KEY:?SECRET_ACCESS_KEY is required (connect the Railway bucket to this service)}"
 
 PREFIX="${BACKUP_PREFIX:-prod}"
 RETENTION_DAYS="${BACKUP_RETENTION_DAYS:-7}"
@@ -35,7 +43,7 @@ export RCLONE_CONFIG_BUCKET_PROVIDER=Other
 export RCLONE_CONFIG_BUCKET_ENDPOINT="$BUCKET_ENDPOINT"
 export RCLONE_CONFIG_BUCKET_ACCESS_KEY_ID="$BUCKET_ACCESS_KEY_ID"
 export RCLONE_CONFIG_BUCKET_SECRET_ACCESS_KEY="$BUCKET_SECRET_ACCESS_KEY"
-export RCLONE_CONFIG_BUCKET_REGION="${BUCKET_REGION:-auto}"
+export RCLONE_CONFIG_BUCKET_REGION="$BUCKET_REGION"
 # Railway buckets use virtual-hosted-style URLs; set BUCKET_FORCE_PATH_STYLE=true only if the
 # bucket's Credentials tab asks for path-style.
 export RCLONE_CONFIG_BUCKET_FORCE_PATH_STYLE="${BUCKET_FORCE_PATH_STYLE:-false}"
@@ -46,6 +54,16 @@ TS="$(date -u +%Y%m%d-%H%M%SZ)"
 FILE="${PREFIX}-${TS}.sql.gz"
 LOCAL="/tmp/${FILE}"
 REMOTE="BUCKET:${BUCKET_NAME}/db-backups"
+
+# Railway's private network can need a moment after the container starts; wait up to ~30 s for the
+# database instead of failing the night's backup on the first try.
+for attempt in 1 2 3 4 5 6 7 8 9 10; do
+  if pg_isready -q -d "$DATABASE_URL"; then
+    break
+  fi
+  echo "[backup] database not reachable yet (attempt ${attempt}/10), waiting ..."
+  sleep 3
+done
 
 echo "[backup] ${TS} dumping ..."
 # --no-owner/--no-privileges: the dump must restore into ANY empty Postgres without the original
