@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react'
 import { getColorHex } from '@/lib/colors'
 import { PRICE_INPUT_HINT, STOCK_INPUT_HINT, parsePriceInput, parseStockInput } from '@/lib/numberInput'
-import { compareSizeLabels, sameSizeRange } from '@/lib/sizes'
+import { LETTER_SIZES, compareSizeLabels, normalizeTypedSize, sameSizeRange } from '@/lib/sizes'
 import { foldForSearch } from '@/lib/utils'
 
 // Yeni urun eklerken secilen beden x renk kombinasyonlari. Varyant satirlari bu durumdan turetilir:
@@ -92,7 +92,8 @@ const cellPlacement = {
 const mobileCaptionClass = 'mb-0.5 block text-[10px] font-extrabold uppercase tracking-[0.08em] text-[#C4B5A5] sm:hidden'
 
 /**
- * Yeni urunun "Varyant & Stok" adimi: beden sabit listeden, renk yazilarak secilir; her beden x renk
+ * Yeni urunun "Varyant & Stok" adimi: beden sabit listeden (yas/ay + harf beden) secilir, listede
+ * olmayan bir beden elle yazilabilir; renk yazilarak secilir. Her beden x renk
  * icin satir kendiliginden olusur. Stok/fiyat satirda tek tek ya da secilen satirlara toplu verilir.
  * `existing` verilirse mevcut bir urune beden/renk eklenir: urunde olan kombinasyonlar atlanir, urunun
  * renkleri hizli secim olarak sunulur ve para birimi urunden alindigi icin sorulmaz.
@@ -117,6 +118,7 @@ export default function NewProductVariants({
   idPrefix?: string
 }) {
   const [colorInput, setColorInput] = useState('')
+  const [sizeInput, setSizeInput] = useState('')
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set())
   const [bulkStock, setBulkStock] = useState('')
   const [bulkPrice, setBulkPrice] = useState('')
@@ -131,11 +133,13 @@ export default function NewProductVariants({
     () => [...new Set((existing ?? []).map((variant) => variant.colorName))].sort((a, b) => a.localeCompare(b, 'tr')),
     [existing],
   )
-  // Mevcut urunde sabit listede olmayan eski yazimlar da secilebilir: urune yeni bir renk eklerken
-  // bedenleri urundeki yazimla ayni kalir (magazada ayni yas iki ayri beden gibi gorunmez).
-  const sizeChoices = useMemo(
-    () => [...sizeOptions, ...existingSizes.filter((size) => !sizeOptions.includes(size))].sort(compareSizeLabels),
-    [sizeOptions, existingSizes],
+  // Sabit listelerde olmayan bedenler: mevcut urundeki eski yazimlar (urune yeni bir renk eklerken
+  // bedenleri urundeki yazimla ayni kalir) ve elle eklenenler.
+  const otherSizes = useMemo(
+    () => [...new Set([...existingSizes, ...state.sizes])]
+      .filter((size) => !sizeOptions.includes(size) && !LETTER_SIZES.includes(size))
+      .sort(compareSizeLabels),
+    [existingSizes, state.sizes, sizeOptions],
   )
   const variants = buildNewVariants(state, existingKeys)
   const variantKeys = new Set(variants.map((variant) => variant.key))
@@ -152,6 +156,7 @@ export default function NewProductVariants({
   )
   const removedCount = combinationCount - existingCount - variants.length
   const colorInputId = `${idPrefix}-color`
+  const sizeInputId = `${idPrefix}-size`
   // Secilen beden urunde eski bir yazimla varsa ("3-4" ile "3-4 Yaş") magazada ayni yas iki ayri
   // beden gibi gorunur; bu yuzden uyarilir.
   const lookalikes = state.sizes.flatMap((size) => {
@@ -173,6 +178,44 @@ export default function NewProductVariants({
         : [...state.sizes, sizeLabel],
     })
   }
+
+  function addTypedSizes() {
+    // Listede olmayan beden elle eklenir; birden fazlaysa virgulle ("3XL, 4XL"). Listedeki bir bedenle
+    // ayni yaziliyorsa ("xl" = "XL") listedeki yazim kullanilir.
+    const known = [...sizeOptions, ...LETTER_SIZES, ...existingSizes, ...state.sizes]
+    const next = [...state.sizes]
+    for (const part of sizeInput.split(',')) {
+      const size = normalizeTypedSize(part, known)?.slice(0, 80)
+      if (size && !next.includes(size)) next.push(size)
+    }
+    setSizeInput('')
+    if (next.length !== state.sizes.length) onChange({ ...state, sizes: next })
+  }
+
+  function renderSizeChip(size: string, kind: 'fixed' | 'other') {
+    const active = state.sizes.includes(size)
+    const onProduct = existingSizes.includes(size)
+    return (
+      <button
+        key={size}
+        type="button"
+        aria-pressed={active}
+        onClick={() => toggleSize(size)}
+        title={kind === 'other' ? (onProduct ? 'Bu yazım sabit listede yok; üründe böyle kayıtlı.' : 'Elle eklenen beden') : undefined}
+        className={`rounded-full px-3 py-1.5 text-[12px] font-bold transition-colors ${
+          active
+            ? 'bg-[#C07B5A] text-white'
+            : kind === 'other'
+              ? 'border border-dashed border-[#C9B79F] bg-white text-[#7A6656] hover:bg-[#FFFDFC]'
+              : 'bg-white text-[#5B4839] ring-1 ring-[#ECE3D6] hover:bg-[#FFFDFC]'
+        }`}
+      >
+        {size}
+      </button>
+    )
+  }
+
+  const groupCaptionClass = 'mb-1.5 text-[10.5px] font-extrabold uppercase tracking-[0.08em] text-[#B5A090]'
 
   function addColors() {
     // Birden fazla renk virgulle ayrilarak tek seferde eklenebilir ("Siyah, Pembe, Beyaz").
@@ -229,19 +272,20 @@ export default function NewProductVariants({
     <div className="space-y-4">
       <div>
         <div className="mb-2 flex items-center justify-between gap-3">
-          <label className="text-[12px] font-bold text-[#5B4839]">
+          <span className="text-[12px] font-bold text-[#5B4839]">
             Beden / Yaş <span className="text-[#C07B5A]">*</span>
-            <span className="ml-1.5 font-semibold text-[#B5A090]">({sizeListLabel})</span>
-          </label>
+          </span>
           <div className="flex shrink-0 gap-3 whitespace-nowrap text-[11.5px] font-bold">
-            {/* Mevcut urunde "tumu" yerine urunun kendi bedenleri secilir (yeni bir rengi hepsine eklemek icin). */}
-            <button
-              type="button"
-              onClick={() => onChange({ ...state, sizes: addingToProduct ? existingSizes : sizeOptions })}
-              className="text-[#C07B5A] hover:underline"
-            >
-              {addingToProduct ? 'Ürünün bedenleri' : 'Tümünü seç'}
-            </button>
+            {/* Mevcut urunde urunun kendi bedenleri tek tikla secilir (yeni bir rengi hepsine eklemek icin). */}
+            {addingToProduct ? (
+              <button
+                type="button"
+                onClick={() => onChange({ ...state, sizes: existingSizes })}
+                className="text-[#C07B5A] hover:underline"
+              >
+                Ürünün bedenleri
+              </button>
+            ) : null}
             <button
               type="button"
               onClick={() => onChange({ ...state, sizes: [] })}
@@ -252,29 +296,67 @@ export default function NewProductVariants({
             </button>
           </div>
         </div>
-        <div className="flex flex-wrap gap-2">
-          {sizeChoices.map((size) => {
-            const active = state.sizes.includes(size)
-            const legacy = !sizeOptions.includes(size)
-            return (
+        <div className="space-y-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <p className={groupCaptionClass}>{sizeListLabel}</p>
+              {/* Yalnizca bu listeyi secer; harf beden ve elle eklenen secimler korunur. */}
               <button
-                key={size}
                 type="button"
-                aria-pressed={active}
-                onClick={() => toggleSize(size)}
-                title={legacy ? 'Bu yazım sabit listede yok; üründe böyle kayıtlı.' : undefined}
-                className={`rounded-full px-3 py-1.5 text-[12px] font-bold transition-colors ${
-                  active
-                    ? 'bg-[#C07B5A] text-white'
-                    : legacy
-                      ? 'border border-dashed border-[#C9B79F] bg-white text-[#7A6656] hover:bg-[#FFFDFC]'
-                      : 'bg-white text-[#5B4839] ring-1 ring-[#ECE3D6] hover:bg-[#FFFDFC]'
-                }`}
+                onClick={() => onChange({ ...state, sizes: [...new Set([...state.sizes, ...sizeOptions])] })}
+                className="mb-1.5 text-[11px] font-bold text-[#C07B5A] hover:underline"
               >
-                {size}
+                Tümünü seç
               </button>
-            )
-          })}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {sizeOptions.map((size) => renderSizeChip(size, 'fixed'))}
+            </div>
+          </div>
+          <div>
+            <p className={groupCaptionClass}>Harf beden</p>
+            <div className="flex flex-wrap gap-2">
+              {LETTER_SIZES.map((size) => renderSizeChip(size, 'fixed'))}
+            </div>
+          </div>
+          {otherSizes.length > 0 ? (
+            <div>
+              <p className={groupCaptionClass}>Diğer</p>
+              <div className="flex flex-wrap gap-2">
+                {otherSizes.map((size) => renderSizeChip(size, 'other'))}
+              </div>
+            </div>
+          ) : null}
+          <div>
+            <label htmlFor={sizeInputId} className={`block ${groupCaptionClass}`}>
+              Listede olmayan beden
+            </label>
+            <div className="flex gap-2">
+              <input
+                id={sizeInputId}
+                type="text"
+                maxLength={160}
+                placeholder="Örn. 3XL, Standart (birden fazlaysa virgülle)"
+                value={sizeInput}
+                onChange={(event) => setSizeInput(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    event.preventDefault()
+                    addTypedSizes()
+                  }
+                }}
+                className={`min-w-0 flex-1 ${fieldClass}`}
+              />
+              <button
+                type="button"
+                onClick={addTypedSizes}
+                disabled={sizeInput.trim() === ''}
+                className="rounded-[10px] border border-[#ECE3D6] bg-white px-3.5 py-2.5 text-[12px] font-bold text-[#C07B5A] hover:bg-[#FFFDFC] disabled:opacity-40"
+              >
+                Ekle
+              </button>
+            </div>
+          </div>
         </div>
         {addingToProduct && existingSizes.length > 0 ? (
           <p className="mt-2 text-[11.5px] text-[#9A8570]">

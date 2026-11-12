@@ -321,7 +321,7 @@ public class OrderService {
         // Yeniden kullanilan bir siparisse onceki rezervasyonu geri ver; kalemler yeniden kurulup
         // guncel miktarlara gore tekrar rezerve edilecek.
         if (!order.getItems().isEmpty()) {
-            stockReservationService.release(order);
+            stockReservationService.releaseForReReservation(order);
         }
         order.getItems().clear();
         resolveAuthenticatedUser(normalizedAuthenticatedEmail).ifPresent(order::setUser);

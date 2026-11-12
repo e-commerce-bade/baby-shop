@@ -111,6 +111,10 @@ public class Order {
     @Column(name = "cancellation_reason", length = 500)
     private String cancellationReason;
 
+    // Kalemlerin stogu rezerve ettigi an; iptalde stogun geri verilip verilmeyecegine karar verir.
+    @Column(name = "stock_reserved_at")
+    private OffsetDateTime stockReservedAt;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     @CreationTimestamp
     private OffsetDateTime createdAt;

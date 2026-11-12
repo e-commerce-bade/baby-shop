@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -251,7 +252,7 @@ public class ProductVariantService {
             return null;
         }
         if (expected == null) {
-            variant.setStockQuantity(requested);
+            setManualStock(variant, requested);
             return null;
         }
         if (requested.equals(expected)) {
@@ -260,8 +261,19 @@ public class ProductVariantService {
         if (variant.getStockQuantity() != expected) {
             return new StockConflictException.StockConflict(variant.getId(), expected, variant.getStockQuantity());
         }
-        variant.setStockQuantity(requested);
+        setManualStock(variant, requested);
         return null;
+    }
+
+    // Elle girilen stok, o ana kadar rezerve edilmis siparisleri de kapsayan guncel sayimdir: bu andan
+    // once rezerve edilmis bir siparis sonradan iptal edilirse stok geri eklenmez (admin'in "0" dedigi
+    // urun eski bir siparisin iptaliyle yeniden satisa acilmasin). Deger ayni kaliyorsa isaretlenmez.
+    private void setManualStock(ProductVariant variant, int requested) {
+        if (variant.getStockQuantity() == requested) {
+            return;
+        }
+        variant.setStockQuantity(requested);
+        variant.setStockAdjustedAt(OffsetDateTime.now());
     }
 
     private void applyStockOrThrow(ProductVariant variant, Integer requested, Integer expected) {

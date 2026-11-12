@@ -57,6 +57,19 @@ class ProductVariantServiceTest {
 
         assertThat(response.stockQuantity()).isEqualTo(4);
         assertThat(variant.getStockQuantity()).isEqualTo(4);
+        // Elle ayar isaretlenir: bundan once rezerve edilmis siparisin iptali stogu geri eklemez.
+        assertThat(variant.getStockAdjustedAt()).isNotNull();
+    }
+
+    @Test
+    void shouldNotMarkStockAsAdjustedWhenTheValueDoesNotChange() {
+        ProductVariant variant = buildVariant(10L, 12);
+        given(productVariantRepository.findByIdAndProductIdForUpdate(10L, 1L)).willReturn(Optional.of(variant));
+        given(productVariantRepository.save(any(ProductVariant.class))).willAnswer(invocation -> invocation.getArgument(0));
+
+        productVariantService.updateProductVariantStock(1L, 10L, 12, null);
+
+        assertThat(variant.getStockAdjustedAt()).isNull();
     }
 
     @Test
@@ -77,6 +90,7 @@ class ProductVariantServiceTest {
         ProductVariantResponse response = productVariantService.updateProductVariantStock(1L, 10L, 7, 5);
 
         assertThat(response.stockQuantity()).isEqualTo(7);
+        assertThat(variant.getStockAdjustedAt()).isNotNull();
     }
 
     @Test
@@ -95,6 +109,7 @@ class ProductVariantServiceTest {
                 });
 
         assertThat(variant.getStockQuantity()).isEqualTo(4);
+        assertThat(variant.getStockAdjustedAt()).isNull();
         verify(productVariantRepository, never()).save(any());
     }
 
@@ -113,6 +128,7 @@ class ProductVariantServiceTest {
 
         assertThat(response.stockQuantity()).isEqualTo(4);
         assertThat(response.price()).isEqualByComparingTo("549.00");
+        assertThat(variant.getStockAdjustedAt()).isNull();
     }
 
     @Test

@@ -48,6 +48,11 @@ public class ProductVariant {
     @Column(name = "stock_quantity", nullable = false)
     private int stockQuantity;
 
+    // Admin'in stogu elle en son degistirdigi an. Bundan once rezerve edilmis siparislerin iptali
+    // stogu geri eklemez (bkz. StockReservationService.release).
+    @Column(name = "stock_adjusted_at")
+    private OffsetDateTime stockAdjustedAt;
+
     @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal price;
 

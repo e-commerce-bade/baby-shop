@@ -41,6 +41,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
@@ -406,6 +407,37 @@ class OrderServiceTest {
 
         // Ayni sepetten yeni siparis olusturulmaz; mevcut PENDING siparis (ayni numara) yeniden kullanilir.
         assertThat(response.orderNumber()).isEqualTo("ORD-EXISTING123");
+    }
+
+    @Test
+    void shouldReturnAReusedOrdersPreviousReservationUnconditionallyBeforeReReserving() {
+        Cart cart = buildCart("ACTIVE");
+        ProductVariant variant = buildVariant(10L, 5, true, true, "TRY");
+        cart.getItems().add(buildCartItem(cart, variant, 1));
+
+        Order existing = new Order();
+        existing.setId(99L);
+        existing.setOrderNumber("ORD-EXISTING123");
+        existing.setStatus("PENDING_PAYMENT");
+        OrderItem previousItem = new OrderItem();
+        previousItem.setOrder(existing);
+        previousItem.setProductVariantId(10L);
+        previousItem.setQuantity(2);
+        existing.getItems().add(previousItem);
+
+        CreateOrderRequest request = new CreateOrderRequest(
+                "session-1", "customer@example.com", "Ceren", "Yilmaz", "5551112233", null, addressRequest(), null, null, null);
+
+        given(cartRepository.findBySessionId("session-1")).willReturn(Optional.of(cart));
+        given(orderRepository.findFirstByCartIdAndStatus(1L, "PENDING_PAYMENT")).willReturn(Optional.of(existing));
+        given(orderRepository.save(any(Order.class))).willAnswer(invocation -> invocation.getArgument(0));
+
+        orderService.createOrder(request, null);
+
+        // Kalemler hemen yeniden rezerve edilecegi icin iptal kurali (admin ayari) burada uygulanmaz.
+        verify(stockReservationService).releaseForReReservation(existing);
+        verify(stockReservationService, never()).release(any(Order.class));
+        verify(stockReservationService).reserve(existing);
     }
 
     @Test

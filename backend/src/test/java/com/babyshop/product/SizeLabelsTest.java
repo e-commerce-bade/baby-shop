@@ -35,4 +35,22 @@ class SizeLabelsTest {
 
         assertThat(sorted).containsExactly("0-3 Ay", "6-12A", "12-18 Ay", "1-2 Yaş", "Mavi", "Siyah");
     }
+
+    @Test
+    void shouldOrderLetterSizesSmallToLargeAfterAges() {
+        List<String> sorted = Stream.of("Oversize", "XL", "S", "Standart", "BATTAL", "M", "3XL", "XXL", "L", "XS", "2-3 Yaş")
+                .sorted(SizeLabels.ORDER)
+                .toList();
+
+        assertThat(sorted).containsExactly("2-3 Yaş", "XS", "S", "M", "L", "XL", "XXL", "3XL", "BATTAL", "Oversize", "Standart");
+    }
+
+    @Test
+    void shouldTreatTurkishCapitalDottedIAsLetterSize() {
+        List<String> sorted = Stream.of("OVERSİZE", "xl", "s")
+                .sorted(SizeLabels.ORDER)
+                .toList();
+
+        assertThat(sorted).containsExactly("s", "xl", "OVERSİZE");
+    }
 }

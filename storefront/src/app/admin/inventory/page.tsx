@@ -7,7 +7,7 @@ import ImageLightbox from '@/components/admin/ImageLightbox'
 import MultiSelect from '@/components/admin/MultiSelect'
 import { downloadCsv } from '@/lib/csv'
 import { PRICE_INPUT_HINT, STOCK_INPUT_HINT, parsePriceInput, parseStockInput } from '@/lib/numberInput'
-import { BABY_MONTH_SIZES, KIDS_AGE_SIZES, compareSizeLabels, sizeOptionsForCategory } from '@/lib/sizes'
+import { BABY_MONTH_SIZES, KIDS_AGE_SIZES, LETTER_SIZES, compareSizeLabels, fixedSizesForCategory } from '@/lib/sizes'
 import { STOCK_CONFLICT_HINT, readStockConflicts, type StockConflict } from '@/lib/stockConflict'
 import { foldForSearch, formatPrice } from '@/lib/utils'
 
@@ -1247,7 +1247,7 @@ export default function AdminInventoryPage() {
                   className="h-9 rounded-[9px] border border-[#ECE3D6] bg-white px-2 text-[13px] text-[#3D2B1F] outline-none focus:border-[#A89070]"
                 >
                   <option value="">Beden seç…</option>
-                  {[...KIDS_AGE_SIZES, ...BABY_MONTH_SIZES].map((size) => (
+                  {[...KIDS_AGE_SIZES, ...BABY_MONTH_SIZES, ...LETTER_SIZES].map((size) => (
                     <option key={size} value={size}>{size}</option>
                   ))}
                 </select>
@@ -1329,7 +1329,7 @@ function VariantEditDrawer({
   }
 
   // Beden sabit listeden secilir; listede olmayan eski bir etiket varsa o da secenek olarak kalir.
-  const fixedSizes = sizeOptionsForCategory(row.categoryName).sizes
+  const fixedSizes = fixedSizesForCategory(row.categoryName)
   const sizeChoices = fixedSizes.includes(row.sizeLabel) ? fixedSizes : [row.sizeLabel, ...fixedSizes]
 
   return (

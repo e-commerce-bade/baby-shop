@@ -456,7 +456,7 @@ export default function ProductVariantEditor({
                 </select>
                 {!sizeOptions.includes(draftSize) ? (
                   <span
-                    title="Bu beden sabit listede yok. Açılır listeden doğru aralığı seçip kaydedin veya bedeni silin."
+                    title="Bu beden sabit listede yok (elle eklenmiş ya da eski bir yazım). Yanlışsa açılır listeden doğru bedeni seçip kaydedin."
                     className="rounded-full bg-[#FFF3E0] px-2 py-0.5 text-[10.5px] font-bold text-[#9A5B20]"
                   >
                     listede yok

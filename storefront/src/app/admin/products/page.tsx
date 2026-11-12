@@ -14,7 +14,7 @@ import NewProductVariants, {
 import { parsePriceInput, parseStockInput } from '@/lib/numberInput'
 import ProductVariantEditor, { type AdminVariant } from '@/components/admin/ProductVariantEditor'
 import MultiSelect from '@/components/admin/MultiSelect'
-import { compareSizeLabels, sizeOptionsForCategory } from '@/lib/sizes'
+import { compareSizeLabels, fixedSizesForCategory, isCategoryAgeSize, sizeOptionsForCategory } from '@/lib/sizes'
 import { foldForSearch, formatPrice } from '@/lib/utils'
 import { filterProductTypes } from '@/lib/mock/filterData'
 
@@ -396,9 +396,13 @@ function WorkingAddProductDrawer({
 
   function handleCategoryChange(value: string) {
     setCategoryId(value)
-    // Bebek kategorilerinde ay, digerlerinde yas listesi gecerli; yeni listede olmayan secimler duser.
+    // Bebek kategorilerinde ay, digerlerinde yas listesi gecerli; diger listeden secilmis yas/aylar duser.
+    // Harf bedenler ve elle eklenen bedenler her kategoride gecerli oldugu icin korunur.
     const nextSizes = sizeOptionsForCategory(categories.find((category) => String(category.id) === value)?.name).sizes
-    setVariantState((current) => ({ ...current, sizes: current.sizes.filter((size) => nextSizes.includes(size)) }))
+    setVariantState((current) => ({
+      ...current,
+      sizes: current.sizes.filter((size) => nextSizes.includes(size) || !isCategoryAgeSize(size)),
+    }))
   }
 
   function addColorImage(color: string, draft: ColorImageDraft) {
@@ -1378,7 +1382,7 @@ function ProductManagementDrawer({
                 <ProductVariantEditor
                   key={product.id}
                   variants={detailVariants}
-                  sizeOptions={sizeOptionsForCategory(selectedCategoryName).sizes}
+                  sizeOptions={fixedSizesForCategory(selectedCategoryName)}
                   onChange={handleVariantsEdited}
                   onDirtyChange={setUnsavedVariantCount}
                 />
